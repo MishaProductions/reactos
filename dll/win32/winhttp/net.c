@@ -756,50 +756,6 @@ static DWORD resolve_hostname( const WCHAR *name, INTERNET_PORT port, struct soc
     return ERROR_SUCCESS;
 }
 
-#ifdef __REACTOS__
-
-struct resolve_args
-{
-    const WCHAR             *hostname;
-    INTERNET_PORT            port;
-    struct sockaddr_storage *sa;
-};
-
-static DWORD CALLBACK resolve_proc( LPVOID arg )
-{
-    struct resolve_args *ra = arg;
-    return resolve_hostname( ra->hostname, ra->port, ra->sa );
-}
-
-DWORD netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_storage *sa, int timeout )
-{
-    DWORD ret;
-
-    if (timeout)
-    {
-        DWORD status;
-        HANDLE thread;
-        struct resolve_args ra;
-
-        ra.hostname = hostname;
-        ra.port     = port;
-        ra.sa       = sa;
-
-        thread = CreateThread( NULL, 0, resolve_proc, &ra, 0, NULL );
-        if (!thread) return GetLastError();
-
-        status = WaitForSingleObject( thread, timeout );
-        if (status == WAIT_OBJECT_0) GetExitCodeThread( thread, &ret );
-        else ret = ERROR_WINHTTP_TIMEOUT;
-        CloseHandle( thread );
-    }
-    else ret = resolve_hostname( hostname, port, sa );
-
-    return ret;
-}
-
-#else /* __REACTOS__ */
-
 struct async_resolve
 {
     LONG                     ref;
@@ -856,26 +812,29 @@ DWORD netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_stor
     if (!timeout) ret = resolve_hostname( hostname, port, addr );
     else
     {
-        struct async_resolve async;
+        struct async_resolve *async;
 
-        async.hostname = hostname;
-        async.port     = port;
-        async.addr     = addr;
-        if (!(async.done = CreateEventW( NULL, FALSE, FALSE, NULL ))) return FALSE;
-        if (!(async.done = CreateEventW( NULL, FALSE, FALSE, NULL ))) return GetLastError();
+        if (!(async = create_async_resolve( hostname, port )))
+            return ERROR_OUTOFMEMORY;
+
+        InterlockedIncrement( &async->ref );
+        if (!TrySubmitThreadpoolCallback( resolve_proc, async, NULL ))
         {
-            CloseHandle( async.done );
+            InterlockedDecrement( &async->ref );
+            async_resolve_release( async );
             return GetLastError();
         }
-        if (WaitForSingleObject( async.done, timeout ) != WAIT_OBJECT_0) ret = ERROR_WINHTTP_TIMEOUT;
-        else ret = async.result;
-        CloseHandle( async.done );
+        if (WaitForSingleObject( async->done, timeout ) != WAIT_OBJECT_0) ret = ERROR_WINHTTP_TIMEOUT;
+        else
+        {
+            *addr = async->addr;
+            ret = async->result;
+        }
+        async_resolve_release( async );
     }
 
     return ret;
 }
-
-#endif /* __REACTOS__ */
 
 const void *netconn_get_certificate( struct netconn *conn )
 {
