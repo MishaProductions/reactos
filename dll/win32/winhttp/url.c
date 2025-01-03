@@ -210,8 +210,8 @@ BOOL WINAPI WinHttpCrackUrl( LPCWSTR url, DWORD len, DWORD flags, LPURL_COMPONEN
         SetLastError( ERROR_WINHTTP_UNRECOGNIZED_SCHEME );
         return FALSE;
     }
-    if (p - url == 4 && !wcsnicmp( url, L"http", 4 )) scheme_number = INTERNET_SCHEME_HTTP;
-    else if (p - url == 5 && !wcsnicmp( url, L"https", 5 )) scheme_number = INTERNET_SCHEME_HTTPS;
+    if (p - url == 4 && !_wcsnicmp( url, L"http", 4 )) scheme_number = INTERNET_SCHEME_HTTP;
+    else if (p - url == 5 && !_wcsnicmp( url, L"https", 5 )) scheme_number = INTERNET_SCHEME_HTTPS;
     else
     {
         err = ERROR_WINHTTP_UNRECOGNIZED_SCHEME;
@@ -414,7 +414,7 @@ static BOOL get_url_length( URL_COMPONENTS *uc, DWORD flags, DWORD *len )
         {
             WCHAR port[sizeof("65535")];
 
-            *len += swprintf( port, ARRAY_SIZE(port), L"%u", uc->nPort );
+            *len += swprintf( port, L"%u", uc->nPort );
             *len += 1; /* ":" */
         }
         if (uc->lpszUrlPath && *uc->lpszUrlPath != '/') *len += 1; /* '/' */
@@ -505,7 +505,7 @@ BOOL WINAPI WinHttpCreateUrl( LPURL_COMPONENTS uc, DWORD flags, LPWSTR url, LPDW
         if (!uses_default_port( scheme, uc->nPort ))
         {
             *url++ = ':';
-            url += swprintf( url, sizeof("65535"), L"%u", uc->nPort );
+            url += swprintf( url, L"%u", uc->nPort );
         }
 
         /* add slash between hostname and path if necessary */

@@ -5013,6 +5013,7 @@ START_TEST (winhttp)
         test_cookies(si.port);
         test_request_path_escapes(si.port);
         test_passport_auth(si.port);
+        test_websocket(si.port);
 
         /* send the basic request again to shutdown the server thread */
         test_basic_request(si.port, NULL, L"/quit");

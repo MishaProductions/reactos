@@ -376,7 +376,7 @@ static BOOL domain_matches(LPCWSTR server, LPCWSTR domain)
 {
     BOOL ret = FALSE;
 
-    if (!wcsicmp( domain, L"<local>" ) && !wcschr( server, '.' ))
+    if (!_wcsicmp( domain, L"<local>" ) && !wcschr( server, '.' ))
         ret = TRUE;
     else if (*domain == '*')
     {
@@ -402,7 +402,7 @@ static BOOL domain_matches(LPCWSTR server, LPCWSTR domain)
                      * server's domain.
                      */
                     ptr = dot + len + 1 - lstrlenW( domain + 2 );
-                    if (!wcsicmp( ptr, domain + 2 ))
+                    if (!_wcsicmp( ptr, domain + 2 ))
                     {
                         /* This is only a match if the preceding character is
                          * a '.', i.e. that it is a matching domain.  E.g.
@@ -413,12 +413,12 @@ static BOOL domain_matches(LPCWSTR server, LPCWSTR domain)
                     }
                 }
                 else
-                    ret = !wcsicmp( dot + 1, domain + 2 );
+                    ret = !_wcsicmp( dot + 1, domain + 2 );
             }
         }
     }
     else
-        ret = !wcsicmp( server, domain );
+        ret = !_wcsicmp( server, domain );
     return ret;
 }
 
@@ -467,7 +467,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
 
         if ((colon = wcschr( session->proxy_server, ':' )))
         {
-            if (!connect->servername || wcsnicmp( connect->servername,
+            if (!connect->servername || _wcsnicmp( connect->servername,
                 session->proxy_server, colon - session->proxy_server - 1 ))
             {
                 heap_free( connect->servername );
@@ -489,7 +489,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
         }
         else
         {
-            if (!connect->servername || wcsicmp( connect->servername,
+            if (!connect->servername || _wcsicmp( connect->servername,
                 session->proxy_server ))
             {
                 heap_free( connect->servername );
@@ -1407,7 +1407,7 @@ static BOOL is_domain_suffix( const char *domain, const char *suffix )
     int len_domain = strlen( domain ), len_suffix = strlen( suffix );
 
     if (len_suffix > len_domain) return FALSE;
-    if (!stricmp( domain + len_domain - len_suffix, suffix )) return TRUE;
+    if (!_stricmp( domain + len_domain - len_suffix, suffix )) return TRUE;
     return FALSE;
 }
 
@@ -2159,7 +2159,7 @@ BOOL WINAPI WinHttpTimeFromSystemTime( const SYSTEMTIME *time, LPWSTR string )
         return FALSE;
     }
 
-    swprintf( string, WINHTTP_TIME_FORMAT_BUFSIZE / sizeof(WCHAR),
+    swprintf( string,
               L"%s, %02d %s %4d %02d:%02d:%02d GMT",
               wkday[time->wDayOfWeek],
               time->wDay,

@@ -687,7 +687,7 @@ static DWORD CALLBACK resolve_proc( LPVOID arg )
     return resolve_hostname( ra->hostname, ra->port, ra->sa );
 }
 
-BOOL netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_storage *sa, int timeout )
+DWORD netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_storage *sa, int timeout )
 {
     DWORD ret;
 
@@ -702,7 +702,7 @@ BOOL netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_stora
         ra.sa       = sa;
 
         thread = CreateThread( NULL, 0, resolve_proc, &ra, 0, NULL );
-        if (!thread) return FALSE;
+        if (!thread) return GetLastError();
 
         status = WaitForSingleObject( thread, timeout );
         if (status == WAIT_OBJECT_0) GetExitCodeThread( thread, &ret );
@@ -711,12 +711,7 @@ BOOL netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_stora
     }
     else ret = resolve_hostname( hostname, port, sa );
 
-    if (ret)
-    {
-        SetLastError( ret );
-        return FALSE;
-    }
-    return TRUE;
+    return ret;
 }
 
 #else /* __REACTOS__ */
