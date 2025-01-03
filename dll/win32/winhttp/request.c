@@ -47,6 +47,14 @@ WINE_DEFAULT_DEBUG_CHANNEL(winhttp);
 
 #define DEFAULT_KEEP_ALIVE_TIMEOUT 30000
 
+#define ACTUAL_DEFAULT_RECEIVE_RESPONSE_TIMEOUT 21000
+
+static int request_receive_response_timeout( struct request *req )
+{
+    if (req->receive_response_timeout == -1) return ACTUAL_DEFAULT_RECEIVE_RESPONSE_TIMEOUT;
+    return req->receive_response_timeout;
+}
+
 static const WCHAR *attribute_table[] =
 {
     L"Mime-Version",                /* WINHTTP_QUERY_MIME_VERSION               = 0  */
@@ -1686,7 +1694,7 @@ static DWORD open_connection( struct request *request )
             return ret;
         }
         netconn_set_timeout( netconn, TRUE, request->send_timeout );
-        netconn_set_timeout( netconn, FALSE, request->receive_response_timeout );
+        netconn_set_timeout( netconn, FALSE, request_receive_response_timeout( request ));
 
         request->netconn = netconn;
 
@@ -1724,7 +1732,7 @@ static DWORD open_connection( struct request *request )
         TRACE("using connection %p\n", netconn);
 
         netconn_set_timeout( netconn, TRUE, request->send_timeout );
-        netconn_set_timeout( netconn, FALSE, request->receive_response_timeout );
+        netconn_set_timeout( netconn, FALSE, request_receive_response_timeout( request ));
         request->netconn = netconn;
     }
 
@@ -2356,7 +2364,7 @@ static DWORD send_request( struct request *request, const WCHAR *headers, DWORD 
 
     if (!chunked && content_length <= optional_len)
     {
-        netconn_set_timeout( request->netconn, FALSE, request->receive_response_timeout );
+        netconn_set_timeout( request->netconn, FALSE, request_receive_response_timeout( request ));
         request->read_reply_status = read_reply( request );
         if (request->state == REQUEST_RESPONSE_STATE_READ_RESPONSE_QUEUED)
             request->state = REQUEST_RESPONSE_STATE_READ_RESPONSE_QUEUED_REPLY_RECEIVED;
@@ -2959,7 +2967,7 @@ static DWORD receive_response( struct request *request )
         }
         /* fallthrough */
     case REQUEST_RESPONSE_STATE_READ_RESPONSE_QUEUED_REQUEST_SENT:
-        netconn_set_timeout( request->netconn, FALSE, request->receive_response_timeout );
+        netconn_set_timeout( request->netconn, FALSE, request_receive_response_timeout( request ));
         request->read_reply_status = read_reply( request );
         request->state = REQUEST_RESPONSE_STATE_REPLY_RECEIVED;
         break;
