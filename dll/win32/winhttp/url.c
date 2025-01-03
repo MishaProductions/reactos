@@ -189,25 +189,26 @@ BOOL WINAPI WinHttpCrackUrl( LPCWSTR url, DWORD len, DWORD flags, LPURL_COMPONEN
 
     if (flags & ICU_ESCAPE)
     {
-        if ((err = escape_url( url, &len, &url_escaped )))
+        if ((err = escape_url( url, &len, &url_transformed )))
         {
             SetLastError( err );
             return FALSE;
         }
-        url = url_escaped;
+        url = url_transformed;
     }
     else if (flags & ICU_DECODE)
     {
-        if (!(url_decoded = decode_url( url, &len )))
+        if (!(url_transformed = decode_url( url, &len )))
         {
             SetLastError( ERROR_OUTOFMEMORY );
             return FALSE;
         }
-        url = url_decoded;
+        url = url_transformed;
     }
     if (!(p = wcschr( url, ':' )))
     {
         SetLastError( ERROR_WINHTTP_UNRECOGNIZED_SCHEME );
+        free( url_transformed );
         return FALSE;
     }
     if (p - url == 4 && !_wcsnicmp( url, L"http", 4 )) scheme_number = INTERNET_SCHEME_HTTP;
