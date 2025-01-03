@@ -970,6 +970,7 @@ WinHttpOpenRequest(
   _In_ DWORD);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpQueryAuthParams(
   _In_ HINTERNET,
@@ -977,6 +978,7 @@ WinHttpQueryAuthParams(
   _Out_ LPVOID*);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpQueryAuthSchemes(
   _In_ HINTERNET,
@@ -985,6 +987,7 @@ WinHttpQueryAuthSchemes(
   _Out_ LPDWORD);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpQueryDataAvailable(
   _In_ HINTERNET,
@@ -992,6 +995,7 @@ WinHttpQueryDataAvailable(
 
 _Success_(return != 0)
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpQueryHeaders(
   _In_ HINTERNET,
@@ -1003,6 +1007,7 @@ WinHttpQueryHeaders(
 
 _Success_(return != 0)
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpQueryOption(
   _In_ HINTERNET,
@@ -1011,6 +1016,7 @@ WinHttpQueryOption(
   _Inout_ LPDWORD lpdwBufferLength);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpReadData(
   _In_ HINTERNET,
@@ -1019,6 +1025,7 @@ WinHttpReadData(
   _Out_ LPDWORD lpdwNumberOfBytesRead);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpReadProxySettings(
   _In_ HINTERNET,
@@ -1029,11 +1036,12 @@ WinHttpReadProxySettings(
   BOOL*,
   _Out_ PWINHTTP_PROXY_SETTINGS);
 
-BOOL WINAPI WinHttpReceiveResponse(_In_ HINTERNET, _Reserved_ LPVOID);
+BOOL WINHTTPAPI WINAPI WinHttpReceiveResponse(_In_ HINTERNET, _Reserved_ LPVOID);
 
-DWORD WINAPI WinHttpResetAutoProxy(_In_ HINTERNET, _In_ DWORD);
+DWORD WINHTTPAPI WINAPI WinHttpResetAutoProxy(_In_ HINTERNET, _In_ DWORD);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpSendRequest(
   _In_ HINTERNET,
@@ -1045,11 +1053,13 @@ WinHttpSendRequest(
   _In_ DWORD_PTR);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpSetDefaultProxyConfiguration(
   _In_ WINHTTP_PROXY_INFO*);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpSetCredentials(
   _In_ HINTERNET,
@@ -1060,6 +1070,7 @@ WinHttpSetCredentials(
   _Reserved_ LPVOID);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpSetOption(
   _In_opt_ HINTERNET,
@@ -1080,6 +1091,7 @@ WinHttpSetOption(
   _In_ DWORD dwBufferLength);
 
 WINHTTP_STATUS_CALLBACK
+WINHTTPAPI
 WINAPI
 WinHttpSetStatusCallback(
   _In_ HINTERNET,
@@ -1088,6 +1100,7 @@ WinHttpSetStatusCallback(
   _Reserved_ DWORD_PTR);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpSetTimeouts(
   _In_ HINTERNET,
@@ -1097,6 +1110,7 @@ WinHttpSetTimeouts(
   _In_ int);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpTimeFromSystemTime(
   _In_ CONST SYSTEMTIME *,
@@ -1105,6 +1119,7 @@ WinHttpTimeFromSystemTime(
 BOOL WINAPI WinHttpTimeToSystemTime(_In_z_ LPCWSTR, _Out_ SYSTEMTIME*);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpWebSocketClose(
   _In_ HINTERNET,
@@ -1113,12 +1128,14 @@ WinHttpWebSocketClose(
   _In_ DWORD);
 
 HINTERNET
+WINHTTPAPI
 WINAPI
 WinHttpWebSocketCompleteUpgrade(
   _In_ HINTERNET,
   _In_opt_ DWORD_PTR);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpWebSocketQueryCloseStatus(
   _In_ HINTERNET,
@@ -1128,6 +1145,7 @@ WinHttpWebSocketQueryCloseStatus(
   _Out_ DWORD*);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpWebSocketReceive(
   _In_ HINTERNET,
@@ -1137,6 +1155,7 @@ WinHttpWebSocketReceive(
   _Out_ WINHTTP_WEB_SOCKET_BUFFER_TYPE*);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpWebSocketSend(
   _In_ HINTERNET,
@@ -1145,6 +1164,7 @@ WinHttpWebSocketSend(
   _In_ DWORD dwBufferLength);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpWebSocketShutdown(
   _In_ HINTERNET,
@@ -1153,6 +1173,7 @@ WinHttpWebSocketShutdown(
   _In_ DWORD dwReasonLength);
 
 BOOL
+WINHTTPAPI
 WINAPI
 WinHttpWriteData(
   _In_ HINTERNET,
@@ -1161,6 +1182,7 @@ WinHttpWriteData(
   _Out_ LPDWORD);
 
 DWORD
+WINHTTPAPI
 WINAPI
 WinHttpWriteProxySettings(
   _In_ HINTERNET,

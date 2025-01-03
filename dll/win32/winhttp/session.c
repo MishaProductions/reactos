@@ -1944,7 +1944,7 @@ static void cache_script( const WCHAR *url, char *buffer, DWORD size )
     cached_script_size = 0;
     cached_script = NULL;
 
-    if ((cached_url = wcsdup( url )) && buffer && (cached_script = malloc( size )))
+    if ((cached_url = _wcsdup( url )) && buffer && (cached_script = malloc( size )))
     {
         memcpy( cached_script, buffer, size );
         cached_script_size = size;
