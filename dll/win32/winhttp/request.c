@@ -1950,7 +1950,7 @@ static DWORD refill_buffer( struct request *request, BOOL notify )
 
 static void finished_reading( struct request *request )
 {
-    BOOL close = FALSE, notify;
+    BOOL close = FALSE, close_request_headers;
     WCHAR connection[20];
     DWORD size = sizeof(connection);
 
