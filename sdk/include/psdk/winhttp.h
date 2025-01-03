@@ -25,7 +25,12 @@
 #include <pshpack4.h>
 #endif
 
-#define WINHTTPAPI
+#ifdef _WINHTTP_INTERNAL_
+# define WINHTTPAPI
+#else
+# define WINHTTPAPI DECLSPEC_IMPORT
+#endif
+
 #define BOOLAPI WINHTTPAPI BOOL WINAPI
 
 
