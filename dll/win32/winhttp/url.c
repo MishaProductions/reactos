@@ -172,7 +172,7 @@ static DWORD parse_port( const WCHAR *str, DWORD len, INTERNET_PORT *ret )
  */
 BOOL WINAPI WinHttpCrackUrl( LPCWSTR url, DWORD len, DWORD flags, LPURL_COMPONENTSW uc )
 {
-    WCHAR *p, *q, *r, *url_decoded = NULL, *url_escaped = NULL;
+    WCHAR *p, *q, *r, *url_transformed = NULL;
     INTERNET_SCHEME scheme_number = 0;
     struct url_component scheme, username, password, hostname, path, extra;
     BOOL overflow = FALSE;
@@ -331,8 +331,7 @@ exit:
         if (overflow) err = ERROR_INSUFFICIENT_BUFFER;
         uc->nScheme = scheme_number;
     }
-    free( url_decoded );
-    free( url_escaped );
+    free( url_transformed );
     SetLastError( err );
     return !err;
 }
