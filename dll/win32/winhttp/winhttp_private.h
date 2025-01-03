@@ -53,6 +53,7 @@ struct object_header
     DWORD notify_mask;
     LONG recursion_count;
     struct list entry;
+    volatile LONG pending_sends;
 };
 
 struct hostdata
