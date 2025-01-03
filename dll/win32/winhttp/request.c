@@ -3880,10 +3880,10 @@ static void free_request( struct winhttp_request *request )
 #endif
     CloseHandle( request->wait );
     CloseHandle( request->cancel );
-    heap_free( (WCHAR *)request->proxy.lpszProxy );
-    heap_free( (WCHAR *)request->proxy.lpszProxyBypass );
-    heap_free( request->buffer );
-    heap_free( request->verb );
+    free( (WCHAR *)request->proxy.lpszProxy );
+    free( (WCHAR *)request->proxy.lpszProxyBypass );
+    free( request->buffer );
+    free( request->verb );
     VariantClear( &request->data );
 }
 
@@ -4127,16 +4127,16 @@ static HRESULT WINAPI winhttp_request_SetProxy(
     {
     case HTTPREQUEST_PROXYSETTING_DEFAULT:
         request->proxy.dwAccessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-        heap_free( (WCHAR *)request->proxy.lpszProxy );
-        heap_free( (WCHAR *)request->proxy.lpszProxyBypass );
+        free( (WCHAR *)request->proxy.lpszProxy );
+        free( (WCHAR *)request->proxy.lpszProxyBypass );
         request->proxy.lpszProxy = NULL;
         request->proxy.lpszProxyBypass = NULL;
         break;
 
     case HTTPREQUEST_PROXYSETTING_DIRECT:
         request->proxy.dwAccessType = WINHTTP_ACCESS_TYPE_NO_PROXY;
-        heap_free( (WCHAR *)request->proxy.lpszProxy );
-        heap_free( (WCHAR *)request->proxy.lpszProxyBypass );
+        free( (WCHAR *)request->proxy.lpszProxy );
+        free( (WCHAR *)request->proxy.lpszProxyBypass );
         request->proxy.lpszProxy = NULL;
         request->proxy.lpszProxyBypass = NULL;
         break;
@@ -4145,12 +4145,12 @@ static HRESULT WINAPI winhttp_request_SetProxy(
         request->proxy.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
         if (V_VT( &proxy_server ) == VT_BSTR)
         {
-            heap_free( (WCHAR *)request->proxy.lpszProxy );
+            free( (WCHAR *)request->proxy.lpszProxy );
             request->proxy.lpszProxy = strdupW( V_BSTR( &proxy_server ) );
         }
         if (V_VT( &bypass_list ) == VT_BSTR)
         {
-            heap_free( (WCHAR *)request->proxy.lpszProxyBypass );
+            free( (WCHAR *)request->proxy.lpszProxyBypass );
             request->proxy.lpszProxyBypass = strdupW( V_BSTR( &bypass_list ) );
         }
         break;
@@ -4893,7 +4893,7 @@ static DWORD request_get_codepage( struct winhttp_request *request, UINT *codepa
                 if (!_wcsicmp( p, L"utf-8" )) *codepage = CP_UTF8;
             }
         }
-        heap_free( buffer );
+        free( buffer );
     }
     return ERROR_SUCCESS;
 }

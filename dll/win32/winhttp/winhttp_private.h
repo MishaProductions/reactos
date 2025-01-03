@@ -19,6 +19,8 @@
 #ifndef _WINE_WINHTTP_PRIVATE_H_
 #define _WINE_WINHTTP_PRIVATE_H_
 
+#include <wine/heap.h>
+
 #include "ole2.h"
 #include "sspi.h"
 #include "wincrypt.h"

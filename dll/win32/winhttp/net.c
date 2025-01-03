@@ -193,14 +193,14 @@ DWORD netconn_create( struct hostdata *host, const struct sockaddr_storage *sock
     winsock_init();
 #endif
 
-    if (!(conn = heap_alloc_zero( sizeof(*conn) ))) return ERROR_OUTOFMEMORY;
+    if (!(conn = calloc( 1, sizeof(*conn) ))) return ERROR_OUTOFMEMORY;
     conn->host = host;
     conn->sockaddr = *sockaddr;
     if ((conn->socket = socket( sockaddr->ss_family, SOCK_STREAM, 0 )) == -1)
     {
         ret = WSAGetLastError();
         WARN("unable to create socket (%u)\n", ret);
-        heap_free( conn );
+        free( conn );
         return ret;
     }
 

@@ -470,16 +470,14 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
             if (!connect->servername || _wcsnicmp( connect->servername,
                 session->proxy_server, colon - session->proxy_server - 1 ))
             {
-                heap_free( connect->servername );
+                free( connect->servername );
                 connect->resolved = FALSE;
-                if (!(connect->servername = heap_alloc(
-                    (colon - session->proxy_server + 1) * sizeof(WCHAR) )))
+                if (!(connect->servername = malloc( (colon - session->proxy_server + 1) * sizeof(WCHAR) )))
                 {
                     ret = FALSE;
                     goto end;
                 }
-                memcpy( connect->servername, session->proxy_server,
-                    (colon - session->proxy_server) * sizeof(WCHAR) );
+                memcpy( connect->servername, session->proxy_server, (colon - session->proxy_server) * sizeof(WCHAR) );
                 connect->servername[colon - session->proxy_server] = 0;
                 if (*(colon + 1))
                     connect->serverport = wcstol( colon + 1, NULL, 10 );
@@ -489,10 +487,9 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
         }
         else
         {
-            if (!connect->servername || _wcsicmp( connect->servername,
-                session->proxy_server ))
+            if (!connect->servername || wcsicmp( connect->servername, session->proxy_server ))
             {
-                heap_free( connect->servername );
+                free( connect->servername );
                 connect->resolved = FALSE;
                 if (!(connect->servername = strdupW( session->proxy_server )))
                 {
