@@ -286,8 +286,7 @@ HINTERNET WINAPI WinHttpOpen( LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCWST
         if (bypass && !(session->proxy_bypass = strdupW( bypass ))) goto end;
     }
 
-    if (!(handle = alloc_handle( &session->hdr ))) goto end;
-    session->hdr.handle = handle;
+    handle = alloc_handle( &session->hdr );
 
 #ifdef __REACTOS__
     winsock_init();
