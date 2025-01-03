@@ -1,11 +1,11 @@
 
 remove_definitions(-D_WIN32_WINNT=0x502)
 add_definitions(-D_WIN32_WINNT=0x600)
-add_definitions(-D__ROS_LONG64__)
 
 add_definitions(
     -D__WINESRC__
-    -D_WINE)
+    -D_WINE
+    -D__ROS_LONG64__)
 
 include_directories(${REACTOS_SOURCE_DIR}/sdk/include/reactos/wine)
 spec2def(winhttp.dll winhttp.spec ADD_IMPORTLIB)
