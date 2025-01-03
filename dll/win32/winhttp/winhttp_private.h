@@ -155,6 +155,16 @@ struct authinfo
     BOOL finished; /* finished authenticating */
 };
 
+struct queue
+{
+    struct object_header *object;
+    CRITICAL_SECTION cs;
+    BOOL proc_running;
+    HANDLE wait;
+    HANDLE cancel;
+    struct list tasks;
+};
+
 enum request_flags
 {
     REQUEST_FLAG_WEBSOCKET_UPGRADE = 0x01,
@@ -221,7 +231,7 @@ struct socket
 struct task_header
 {
     struct list entry;
-    struct request *request;
+    struct object_header *object;
     void (*proc)( struct task_header * );
 };
 

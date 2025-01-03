@@ -2268,8 +2268,10 @@ end:
 
 static void task_send_request( struct task_header *task )
 {
+    struct request *request = (struct request *)task->object;
     struct send_request *s = (struct send_request *)task;
-    send_request( s->hdr.request, s->headers, s->headers_len, s->optional, s->optional_len, s->total_len, s->context, TRUE );
+
+    send_request( request, s->headers, s->headers_len, s->optional, s->optional_len, s->total_len, s->context, TRUE );
     heap_free( s->headers );
 }
 
@@ -2303,8 +2305,8 @@ BOOL WINAPI WinHttpSendRequest( HINTERNET hrequest, LPCWSTR headers, DWORD heade
     {
         struct send_request *s;
 
-        if (!(s = heap_alloc( sizeof(struct send_request) ))) return FALSE;
-        s->hdr.request  = request;
+        if (!(s = heap_alloc( sizeof(*s) ))) return FALSE;
+        s->hdr.object   = &request->hdr;
         s->hdr.proc     = task_send_request;
         s->headers      = strdupW( headers );
         s->headers_len  = headers_len;
@@ -2314,10 +2316,9 @@ BOOL WINAPI WinHttpSendRequest( HINTERNET hrequest, LPCWSTR headers, DWORD heade
         s->context      = context;
 
         addref_object( &request->hdr );
-        ret = queue_task( (struct task_header *)s );
+        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)s );
     }
-    else
-        ret = send_request( request, headers, headers_len, optional, optional_len, total_len, context, FALSE );
+    else ret = send_request( request, headers, headers_len, optional, optional_len, total_len, context, FALSE );
 
     release_object( &request->hdr );
     SetLastError( ret );
@@ -2848,8 +2849,8 @@ static DWORD receive_response( struct request *request, BOOL async )
 
 static void task_receive_response( struct task_header *task )
 {
-    struct receive_response *r = (struct receive_response *)task;
-    receive_response( r->hdr.request, TRUE );
+    struct request *request = (struct request *)task->object;
+    receive_response( request, TRUE );
 }
 
 /***********************************************************************
@@ -2878,15 +2879,14 @@ BOOL WINAPI WinHttpReceiveResponse( HINTERNET hrequest, LPVOID reserved )
     {
         struct receive_response *r;
 
-        if (!(r = heap_alloc( sizeof(struct receive_response) ))) return FALSE;
-        r->hdr.request = request;
-        r->hdr.proc    = task_receive_response;
+        if (!(r = heap_alloc( sizeof(*r) ))) return FALSE;
+        r->hdr.object = &request->hdr;
+        r->hdr.proc   = task_receive_response;
 
         addref_object( &request->hdr );
-        ret = queue_task( (struct task_header *)r );
+        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)r );
     }
-    else
-        ret = receive_response( request, FALSE );
+    else ret = receive_response( request, FALSE );
 
     release_object( &request->hdr );
     SetLastError( ret );
@@ -2928,8 +2928,10 @@ done:
 
 static void task_query_data_available( struct task_header *task )
 {
+    struct request *request = (struct request *)task->object;
     struct query_data *q = (struct query_data *)task;
-    query_data_available( q->hdr.request, q->available, TRUE );
+
+    query_data_available( request, q->available, TRUE );
 }
 
 /***********************************************************************
@@ -2958,16 +2960,15 @@ BOOL WINAPI WinHttpQueryDataAvailable( HINTERNET hrequest, LPDWORD available )
     {
         struct query_data *q;
 
-        if (!(q = heap_alloc( sizeof(struct query_data) ))) return FALSE;
-        q->hdr.request = request;
-        q->hdr.proc    = task_query_data_available;
-        q->available   = available;
+        if (!(q = heap_alloc( sizeof(*q) ))) return FALSE;
+        q->hdr.object = &request->hdr;
+        q->hdr.proc   = task_query_data_available;
+        q->available  = available;
 
         addref_object( &request->hdr );
-        ret = queue_task( (struct task_header *)q );
+        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)q );
     }
-    else
-        ret = query_data_available( request, available, FALSE );
+    else ret = query_data_available( request, available, FALSE );
 
     release_object( &request->hdr );
     SetLastError( ret );
@@ -2976,8 +2977,10 @@ BOOL WINAPI WinHttpQueryDataAvailable( HINTERNET hrequest, LPDWORD available )
 
 static void task_read_data( struct task_header *task )
 {
+    struct request *request = (struct request *)task->object;
     struct read_data *r = (struct read_data *)task;
-    read_data( r->hdr.request, r->buffer, r->to_read, r->read, TRUE );
+
+    read_data( request, r->buffer, r->to_read, r->read, TRUE );
 }
 
 /***********************************************************************
@@ -3006,18 +3009,17 @@ BOOL WINAPI WinHttpReadData( HINTERNET hrequest, LPVOID buffer, DWORD to_read, L
     {
         struct read_data *r;
 
-        if (!(r = heap_alloc( sizeof(struct read_data) ))) return FALSE;
-        r->hdr.request = request;
-        r->hdr.proc    = task_read_data;
-        r->buffer      = buffer;
-        r->to_read     = to_read;
-        r->read        = read;
+        if (!(r = heap_alloc( sizeof(*r) ))) return FALSE;
+        r->hdr.object = &request->hdr;
+        r->hdr.proc   = task_read_data;
+        r->buffer     = buffer;
+        r->to_read    = to_read;
+        r->read       = read;
 
         addref_object( &request->hdr );
-        ret = queue_task( (struct task_header *)r );
+        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)r );
     }
-    else
-        ret = read_data( request, buffer, to_read, read, FALSE );
+    else ret = read_data( request, buffer, to_read, read, FALSE );
 
     release_object( &request->hdr );
     SetLastError( ret );
@@ -3048,8 +3050,10 @@ static DWORD write_data( struct request *request, const void *buffer, DWORD to_w
 
 static void task_write_data( struct task_header *task )
 {
+    struct request *request = (struct request *)task->object;
     struct write_data *w = (struct write_data *)task;
-    write_data( w->hdr.request, w->buffer, w->to_write, w->written, TRUE );
+
+    write_data( request, w->buffer, w->to_write, w->written, TRUE );
 }
 
 /***********************************************************************
@@ -3078,18 +3082,17 @@ BOOL WINAPI WinHttpWriteData( HINTERNET hrequest, LPCVOID buffer, DWORD to_write
     {
         struct write_data *w;
 
-        if (!(w = heap_alloc( sizeof(struct write_data) ))) return FALSE;
-        w->hdr.request = request;
-        w->hdr.proc    = task_write_data;
-        w->buffer      = buffer;
-        w->to_write    = to_write;
-        w->written     = written;
+        if (!(w = heap_alloc( sizeof(*w) ))) return FALSE;
+        w->hdr.object = &request->hdr;
+        w->hdr.proc   = task_write_data;
+        w->buffer     = buffer;
+        w->to_write   = to_write;
+        w->written    = written;
 
         addref_object( &request->hdr );
-        ret = queue_task( (struct task_header *)w );
+        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)w );
     }
-    else
-        ret = write_data( request, buffer, to_write, written, FALSE );
+    else ret = write_data( request, buffer, to_write, written, FALSE );
 
     release_object( &request->hdr );
     SetLastError( ret );
