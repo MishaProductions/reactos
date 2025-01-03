@@ -590,13 +590,24 @@ typedef VOID
   _In_ LPVOID,
   _In_ DWORD);
 
+typedef WINHTTP_STATUS_CALLBACK * LPWINHTTP_STATUS_CALLBACK;
+
 #define WINHTTP_AUTO_DETECT_TYPE_DHCP   0x00000001
 #define WINHTTP_AUTO_DETECT_TYPE_DNS_A  0x00000002
 
 #define WINHTTP_AUTOPROXY_AUTO_DETECT           0x00000001
 #define WINHTTP_AUTOPROXY_CONFIG_URL            0x00000002
+#define WINHTTP_AUTOPROXY_HOST_KEEPCASE         0x00000004
+#define WINHTTP_AUTOPROXY_HOST_LOWERCASE        0x00000008
+#define WINHTTP_AUTOPROXY_ALLOW_AUTOCONFIG      0x00000100
+#define WINHTTP_AUTOPROXY_ALLOW_STATIC          0x00000200
+#define WINHTTP_AUTOPROXY_ALLOW_CM              0x00000400
 #define WINHTTP_AUTOPROXY_RUN_INPROCESS         0x00010000
 #define WINHTTP_AUTOPROXY_RUN_OUTPROCESS_ONLY   0x00020000
+#define WINHTTP_AUTOPROXY_NO_DIRECTACCESS       0x00040000
+#define WINHTTP_AUTOPROXY_NO_CACHE_CLIENT       0x00080000
+#define WINHTTP_AUTOPROXY_NO_CACHE_SVC          0x00100000
+#define WINHTTP_AUTOPROXY_SORT_RESULTS          0x00400000
 
 typedef struct
 {
@@ -797,6 +808,12 @@ WinHttpCrackUrl(
   _In_ DWORD,
   _Inout_ LPURL_COMPONENTS);
 
+BOOL
+WINAPI
+WinHttpCreateProxyResolver(
+  _Out_ HINTERNET,
+  _Out_ HINTERNET*);
+
 _Success_(return != 0)
 BOOL
 WINAPI
@@ -805,6 +822,16 @@ WinHttpCreateUrl(
   _In_ DWORD,
   _Out_writes_to_opt_(*pdwUrlLength, *pdwUrlLength) LPWSTR,
   _Inout_ LPDWORD pdwUrlLength);
+
+void
+WINAPI
+WinHttpFreeProxyResult(
+  _Inout_ WINHTTP_PROXY_RESULT*);
+
+void
+WINAPI
+WinHttpFreeProxyResultEx(
+  _Inout_ WINHTTP_PROXY_RESULT_EX*);
 
 BOOL
 WINAPI
@@ -823,6 +850,51 @@ WinHttpGetProxyForUrl(
   _In_ LPCWSTR,
   _In_ WINHTTP_AUTOPROXY_OPTIONS*,
   _Out_ WINHTTP_PROXY_INFO*);
+
+BOOL
+WINAPI
+WinHttpGetProxyForUrlEx(
+  _In_ HINTERNET,
+  _In_ PCWSTR,
+  _In_ WINHTTP_AUTOPROXY_OPTIONS*,
+  _Out_ DWORD_PTR);
+
+DWORD
+WINAPI
+WinHttpGetProxyForUrlEx2(
+  _In_ HINTERNET,
+  _In_ PCWSTR,
+  _In_ WINHTTP_AUTOPROXY_OPTIONS*,
+  DWORD,
+  BYTE*,
+  _Out_ DWORD_PTR);
+
+DWORD
+WINAPI
+WinHttpGetProxyResult(
+  _In_ HINTERNET,
+  _Out_ WINHTTP_PROXY_RESULT*);
+
+DWORD
+WINAPI
+WinHttpGetProxyResultEx(
+  _In_ HINTERNET,
+  _Out_ WINHTTP_PROXY_RESULT_EX*);
+
+DWORD
+WINAPI
+WinHttpGetProxySettingsVersion(
+  _In_ HINTERNET,
+  _Out_ DWORD*);
+
+DWORD
+WINAPI
+WinHttpIsHostInProxyBypassList(
+  _In_ const WINHTTP_PROXY_INFO*,
+  _In_ PCWSTR,
+  _In_ INTERNET_SCHEME,
+  _In_ INTERNET_PORT,
+  _Inout_ BOOL*);
 
 HINTERNET
 WINAPI
@@ -893,7 +965,20 @@ WinHttpReadData(
   _In_ DWORD dwNumberOfBytesToRead,
   _Out_ LPDWORD lpdwNumberOfBytesRead);
 
+BOOL
+WINAPI
+WinHttpReadProxySettings(
+  _In_ HINTERNET,
+  PCWSTR,
+  BOOL,
+  BOOL,
+  LPDWORD,
+  BOOL*,
+  _Out_ PWINHTTP_PROXY_SETTINGS);
+
 BOOL WINAPI WinHttpReceiveResponse(_In_ HINTERNET, _Reserved_ LPVOID);
+
+BOOL WINAPI WinHttpResetAutoProxy(_In_ HINTERNET, _In_ DWORD);
 
 BOOL
 WINAPI
@@ -973,6 +1058,13 @@ WinHttpWriteData(
   _In_reads_bytes_opt_(dwNumberOfBytesToWrite) LPCVOID,
   _In_ DWORD dwNumberOfBytesToWrite,
   _Out_ LPDWORD);
+
+BOOL
+WINAPI
+WinHttpWriteProxySettings(
+  _In_ HINTERNET,
+  BOOL,
+  _In_ PWINHTTP_PROXY_SETTINGS);
 
 #ifdef __cplusplus
 }
