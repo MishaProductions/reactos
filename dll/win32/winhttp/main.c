@@ -16,13 +16,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#define COBJMACROS
-#include "config.h"
-#include "ws2tcpip.h"
 #include <stdarg.h>
 
+#define COBJMACROS
 #include "windef.h"
 #include "winbase.h"
+#include "ws2tcpip.h"
 #include "objbase.h"
 #include "rpcproxy.h"
 #include "httprequest.h"
@@ -157,6 +156,7 @@ HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
     return IClassFactory_QueryInterface( cf, riid, ppv );
 }
 
+#ifdef __REACTOS__
 /******************************************************************
  *              DllCanUnloadNow (winhttp.@)
  */
@@ -164,19 +164,4 @@ HRESULT WINAPI DllCanUnloadNow(void)
 {
     return S_FALSE;
 }
-
-/***********************************************************************
- *          DllRegisterServer (winhttp.@)
- */
-HRESULT WINAPI DllRegisterServer(void)
-{
-    return __wine_register_resources( winhttp_instance );
-}
-
-/***********************************************************************
- *          DllUnregisterServer (winhttp.@)
- */
-HRESULT WINAPI DllUnregisterServer(void)
-{
-    return __wine_unregister_resources( winhttp_instance );
-}
+#endif
