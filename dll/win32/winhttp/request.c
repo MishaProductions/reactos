@@ -1732,10 +1732,8 @@ void close_connection( struct request *request )
 {
     if (!request->netconn) return;
 
-    send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION, 0, 0 );
     netconn_release( request->netconn );
     request->netconn = NULL;
-    send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED, 0, 0 );
 }
 
 static DWORD add_host_header( struct request *request, DWORD modifier )
@@ -1896,7 +1894,7 @@ static DWORD refill_buffer( struct request *request, BOOL notify )
 
 static void finished_reading( struct request *request )
 {
-    BOOL close = FALSE;
+    BOOL close = FALSE, notify;
     WCHAR connection[20];
     DWORD size = sizeof(connection);
 
