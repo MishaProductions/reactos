@@ -125,35 +125,33 @@ static const WCHAR *attribute_table[] =
     NULL                            /* WINHTTP_QUERY_PASSPORT_CONFIG            = 78 */
 };
 
-static struct task_header *dequeue_task( struct request *request )
+static struct task_header *dequeue_task( struct queue *queue )
 {
     struct task_header *task;
 
-    EnterCriticalSection( &request->task_cs );
-    TRACE("%u tasks queued\n", list_count( &request->task_queue ));
-    task = LIST_ENTRY( list_head( &request->task_queue ), struct task_header, entry );
+    EnterCriticalSection( &queue->cs );
+    TRACE("%u tasks queued in %p\n", list_count(&queue->tasks), queue);
+    task = LIST_ENTRY( list_head( &queue->tasks ), struct task_header, entry );
     if (task) list_remove( &task->entry );
-    LeaveCriticalSection( &request->task_cs );
+    LeaveCriticalSection( &queue->cs );
 
     TRACE("returning task %p\n", task);
     return task;
 }
 
 #ifdef __REACTOS__
-static DWORD CALLBACK task_proc( LPVOID param )
+static DWORD CALLBACK run_queue( LPVOID param )
 #else
-static void CALLBACK task_proc( TP_CALLBACK_INSTANCE *instance, void *ctx )
+static void CALLBACK run_queue( TP_CALLBACK_INSTANCE *instance, void *ctx )
 #endif
 {
 #ifdef __REACTOS__
-    struct request *request = param;
+    struct queue *queue = param;
 #else
-    struct request *request = ctx;
+    struct queue *queue = ctx;
 #endif
-    HANDLE handles[2];
+    HANDLE handles[] = { queue->wait, queue->cancel };
 
-    handles[0] = request->task_wait;
-    handles[1] = request->task_cancel;
     for (;;)
     {
         DWORD err = WaitForMultipleObjects( 2, handles, FALSE, INFINITE );
@@ -162,21 +160,19 @@ static void CALLBACK task_proc( TP_CALLBACK_INSTANCE *instance, void *ctx )
         case WAIT_OBJECT_0:
         {
             struct task_header *task;
-            while ((task = dequeue_task( request )))
+            while ((task = dequeue_task( queue )))
             {
                 task->proc( task );
-                release_object( &task->request->hdr );
+                release_object( task->object );
                 heap_free( task );
             }
             break;
         }
         case WAIT_OBJECT_0 + 1:
             TRACE("exiting\n");
-            CloseHandle( request->task_cancel );
-            CloseHandle( request->task_wait );
-            request->task_cs.DebugInfo->Spare[0] = 0;
-            DeleteCriticalSection( &request->task_cs );
-            request->hdr.vtbl->destroy( &request->hdr );
+            CloseHandle( queue->wait );
+            CloseHandle( queue->cancel );
+            queue->object->vtbl->destroy( queue->object );
 #ifdef __REACTOS__
             return 0;
 #else
@@ -193,40 +189,26 @@ static void CALLBACK task_proc( TP_CALLBACK_INSTANCE *instance, void *ctx )
 #endif
 }
 
-static DWORD queue_task( struct task_header *task )
+static DWORD start_queue( struct object_header *object, struct queue *queue )
 {
-    struct request *request = task->request;
+    DWORD ret = ERROR_OUTOFMEMORY;
 
 #ifdef __REACTOS__
-    if (!request->task_thread)
+    if (request->task_thread) return ERROR_SUCCESS;
 #else
-    if (!request->task_wait)
+    if (queue->wait) return ERROR_SUCCESS;
 #endif
+
+    queue->object = object;
+    list_init( &queue->tasks );
+    if (!(queue->wait = CreateEventW( NULL, FALSE, FALSE, NULL ))) goto error;
+    if (!(queue->cancel = CreateEventW( NULL, FALSE, FALSE, NULL ))) goto error;
+    if (!TrySubmitThreadpoolCallback( run_queue, queue, NULL )) ret = GetLastError();
+    else
     {
-        if (!(request->task_wait = CreateEventW( NULL, FALSE, FALSE, NULL ))) return ERROR_OUTOFMEMORY;
-        if (!(request->task_cancel = CreateEventW( NULL, FALSE, FALSE, NULL )))
-        {
-            CloseHandle( request->task_wait );
-            request->task_wait = NULL;
-            return ERROR_OUTOFMEMORY;
-        }
-#ifdef __REACTOS__
-        if (!(request->task_thread = CreateThread( NULL, 0, task_proc, request, 0, NULL )))
-#else
-        if (!TrySubmitThreadpoolCallback( task_proc, request, NULL ))
-#endif
-        {
-            CloseHandle( request->task_wait );
-            request->task_wait = NULL;
-            CloseHandle( request->task_cancel );
-            request->task_cancel = NULL;
-            return GetLastError();
-        }
-#ifndef __REACTOS__
-        request->task_proc_running = TRUE;
-#endif
-        InitializeCriticalSection( &request->task_cs );
-        request->task_cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": request.task_cs");
+        queue->proc_running = TRUE;
+        TRACE("started %p\n", queue);
+        return ERROR_SUCCESS;
     }
 
     EnterCriticalSection( &request->task_cs );
@@ -234,7 +216,26 @@ static DWORD queue_task( struct task_header *task )
     list_add_tail( &request->task_queue, &task->entry );
     LeaveCriticalSection( &request->task_cs );
 
-    SetEvent( request->task_wait );
+    LeaveCriticalSection( &request->task_cs );
+error:
+    CloseHandle( queue->wait );
+    queue->wait = NULL;
+    CloseHandle( queue->cancel );
+    queue->cancel = NULL;
+    return ret;
+}
+
+static DWORD queue_task( struct object_header *object, struct queue *queue, struct task_header *task )
+{
+    DWORD ret;
+    if ((ret = start_queue( object, queue ))) return ret;
+
+    EnterCriticalSection( &queue->cs );
+    TRACE("queueing task %p in %p\n", task, queue);
+    list_add_tail( &queue->tasks, &task->entry );
+    LeaveCriticalSection( &queue->cs );
+ 
+    SetEvent( queue->wait );
     return ERROR_SUCCESS;
 }
 

@@ -589,7 +589,7 @@ static void request_destroy( struct object_header *hdr )
 #ifdef __REACTOS__
     if (request->task_thread)
 #else
-    if (request->task_proc_running)
+    if (request->queue.proc_running)
 #endif
     {
         /* Signal to the task proc to quit. It will call this again when it does. */
@@ -599,8 +599,8 @@ static void request_destroy( struct object_header *hdr )
         SetEvent( request->task_cancel );
         CloseHandle( thread );
 #else
-        request->task_proc_running = FALSE;
-        SetEvent( request->task_cancel );
+        request->queue.proc_running = FALSE;
+        SetEvent( request->queue.cancel );
 #endif
         return;
     }

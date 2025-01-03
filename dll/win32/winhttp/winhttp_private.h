@@ -208,13 +208,10 @@ struct request
     struct authinfo *proxy_authinfo;
     HANDLE task_wait;
     HANDLE task_cancel;
+    struct queue queue;
 #ifdef __REACTOS__
     HANDLE task_thread;
-#else
-    BOOL   task_proc_running;
 #endif
-    struct list task_queue;
-    CRITICAL_SECTION task_cs;
     struct
     {
         WCHAR *username;
