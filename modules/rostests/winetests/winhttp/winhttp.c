@@ -5958,7 +5958,7 @@ static void test_connection_cache(int port)
 
     req = WinHttpOpenRequest(con, L"GET", L"/cached", NULL, NULL, NULL, 0);
     ok(req != NULL, "failed to open a request %lu\n", GetLastError());
-    ret = WinHttpSendRequest(req, L"Connection: close", ~0ul, NULL, 0, 0, 0);
+    ret = WinHttpSendRequest(req, L"Connection: close", ~0u, NULL, 0, 0, 0);
     ok(ret, "failed to send request %lu\n", GetLastError());
     ret = WinHttpReceiveResponse(req, NULL);
     ok(ret, "failed to receive response %lu\n", GetLastError());
@@ -5973,7 +5973,7 @@ static void test_connection_cache(int port)
 
     req = WinHttpOpenRequest(con, L"GET", L"/notcached", NULL, NULL, NULL, 0);
     ok(req != NULL, "failed to open a request %lu\n", GetLastError());
-    ret = WinHttpSendRequest(req, L"Connection: close", ~0ul, NULL, 0, 0, 0);
+    ret = WinHttpSendRequest(req, L"Connection: close", ~0u, NULL, 0, 0, 0);
     ok(ret, "failed to send request %lu\n", GetLastError());
     ret = WinHttpReceiveResponse(req, NULL);
     ok(ret, "failed to receive response %lu\n", GetLastError());
