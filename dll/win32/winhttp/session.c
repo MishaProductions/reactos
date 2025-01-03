@@ -567,10 +567,10 @@ HINTERNET WINAPI WinHttpConnect( HINTERNET hsession, LPCWSTR server, INTERNET_PO
     connect->hostport = port;
     if (!set_server_for_hostname( connect, server, port )) goto end;
 
-    if (!(hconnect = alloc_handle( &connect->hdr ))) goto end;
-    connect->hdr.handle = hconnect;
-
-    send_callback( &session->hdr, WINHTTP_CALLBACK_STATUS_HANDLE_CREATED, &hconnect, sizeof(hconnect) );
+    if ((hconnect = alloc_handle( &connect->hdr )))
+    {
+        send_callback( &session->hdr, WINHTTP_CALLBACK_STATUS_HANDLE_CREATED, &hconnect, sizeof(hconnect) );
+    }
 
 end:
     release_object( &connect->hdr );
@@ -1156,10 +1156,10 @@ HINTERNET WINAPI WinHttpOpenRequest( HINTERNET hconnect, LPCWSTR verb, LPCWSTR o
     if (!(request->version = strdupW( version ))) goto end;
     if (!(add_accept_types_header( request, types ))) goto end;
 
-    if (!(hrequest = alloc_handle( &request->hdr ))) goto end;
-    request->hdr.handle = hrequest;
-
-    send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_HANDLE_CREATED, &hrequest, sizeof(hrequest) );
+    if ((hrequest = alloc_handle( &request->hdr )))
+    {
+        send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_HANDLE_CREATED, &hrequest, sizeof(hrequest) );
+    }
 
 end:
     release_object( &request->hdr );
