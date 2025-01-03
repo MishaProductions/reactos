@@ -1,6 +1,5 @@
 
-add_definitions(-DUSE_WINE_TODOS)
-add_definitions(-D__ROS_LONG64__)
+add_definitions(-DUSE_WINE_TODOS -D__ROS_LONG64__)
 
 list(APPEND SOURCE
     notification.c
