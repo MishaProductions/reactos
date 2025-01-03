@@ -487,7 +487,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
         }
         else
         {
-            if (!connect->servername || wcsicmp( connect->servername, session->proxy_server ))
+            if (!connect->servername || _wcsicmp( connect->servername, session->proxy_server ))
             {
                 free( connect->servername );
                 connect->resolved = FALSE;
