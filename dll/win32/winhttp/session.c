@@ -28,6 +28,8 @@
 #include "winhttp.h"
 #include "winreg.h"
 #include "wine/winternl.h"
+#include "iphlpapi.h"
+#include "dhcpcsdk.h"
 #define COBJMACROS
 #include "ole2.h"
 #include "dispex.h"
