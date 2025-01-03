@@ -18,6 +18,9 @@
 #include <ole2.h>
 #include <winsock2.h>
 #include <winhttp.h>
+#include <string.h>
+
+#define wcsicmp _wcsicmp
 
 #include <wine/debug.h>
 
