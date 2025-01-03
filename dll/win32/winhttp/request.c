@@ -1457,7 +1457,7 @@ static void CALLBACK connection_collector( TP_CALLBACK_INSTANCE *instance, void 
                 {
                     TRACE("freeing %p\n", netconn);
                     list_remove(&netconn->entry);
-                    netconn_close(netconn);
+                    netconn_release(netconn);
                 }
                 else remaining_connections++;
             }
@@ -1619,7 +1619,7 @@ static DWORD open_connection( struct request *request )
 
         if (netconn_is_alive( netconn )) break;
         TRACE("connection %p no longer alive, closing\n", netconn);
-        netconn_close( netconn );
+        netconn_release( netconn );
         netconn = NULL;
     }
 
@@ -1682,7 +1682,7 @@ static DWORD open_connection( struct request *request )
                 {
                     request->netconn = NULL;
                     free( addressW );
-                    netconn_close( netconn );
+                    netconn_release( netconn );
                     return ret;
                 }
             }
@@ -1696,7 +1696,7 @@ static DWORD open_connection( struct request *request )
             {
                 request->netconn = NULL;
                 free( addressW );
-                netconn_close( netconn );
+                netconn_release( netconn );
                 return ret;
             }
         }
@@ -1715,7 +1715,7 @@ static DWORD open_connection( struct request *request )
     if (netconn->secure && !(request->server_cert = netconn_get_certificate( netconn )))
     {
         free( addressW );
-        netconn_close( netconn );
+        netconn_release( netconn );
         return ERROR_WINHTTP_SECURE_FAILURE;
     }
 
@@ -1733,7 +1733,7 @@ void close_connection( struct request *request )
     if (!request->netconn) return;
 
     send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION, 0, 0 );
-    netconn_close( request->netconn );
+    netconn_release( request->netconn );
     request->netconn = NULL;
     send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED, 0, 0 );
 }
@@ -2742,7 +2742,7 @@ static DWORD handle_redirect( struct request *request, DWORD status )
                 goto end;
             }
 
-            netconn_close( request->netconn );
+            netconn_release( request->netconn );
             request->netconn = NULL;
             request->content_length = request->content_read = 0;
             request->read_pos = request->read_size = 0;
