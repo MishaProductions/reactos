@@ -192,7 +192,7 @@ static void CALLBACK task_proc( TP_CALLBACK_INSTANCE *instance, void *ctx )
 #endif
 }
 
-static BOOL queue_task( struct task_header *task )
+static DWORD queue_task( struct task_header *task )
 {
     struct request *request = task->request;
 
@@ -202,12 +202,12 @@ static BOOL queue_task( struct task_header *task )
     if (!request->task_wait)
 #endif
     {
-        if (!(request->task_wait = CreateEventW( NULL, FALSE, FALSE, NULL ))) return FALSE;
+        if (!(request->task_wait = CreateEventW( NULL, FALSE, FALSE, NULL ))) return ERROR_OUTOFMEMORY;
         if (!(request->task_cancel = CreateEventW( NULL, FALSE, FALSE, NULL )))
         {
             CloseHandle( request->task_wait );
             request->task_wait = NULL;
-            return FALSE;
+            return ERROR_OUTOFMEMORY;
         }
 #ifdef __REACTOS__
         if (!(request->task_thread = CreateThread( NULL, 0, task_proc, request, 0, NULL )))
@@ -219,7 +219,7 @@ static BOOL queue_task( struct task_header *task )
             request->task_wait = NULL;
             CloseHandle( request->task_cancel );
             request->task_cancel = NULL;
-            return FALSE;
+            return GetLastError();
         }
 #ifndef __REACTOS__
         request->task_proc_running = TRUE;

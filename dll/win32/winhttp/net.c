@@ -180,25 +180,26 @@ static void set_blocking( struct netconn *conn, BOOL blocking )
     ioctlsocket( conn->socket, FIONBIO, &state );
 }
 
-struct netconn *netconn_create( struct hostdata *host, const struct sockaddr_storage *sockaddr, int timeout )
+DWORD netconn_create( struct hostdata *host, const struct sockaddr_storage *sockaddr, int timeout,
+                      struct netconn **ret_conn)
 {
     struct netconn *conn;
     unsigned int addr_len;
-    BOOL ret = FALSE;
+    DWORD ret;
 
 #ifndef __REACTOS__
     winsock_init();
 #endif
 
-    conn = heap_alloc_zero(sizeof(*conn));
-    if (!conn) return NULL;
+    if (!(conn = heap_alloc_zero( sizeof(*conn) ))) return ERROR_OUTOFMEMORY;
     conn->host = host;
     conn->sockaddr = *sockaddr;
     if ((conn->socket = socket( sockaddr->ss_family, SOCK_STREAM, 0 )) == -1)
     {
-        WARN("unable to create socket (%u)\n", WSAGetLastError());
-        heap_free(conn);
-        return NULL;
+        ret = WSAGetLastError();
+        WARN("unable to create socket (%u)\n", ret);
+        heap_free( conn );
+        return ret;
     }
 
     switch (conn->sockaddr.ss_family)
@@ -743,22 +744,17 @@ DWORD netconn_resolve( WCHAR *hostname, INTERNET_PORT port, struct sockaddr_stor
         async.port     = port;
         async.addr     = addr;
         if (!(async.done = CreateEventW( NULL, FALSE, FALSE, NULL ))) return FALSE;
-        if (!TrySubmitThreadpoolCallback( resolve_proc, &async, NULL ))
+        if (!(async.done = CreateEventW( NULL, FALSE, FALSE, NULL ))) return GetLastError();
         {
             CloseHandle( async.done );
-            return FALSE;
+            return GetLastError();
         }
         if (WaitForSingleObject( async.done, timeout ) != WAIT_OBJECT_0) ret = ERROR_WINHTTP_TIMEOUT;
         else ret = async.result;
         CloseHandle( async.done );
     }
 
-    if (ret)
-    {
-        SetLastError( ret );
-        return FALSE;
-    }
-    return TRUE;
+    return ret;
 }
 
 #endif /* __REACTOS__ */
