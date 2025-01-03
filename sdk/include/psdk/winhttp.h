@@ -1099,6 +1099,54 @@ WinHttpTimeFromSystemTime(
 
 BOOL WINAPI WinHttpTimeToSystemTime(_In_z_ LPCWSTR, _Out_ SYSTEMTIME*);
 
+DWORD
+WINAPI
+WinHttpWebSocketClose(
+  _In_ HINTERNET,
+  _In_ USHORT,
+  _In_opt_ PVOID,
+  _In_ DWORD);
+
+HINTERNET
+WINAPI
+WinHttpWebSocketCompleteUpgrade(
+  _In_ HINTERNET,
+  _In_opt_ DWORD_PTR);
+
+DWORD
+WINAPI
+WinHttpWebSocketQueryCloseStatus(
+  _In_ HINTERNET,
+  _Out_ USHORT*,
+  _Out_ void*,
+  _In_ DWORD,
+  _Out_ DWORD*);
+
+DWORD
+WINAPI
+WinHttpWebSocketReceive(
+  _In_ HINTERNET,
+  _Out_ PVOID,
+  _In_ DWORD,
+  _Out_ DWORD*,
+  _Out_ WINHTTP_WEB_SOCKET_BUFFER_TYPE*);
+
+DWORD
+WINAPI
+WinHttpWebSocketSend(
+  _In_ HINTERNET,
+  _In_ WINHTTP_WEB_SOCKET_BUFFER_TYPE,
+  _In_reads_bytes_(dwBufferLength) PVOID pvBuffer,
+  _In_ DWORD dwBufferLength);
+
+DWORD
+WINAPI
+WinHttpWebSocketShutdown(
+  _In_ HINTERNET,
+  _In_ USHORT,
+  _In_reads_bytes_(dwReasonLength) _In_opt_ void* pvReason,
+  _In_ DWORD dwReasonLength);
+
 BOOL
 WINAPI
 WinHttpWriteData(
