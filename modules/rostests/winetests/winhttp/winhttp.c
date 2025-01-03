@@ -3584,16 +3584,16 @@ static void test_multiple_reads(int port)
     BOOL ret;
 
     ses = WinHttpOpen(L"winetest", WINHTTP_ACCESS_TYPE_NO_PROXY, NULL, NULL, 0);
-    ok(ses != NULL, "failed to open session %u\n", GetLastError());
+    ok(ses != NULL, "failed to open session %lu\n", GetLastError());
 
     con = WinHttpConnect(ses, L"localhost", port, 0);
-    ok(con != NULL, "failed to open a connection %u\n", GetLastError());
+    ok(con != NULL, "failed to open a connection %lu\n", GetLastError());
 
     req = WinHttpOpenRequest(con, NULL, L"big", NULL, NULL, NULL, 0);
-    ok(req != NULL, "failed to open a request %u\n", GetLastError());
+    ok(req != NULL, "failed to open a request %lu\n", GetLastError());
 
     ret = WinHttpSendRequest(req, NULL, 0, NULL, 0, 0, 0);
-    ok(ret, "failed to send request %u\n", GetLastError());
+    ok(ret, "failed to send request %lu\n", GetLastError());
 
     trace("waiting for response\n");
     ret = WinHttpReceiveResponse(req, NULL);
@@ -4593,24 +4593,24 @@ static void test_IWinHttpRequest(int port)
     VariantClear( &bypass_list );
 
     hr = CoCreateInstance( &CLSID_WinHttpRequest, NULL, CLSCTX_INPROC_SERVER, &IID_IWinHttpRequest, (void **)&req );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %#lx\n", hr );
 
     url = SysAllocString( L"https://test.winehq.org:443" );
     method = SysAllocString( L"POST" );
     V_VT( &async ) = VT_BOOL;
     V_BOOL( &async ) = VARIANT_FALSE;
     hr = IWinHttpRequest_Open( req, method, url, async );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %#lx\n", hr );
     SysFreeString( method );
     SysFreeString( url );
 
     hr = IWinHttpRequest_Send( req, empty );
     ok( hr == S_OK || hr == HRESULT_FROM_WIN32( ERROR_WINHTTP_INVALID_SERVER_RESPONSE ) ||
-        hr == SEC_E_ILLEGAL_MESSAGE /* winxp */, "got %08x\n", hr );
+        hr == SEC_E_ILLEGAL_MESSAGE /* winxp */, "got %#lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = IWinHttpRequest_get_ResponseText( req, &response );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %#lx\n", hr );
 #ifdef __REACTOS__
     ok( !memcmp(response, data_start, sizeof(data_start)), "got %s\n",
         wine_dbgstr_wn(response, min(SysStringLen(response), 32)) );
@@ -4622,7 +4622,7 @@ static void test_IWinHttpRequest(int port)
     IWinHttpRequest_Release( req );
 
     hr = CoCreateInstance( &CLSID_WinHttpRequest, NULL, CLSCTX_INPROC_SERVER, &IID_IWinHttpRequest, (void **)&req );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %#lx\n", hr );
 
     sprintf( buf, "http://localhost:%d/auth", port );
     MultiByteToWideChar( CP_ACP, 0, buf, -1, bufW, ARRAY_SIZE( bufW ));
