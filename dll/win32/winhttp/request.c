@@ -3124,6 +3124,8 @@ HINTERNET WINAPI WinHttpWebSocketCompleteUpgrade( HINTERNET hrequest, DWORD_PTR 
     socket->hdr.notify_mask = request->hdr.notify_mask;
     socket->hdr.context = context;
     InitializeSRWLock( &socket->send_lock );
+    init_queue( &socket->send_q );
+    init_queue( &socket->recv_q );
 
     addref_object( &request->hdr );
     socket->request = request;
