@@ -4782,7 +4782,7 @@ START_TEST (winhttp)
         test_passport_auth(si.port);
 
         /* send the basic request again to shutdown the server thread */
-        test_basic_request(si.port, NULL, quitW);
+        test_basic_request(si.port, NULL, L"/quit");
     }
 #else
     test_multiple_reads(si.port);
@@ -4791,7 +4791,7 @@ START_TEST (winhttp)
     test_passport_auth(si.port);
 
     /* send the basic request again to shutdown the server thread */
-    test_basic_request(si.port, NULL, quitW);
+    test_basic_request(si.port, NULL, L"/quit");
 #endif
 
     WaitForSingleObject(thread, 3000);
