@@ -235,9 +235,10 @@ static BOOL task_needs_completion( struct task_header *task_hdr )
     return !InterlockedExchange( &task_hdr->completion_sent, 1 );
 }
 
-static void cancel_queue( struct queue *queue )
+static BOOL cancel_queue( struct queue *queue )
 {
     struct task_header *task_hdr, *found;
+    BOOL cancelled = FALSE;
 
     while (1)
     {
@@ -254,9 +255,11 @@ static void cancel_queue( struct queue *queue )
         }
         ReleaseSRWLockExclusive( &queue->lock );
         if (!found) break;
+        cancelled = TRUE;
         found->callback( found, TRUE );
         release_task( found );
     }
+    return cancelled;
 }
 
 static void free_header( struct header *header )
@@ -1913,7 +1916,8 @@ static void finished_reading( struct request *request )
 
     if (!request->netconn) return;
 
-    if (request->hdr.disable_flags & WINHTTP_DISABLE_KEEP_ALIVE) close = TRUE;
+    if (request->netconn->socket == -1) close = TRUE;
+    else if (request->hdr.disable_flags & WINHTTP_DISABLE_KEEP_ALIVE) close = TRUE;
     else if (!query_headers( request, WINHTTP_QUERY_CONNECTION, NULL, connection, &size, NULL ) ||
              !query_headers( request, WINHTTP_QUERY_PROXY_CONNECTION, NULL, connection, &size, NULL ))
     {
@@ -3148,6 +3152,18 @@ BOOL WINAPI WinHttpWriteData( HINTERNET hrequest, const void *buffer, DWORD to_w
     return !ret;
 }
 
+static void socket_handle_closing( struct object_header *hdr )
+{
+    struct socket *socket = (struct socket *)hdr;
+    BOOL pending_tasks;
+
+    pending_tasks = cancel_queue( &socket->send_q );
+    pending_tasks = cancel_queue( &socket->recv_q ) || pending_tasks;
+
+    if (pending_tasks)
+        netconn_cancel_io( socket->request->netconn );
+}
+
 static BOOL socket_query_option( struct object_header *hdr, DWORD option, void *buffer, DWORD *buflen )
 {
     FIXME( "unimplemented option %lu\n", option );
@@ -3178,6 +3194,7 @@ static BOOL socket_set_option( struct object_header *hdr, DWORD option, void *bu
 
 static const struct object_vtbl socket_vtbl =
 {
+    socket_handle_closing,
     socket_destroy,
     socket_query_option,
     socket_set_option,
