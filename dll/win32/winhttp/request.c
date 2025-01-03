@@ -2263,13 +2263,16 @@ end:
     return ret;
 }
 
-static void task_send_request( struct task_header *task )
+static void CALLBACK task_send_request( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct request *request = (struct request *)task->object;
-    struct send_request *s = (struct send_request *)task;
+    struct send_request *s = ctx;
 
-    send_request( request, s->headers, s->headers_len, s->optional, s->optional_len, s->total_len, s->context, TRUE );
+    TRACE("running %p\n", work);
+    send_request( s->request, s->headers, s->headers_len, s->optional, s->optional_len, s->total_len, s->context, TRUE );
+
+    release_object( &s->request->hdr );
     heap_free( s->headers );
+    heap_free( s );
 }
 
 /***********************************************************************
@@ -2303,8 +2306,7 @@ BOOL WINAPI WinHttpSendRequest( HINTERNET hrequest, LPCWSTR headers, DWORD heade
         struct send_request *s;
 
         if (!(s = heap_alloc( sizeof(*s) ))) return FALSE;
-        s->hdr.object   = &request->hdr;
-        s->hdr.proc     = task_send_request;
+        s->request      = request;
         s->headers      = strdupW( headers );
         s->headers_len  = headers_len;
         s->optional     = optional;
@@ -2313,7 +2315,12 @@ BOOL WINAPI WinHttpSendRequest( HINTERNET hrequest, LPCWSTR headers, DWORD heade
         s->context      = context;
 
         addref_object( &request->hdr );
-        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)s );
+        if ((ret = queue_task( &request->queue, task_send_request, s )))
+        {
+            release_object( &request->hdr );
+            heap_free( s->headers );
+            heap_free( s );
+        }
     }
     else ret = send_request( request, headers, headers_len, optional, optional_len, total_len, context, FALSE );
 
@@ -2844,10 +2851,15 @@ static DWORD receive_response( struct request *request, BOOL async )
     return ret;
 }
 
-static void task_receive_response( struct task_header *task )
+static void CALLBACK task_receive_response( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct request *request = (struct request *)task->object;
-    receive_response( request, TRUE );
+    struct receive_response *r = ctx;
+
+    TRACE("running %p\n", work);
+    receive_response( r->request, TRUE );
+
+    release_object( &r->request->hdr );
+    heap_free( r );
 }
 
 /***********************************************************************
@@ -2877,11 +2889,14 @@ BOOL WINAPI WinHttpReceiveResponse( HINTERNET hrequest, LPVOID reserved )
         struct receive_response *r;
 
         if (!(r = heap_alloc( sizeof(*r) ))) return FALSE;
-        r->hdr.object = &request->hdr;
-        r->hdr.proc   = task_receive_response;
+        r->request = request;
 
         addref_object( &request->hdr );
-        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)r );
+        if ((ret = queue_task( &request->queue, task_receive_response, r )))
+        {
+            release_object( &request->hdr );
+            heap_free( r );
+        }
     }
     else ret = receive_response( request, FALSE );
 
@@ -2923,12 +2938,15 @@ done:
     return ret;
 }
 
-static void task_query_data_available( struct task_header *task )
+static void CALLBACK task_query_data_available( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct request *request = (struct request *)task->object;
-    struct query_data *q = (struct query_data *)task;
+    struct query_data *q = ctx;
 
-    query_data_available( request, q->available, TRUE );
+    TRACE("running %p\n", work);
+    query_data_available( q->request, q->available, TRUE );
+
+    release_object( &q->request->hdr );
+    heap_free( q );
 }
 
 /***********************************************************************
@@ -2958,12 +2976,15 @@ BOOL WINAPI WinHttpQueryDataAvailable( HINTERNET hrequest, LPDWORD available )
         struct query_data *q;
 
         if (!(q = heap_alloc( sizeof(*q) ))) return FALSE;
-        q->hdr.object = &request->hdr;
-        q->hdr.proc   = task_query_data_available;
-        q->available  = available;
+        q->request   = request;
+        q->available = available;
 
         addref_object( &request->hdr );
-        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)q );
+        if ((ret = queue_task( &request->queue, task_query_data_available, q )))
+        {
+            release_object( &request->hdr );
+            heap_free( q );
+        }
     }
     else ret = query_data_available( request, available, FALSE );
 
@@ -2972,12 +2993,15 @@ BOOL WINAPI WinHttpQueryDataAvailable( HINTERNET hrequest, LPDWORD available )
     return !ret;
 }
 
-static void task_read_data( struct task_header *task )
+static void CALLBACK task_read_data( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct request *request = (struct request *)task->object;
-    struct read_data *r = (struct read_data *)task;
+    struct read_data *r = ctx;
 
-    read_data( request, r->buffer, r->to_read, r->read, TRUE );
+    TRACE("running %p\n", work);
+    read_data( r->request, r->buffer, r->to_read, r->read, TRUE );
+
+    release_object( &r->request->hdr );
+    heap_free( r );
 }
 
 /***********************************************************************
@@ -3007,14 +3031,17 @@ BOOL WINAPI WinHttpReadData( HINTERNET hrequest, LPVOID buffer, DWORD to_read, L
         struct read_data *r;
 
         if (!(r = heap_alloc( sizeof(*r) ))) return FALSE;
-        r->hdr.object = &request->hdr;
-        r->hdr.proc   = task_read_data;
-        r->buffer     = buffer;
-        r->to_read    = to_read;
-        r->read       = read;
+        r->request = request;
+        r->buffer  = buffer;
+        r->to_read = to_read;
+        r->read    = read;
 
         addref_object( &request->hdr );
-        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)r );
+        if ((ret = queue_task( &request->queue, task_read_data, r )))
+        {
+            release_object( &request->hdr );
+            heap_free( r );
+        }
     }
     else ret = read_data( request, buffer, to_read, read, FALSE );
 
@@ -3045,12 +3072,15 @@ static DWORD write_data( struct request *request, const void *buffer, DWORD to_w
     return ret;
 }
 
-static void task_write_data( struct task_header *task )
+static void CALLBACK task_write_data( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct request *request = (struct request *)task->object;
-    struct write_data *w = (struct write_data *)task;
+    struct write_data *w = ctx;
 
-    write_data( request, w->buffer, w->to_write, w->written, TRUE );
+    TRACE("running %p\n", work);
+    write_data( w->request, w->buffer, w->to_write, w->written, TRUE );
+
+    release_object( &w->request->hdr );
+    heap_free( w );
 }
 
 /***********************************************************************
@@ -3080,14 +3110,17 @@ BOOL WINAPI WinHttpWriteData( HINTERNET hrequest, LPCVOID buffer, DWORD to_write
         struct write_data *w;
 
         if (!(w = heap_alloc( sizeof(*w) ))) return FALSE;
-        w->hdr.object = &request->hdr;
-        w->hdr.proc   = task_write_data;
-        w->buffer     = buffer;
-        w->to_write   = to_write;
-        w->written    = written;
+        w->request  = request;
+        w->buffer   = buffer;
+        w->to_write = to_write;
+        w->written  = written;
 
         addref_object( &request->hdr );
-        ret = queue_task( &request->hdr, &request->queue, (struct task_header *)w );
+        if ((ret = queue_task( &request->queue, task_write_data, w )))
+        {
+            release_object( &request->hdr );
+            heap_free( w );
+        }
     }
     else ret = write_data( request, buffer, to_write, written, FALSE );
 
@@ -3109,25 +3142,10 @@ static void socket_destroy( struct object_header *hdr )
 
     TRACE("%p\n", socket);
 
-    if (socket->send_q.proc_running)
-    {
-        socket->send_q.proc_running = FALSE;
-        SetEvent( socket->send_q.cancel );
-        return;
-    }
-    if (socket->recv_q.proc_running)
-    {
-        socket->recv_q.proc_running = FALSE;
-        SetEvent( socket->recv_q.cancel );
-        return;
-    }
+    if (socket->send_q.pool) CloseThreadpool( socket->send_q.pool );
+    if (socket->recv_q.pool) CloseThreadpool( socket->recv_q.pool );
+
     release_object( &socket->request->hdr );
-
-    socket->send_q.cs.DebugInfo->Spare[0] = 0;
-    DeleteCriticalSection( &socket->send_q.cs );
-
-    socket->recv_q.cs.DebugInfo->Spare[0] = 0;
-    DeleteCriticalSection( &socket->recv_q.cs );
     heap_free( socket );
 }
 
@@ -3175,10 +3193,6 @@ HINTERNET WINAPI WinHttpWebSocketCompleteUpgrade( HINTERNET hrequest, DWORD_PTR 
     socket->hdr.callback = request->hdr.callback;
     socket->hdr.notify_mask = request->hdr.notify_mask;
     socket->hdr.context = context;
-    InitializeCriticalSection( &socket->send_q.cs );
-    socket->send_q.cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": socket.send_q.cs");
-    InitializeCriticalSection( &socket->recv_q.cs );
-    socket->recv_q.cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": socket.recv_q.cs");
 
     addref_object( &request->hdr );
     socket->request = request;
@@ -3299,12 +3313,15 @@ static DWORD socket_send( struct socket *socket, WINHTTP_WEB_SOCKET_BUFFER_TYPE 
     return ret;
 }
 
-static void task_socket_send( struct task_header *task )
+static void CALLBACK task_socket_send( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct socket *socket = (struct socket *)task->object;
-    struct socket_send *s = (struct socket_send *)task;
+    struct socket_send *s = ctx;
 
-    socket_send( socket, s->type, s->buf, s->len, TRUE );
+    TRACE("running %p\n", work);
+    socket_send( s->socket, s->type, s->buf, s->len, TRUE );
+
+    release_object( &s->socket->hdr );
+    heap_free( s );
 }
 
 DWORD WINAPI WinHttpWebSocketSend( HINTERNET hsocket, WINHTTP_WEB_SOCKET_BUFFER_TYPE type, void *buf, DWORD len )
@@ -3338,14 +3355,17 @@ DWORD WINAPI WinHttpWebSocketSend( HINTERNET hsocket, WINHTTP_WEB_SOCKET_BUFFER_
         struct socket_send *s;
 
         if (!(s = heap_alloc( sizeof(*s) ))) return FALSE;
-        s->hdr.object = &socket->hdr;
-        s->hdr.proc   = task_socket_send;
-        s->type       = type;
-        s->buf        = buf;
-        s->len        = len;
+        s->socket = socket;
+        s->type   = type;
+        s->buf    = buf;
+        s->len    = len;
 
         addref_object( &socket->hdr );
-        ret = queue_task( &socket->hdr, &socket->send_q, (struct task_header *)s );
+        if ((ret = queue_task( &socket->send_q, task_socket_send, s )))
+        {
+            release_object( &socket->hdr );
+            heap_free( s );
+        }
     }
     else ret = socket_send( socket, type, buf, len, FALSE );
 
@@ -3451,12 +3471,15 @@ static DWORD socket_receive( struct socket *socket, void *buf, DWORD len, DWORD 
     return ret;
 }
 
-static void task_socket_receive( struct task_header *task )
+static void CALLBACK task_socket_receive( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct socket *socket = (struct socket *)task->object;
-    struct socket_receive *r = (struct socket_receive *)task;
+    struct socket_receive *r = ctx;
 
-    socket_receive( socket, r->buf, r->len, NULL, NULL, TRUE );
+    TRACE("running %p\n", work);
+    socket_receive( r->socket, r->buf, r->len, NULL, NULL, TRUE );
+
+    release_object( &r->socket->hdr );
+    heap_free( r );
 }
 
 DWORD WINAPI WinHttpWebSocketReceive( HINTERNET hsocket, void *buf, DWORD len, DWORD *ret_len,
@@ -3486,13 +3509,16 @@ DWORD WINAPI WinHttpWebSocketReceive( HINTERNET hsocket, void *buf, DWORD len, D
         struct socket_receive *r;
 
         if (!(r = heap_alloc( sizeof(*r) ))) return FALSE;
-        r->hdr.object = &socket->hdr;
-        r->hdr.proc   = task_socket_receive;
-        r->buf        = buf;
-        r->len        = len;
+        r->socket = socket;
+        r->buf    = buf;
+        r->len    = len;
 
         addref_object( &socket->hdr );
-        ret = queue_task( &socket->hdr, &socket->recv_q, (struct task_header *)r );
+        if ((ret = queue_task( &socket->recv_q, task_socket_receive, r )))
+        {
+            release_object( &socket->hdr );
+            heap_free( r );
+        }
     }
     else ret = socket_receive( socket, buf, len, ret_len, ret_type, FALSE );
 
@@ -3524,12 +3550,15 @@ static DWORD socket_shutdown( struct socket *socket, USHORT status, const void *
     return ret;
 }
 
-static void task_socket_shutdown( struct task_header *task )
+static void CALLBACK task_socket_shutdown( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct socket *socket = (struct socket *)task->object;
-    struct socket_shutdown *s = (struct socket_shutdown *)task;
+    struct socket_shutdown *s = ctx;
 
-    socket_shutdown( socket, s->status, s->reason, s->len, TRUE );
+    socket_shutdown( s->socket, s->status, s->reason, s->len, TRUE );
+
+    TRACE("running %p\n", work);
+    release_object( &s->socket->hdr );
+    heap_free( s );
 }
 
 DWORD WINAPI WinHttpWebSocketShutdown( HINTERNET hsocket, USHORT status, void *reason, DWORD len )
@@ -3558,14 +3587,17 @@ DWORD WINAPI WinHttpWebSocketShutdown( HINTERNET hsocket, USHORT status, void *r
         struct socket_shutdown *s;
 
         if (!(s = heap_alloc( sizeof(*s) ))) return FALSE;
-        s->hdr.object = &socket->hdr;
-        s->hdr.proc   = task_socket_shutdown;
-        s->status     = status;
-        s->reason     = reason;
-        s->len        = len;
+        s->socket = socket;
+        s->status = status;
+        s->reason = reason;
+        s->len    = len;
 
         addref_object( &socket->hdr );
-        ret = queue_task( &socket->hdr, &socket->send_q, (struct task_header *)s );
+        if ((ret = queue_task( &socket->send_q, task_socket_shutdown, s )))
+        {
+            release_object( &socket->hdr );
+            heap_free( s );
+        }
     }
     else ret = socket_shutdown( socket, status, reason, len, FALSE );
 
@@ -3624,12 +3656,15 @@ done:
     return ret;
 }
 
-static void task_socket_close( struct task_header *task )
+static void CALLBACK task_socket_close( TP_CALLBACK_INSTANCE *instance, void *ctx, TP_WORK *work )
 {
-    struct socket *socket = (struct socket *)task->object;
-    struct socket_shutdown *s = (struct socket_shutdown *)task;
+    struct socket_shutdown *s = ctx;
 
-    socket_close( socket, s->status, s->reason, s->len, TRUE );
+    socket_close( s->socket, s->status, s->reason, s->len, TRUE );
+
+    TRACE("running %p\n", work);
+    release_object( &s->socket->hdr );
+    heap_free( s );
 }
 
 DWORD WINAPI WinHttpWebSocketClose( HINTERNET hsocket, USHORT status, void *reason, DWORD len )
@@ -3658,14 +3693,17 @@ DWORD WINAPI WinHttpWebSocketClose( HINTERNET hsocket, USHORT status, void *reas
         struct socket_shutdown *s;
 
         if (!(s = heap_alloc( sizeof(*s) ))) return FALSE;
-        s->hdr.object = &socket->hdr;
-        s->hdr.proc   = task_socket_close;
-        s->status     = status;
-        s->reason     = reason;
-        s->len        = len;
+        s->socket = socket;
+        s->status = status;
+        s->reason = reason;
+        s->len    = len;
 
         addref_object( &socket->hdr );
-        ret = queue_task( &socket->hdr, &socket->recv_q, (struct task_header *)s );
+        if ((ret = queue_task( &socket->recv_q, task_socket_close, s )))
+        {
+            release_object( &socket->hdr );
+            heap_free( s );
+        }
     }
     else ret = socket_close( socket, status, reason, len, FALSE );
 
