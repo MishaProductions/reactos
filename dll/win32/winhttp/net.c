@@ -25,7 +25,6 @@
 #include "ws2tcpip.h"
 #include "winhttp.h"
 #include "schannel.h"
-#include "winternl.h"
 
 #include "wine/debug.h"
 #include "winhttp_private.h"

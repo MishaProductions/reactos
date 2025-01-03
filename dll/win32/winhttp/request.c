@@ -366,7 +366,7 @@ static int get_header_index( struct request *request, const WCHAR *field, int re
 
     for (index = 0; index < request->num_headers; index++)
     {
-        if (_wcsicmp( request->headers[index].field, field )) continue;
+        if (wcsicmp( request->headers[index].field, field )) continue;
         if (request_only && !request->headers[index].is_request) continue;
         if (!request_only && request->headers[index].is_request) continue;
 
@@ -571,7 +571,7 @@ static WCHAR *build_request_string( struct request *request )
     WCHAR *path, *ret;
     unsigned int i, len;
 
-    if (!_wcsicmp( request->connect->hostname, request->connect->servername )) path = request->path;
+    if (!wcsicmp( request->connect->hostname, request->connect->servername )) path = request->path;
     else if (!(path = build_absolute_request_path( request, NULL ))) return NULL;
 
     len = lstrlenW( request->verb ) + 1 /* ' ' */;
@@ -1700,7 +1700,7 @@ static DWORD open_connection( struct request *request )
 
         if (is_secure)
         {
-            if (connect->session->proxy_server && _wcsicmp( connect->hostname, connect->servername ))
+            if (connect->session->proxy_server && wcsicmp( connect->hostname, connect->servername ))
             {
                 if ((ret = secure_proxy_connect( request )))
                 {
@@ -1961,21 +1961,14 @@ static void finished_reading( struct request *request )
     else if (!query_headers( request, WINHTTP_QUERY_CONNECTION, NULL, connection, &size, NULL ) ||
              !query_headers( request, WINHTTP_QUERY_PROXY_CONNECTION, NULL, connection, &size, NULL ))
     {
-        if (!_wcsicmp( connection, L"close" )) close = TRUE;
+        if (!wcsicmp( connection, L"close" )) close = TRUE;
     }
     else if (!wcscmp( request->version, L"HTTP/1.0" )) close = TRUE;
-    if (close)
+    if (close || close_request_headers)
     {
-        size = sizeof(connection);
-        notify = (!query_headers( request, WINHTTP_QUERY_CONNECTION | WINHTTP_QUERY_FLAG_REQUEST_HEADERS,
-                                  NULL, connection, &size, NULL )
-                  || !query_headers( request, WINHTTP_QUERY_PROXY_CONNECTION | WINHTTP_QUERY_FLAG_REQUEST_HEADERS,
-                                     NULL, connection, &size, NULL ))
-                 && !_wcsicmp( connection, L"close" );
-
-        if (notify) send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION, 0, 0 );
-         netconn_release( request->netconn );
-        if (notify) send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED, 0, 0 );
+        if (close_request_headers) send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION, 0, 0 );
+        netconn_release( request->netconn );
+        if (close_request_headers) send_callback( &request->hdr, WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED, 0, 0 );
     }
     else
         cache_connection( request->netconn );
@@ -2151,7 +2144,7 @@ static char *build_wire_path( struct request *request, DWORD *ret_len )
     enum escape_flags path_flags, query_flags;
     char *ret;
 
-    if (!_wcsicmp( request->connect->hostname, request->connect->servername )) start = full_path = request->path;
+    if (!wcsicmp( request->connect->hostname, request->connect->servername )) start = full_path = request->path;
     else if (!(full_path = build_absolute_request_path( request, &start ))) return NULL;
 
     len = lstrlenW( full_path );
@@ -2294,7 +2287,7 @@ static DWORD send_request( struct request *request, const WCHAR *headers, DWORD 
 
     buflen = sizeof(encoding);
     chunked = !query_headers( request, WINHTTP_QUERY_FLAG_REQUEST_HEADERS | WINHTTP_QUERY_TRANSFER_ENCODING,
-                              NULL, encoding, &buflen, NULL ) && !wcsicmp( encoding, L"chunked" );
+                              NULL, encoding, &buflen, NULL ) && !_wcsicmp( encoding, L"chunked" );
     if (!chunked && (total_len || (request->verb && (!wcscmp( request->verb, L"POST" )
                                || !wcscmp( request->verb, L"PUT" )))))
     {
@@ -2585,7 +2578,7 @@ static void set_content_length( struct request *request, DWORD status )
 
         buflen = sizeof(encoding);
         if (!query_headers( request, WINHTTP_QUERY_TRANSFER_ENCODING, NULL, encoding, &buflen, NULL ) &&
-            !_wcsicmp( encoding, L"chunked" ))
+            !wcsicmp( encoding, L"chunked" ))
         {
             request->content_length = ~0u;
             request->read_chunked = TRUE;
@@ -2742,7 +2735,7 @@ static void record_cookies( struct request *request )
     for (i = 0; i < request->num_headers; i++)
     {
         struct header *set_cookie = &request->headers[i];
-        if (!_wcsicmp( set_cookie->field, L"Set-Cookie" ) && !set_cookie->is_request)
+        if (!wcsicmp( set_cookie->field, L"Set-Cookie" ) && !set_cookie->is_request)
         {
             set_cookies( request, set_cookie->value );
         }
@@ -2838,7 +2831,7 @@ static DWORD handle_redirect( struct request *request, DWORD status )
         hostname[len] = 0;
 
         port = uc.nPort ? uc.nPort : (uc.nScheme == INTERNET_SCHEME_HTTPS ? 443 : 80);
-        if (_wcsicmp( connect->hostname, hostname ) || connect->serverport != port)
+        if (wcsicmp( connect->hostname, hostname ) || connect->serverport != port)
         {
             heap_free( connect->hostname );
             connect->hostname = hostname;
@@ -5702,7 +5695,7 @@ static DWORD request_get_codepage( struct winhttp_request *request, UINT *codepa
             if (*p++ == '=')
             {
                 while (*p == ' ') p++;
-                if (!_wcsicmp( p, L"utf-8" )) *codepage = CP_UTF8;
+                if (!wcsicmp( p, L"utf-8" )) *codepage = CP_UTF8;
             }
         }
         free( buffer );
@@ -6046,7 +6039,7 @@ static HRESULT WINAPI winhttp_request_put_Option(
             request->url_codepage = V_UI4( &cp );
             TRACE("URL codepage: %u\n", request->url_codepage);
         }
-        else if (V_VT( &value ) == VT_BSTR && !_wcsicmp( V_BSTR( &value ), L"utf-8" ))
+        else if (V_VT( &value ) == VT_BSTR && !wcsicmp( V_BSTR( &value ), L"utf-8" ))
         {
             TRACE("URL codepage: UTF-8\n");
             request->url_codepage = CP_UTF8;

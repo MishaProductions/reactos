@@ -285,12 +285,12 @@ BOOL set_cookies( struct request *request, const WCHAR *cookies )
     len = lstrlenW( p );
     while (len && (attr = parse_attr( p, &used )))
     {
-        if (!_wcsicmp( attr->name, L"domain" ))
+        if (!wcsicmp( attr->name, L"domain" ))
         {
             domain = attr;
             cookie_domain = attr->value;
         }
-        else if (!_wcsicmp( attr->name, L"path" ))
+        else if (!wcsicmp( attr->name, L"path" ))
         {
             path = attr;
             cookie_path = attr->value;

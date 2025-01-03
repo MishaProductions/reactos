@@ -3964,7 +3964,7 @@ static void test_multiple_reads(int port)
             HeapFree( GetProcessHeap(), 0, buf );
             if (!bytes_read) break;
             total_len += bytes_read;
-            trace("read bytes %u, total_len: %u\n", bytes_read, total_len);
+            trace("read bytes %lu, total_len: %lu\n", bytes_read, total_len);
         }
         if (!len) break;
     }
@@ -6059,6 +6059,9 @@ START_TEST (winhttp)
         test_request_path_escapes(si.port);
         test_passport_auth(si.port);
         test_websocket(si.port);
+        test_redirect(si.port);
+        test_WinHttpGetProxyForUrl(si.port);
+        test_connection_cache(si.port);
 
         /* send the basic request again to shutdown the server thread */
         test_basic_request(si.port, NULL, L"/quit");

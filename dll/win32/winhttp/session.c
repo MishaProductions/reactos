@@ -449,7 +449,7 @@ static BOOL domain_matches(LPCWSTR server, LPCWSTR domain)
 {
     BOOL ret = FALSE;
 
-    if (!_wcsicmp( domain, L"<local>" ) && !wcschr( server, '.' ))
+    if (!wcsicmp( domain, L"<local>" ) && !wcschr( server, '.' ))
         ret = TRUE;
     else if (*domain == '*')
     {
@@ -475,7 +475,7 @@ static BOOL domain_matches(LPCWSTR server, LPCWSTR domain)
                      * server's domain.
                      */
                     ptr = dot + len + 1 - lstrlenW( domain + 2 );
-                    if (!_wcsicmp( ptr, domain + 2 ))
+                    if (!wcsicmp( ptr, domain + 2 ))
                     {
                         /* This is only a match if the preceding character is
                          * a '.', i.e. that it is a matching domain.  E.g.
@@ -486,12 +486,12 @@ static BOOL domain_matches(LPCWSTR server, LPCWSTR domain)
                     }
                 }
                 else
-                    ret = !_wcsicmp( dot + 1, domain + 2 );
+                    ret = !wcsicmp( dot + 1, domain + 2 );
             }
         }
     }
     else
-        ret = !_wcsicmp( server, domain );
+        ret = !wcsicmp( server, domain );
     return ret;
 }
 
@@ -560,7 +560,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
         }
         else
         {
-            if (!connect->servername || _wcsicmp( connect->servername, session->proxy_server ))
+            if (!connect->servername || wcsicmp( connect->servername, session->proxy_server ))
             {
                 free( connect->servername );
                 connect->resolved = FALSE;

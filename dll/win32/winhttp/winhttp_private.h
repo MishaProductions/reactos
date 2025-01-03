@@ -25,6 +25,13 @@
 #include "sspi.h"
 #include "wincrypt.h"
 
+#ifdef __REACTOS__
+#include <string.h>
+
+#define wcsicmp _wcsicmp
+#define wcslwr _wcslwr
+#endif
+
 #include "wine/list.h"
 
 #define WINHTTP_HANDLE_TYPE_SOCKET 4

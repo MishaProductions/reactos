@@ -1,5 +1,7 @@
 
-add_definitions(-DUSE_WINE_TODOS -D__ROS_LONG64__)
+add_definitions(-DUSE_WINE_TODOS)
+remove_definitions(-D__ROS_LONG64__)
+remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS)
 
 list(APPEND SOURCE
     notification.c
