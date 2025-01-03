@@ -220,6 +220,7 @@ DWORD netconn_create( struct hostdata *host, const struct sockaddr_storage *sock
 #endif
 
     if (!(conn = calloc( 1, sizeof(*conn) ))) return ERROR_OUTOFMEMORY;
+    conn->refs = 1;
     conn->host = host;
     conn->sockaddr = *sockaddr;
     if ((conn->socket = WSASocketW( sockaddr->ss_family, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED )) == -1)

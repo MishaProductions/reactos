@@ -1911,7 +1911,7 @@ static void finished_reading( struct request *request )
     }
     else if (!wcscmp( request->version, L"HTTP/1.0" )) close = TRUE;
     if (close)
-        netconn_close( request->netconn );
+        netconn_release( request->netconn );
     else
         cache_connection( request->netconn );
     request->netconn = NULL;
