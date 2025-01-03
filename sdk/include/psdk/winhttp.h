@@ -856,7 +856,7 @@ WinHttpCrackUrl(
   _In_ DWORD,
   _Inout_ LPURL_COMPONENTS);
 
-BOOL
+DWORD
 WINAPI
 WinHttpCreateProxyResolver(
   _Out_ HINTERNET,
@@ -899,7 +899,7 @@ WinHttpGetProxyForUrl(
   _In_ WINHTTP_AUTOPROXY_OPTIONS*,
   _Out_ WINHTTP_PROXY_INFO*);
 
-BOOL
+DWORD
 WINAPI
 WinHttpGetProxyForUrlEx(
   _In_ HINTERNET,
@@ -1013,7 +1013,7 @@ WinHttpReadData(
   _In_ DWORD dwNumberOfBytesToRead,
   _Out_ LPDWORD lpdwNumberOfBytesRead);
 
-BOOL
+DWORD
 WINAPI
 WinHttpReadProxySettings(
   _In_ HINTERNET,
@@ -1026,7 +1026,7 @@ WinHttpReadProxySettings(
 
 BOOL WINAPI WinHttpReceiveResponse(_In_ HINTERNET, _Reserved_ LPVOID);
 
-BOOL WINAPI WinHttpResetAutoProxy(_In_ HINTERNET, _In_ DWORD);
+DWORD WINAPI WinHttpResetAutoProxy(_In_ HINTERNET, _In_ DWORD);
 
 BOOL
 WINAPI
@@ -1155,7 +1155,7 @@ WinHttpWriteData(
   _In_ DWORD dwNumberOfBytesToWrite,
   _Out_ LPDWORD);
 
-BOOL
+DWORD
 WINAPI
 WinHttpWriteProxySettings(
   _In_ HINTERNET,

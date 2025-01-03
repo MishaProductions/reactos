@@ -27,6 +27,8 @@ add_library(winhttp MODULE
     rsrc.rc
     ${CMAKE_CURRENT_BINARY_DIR}/winhttp.def)
 
+remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS)
+
 set_module_type(winhttp win32dll)
 target_link_libraries(winhttp uuid wine)
 add_delay_importlibs(winhttp oleaut32 crypt32 secur32 iphlpapi dhcpcsvc)

@@ -414,7 +414,7 @@ static BOOL get_url_length( URL_COMPONENTS *uc, DWORD flags, DWORD *len )
         {
             WCHAR port[sizeof("65535")];
 
-            *len += swprintf( port, L"%u", uc->nPort );
+            *len += swprintf( port, ARRAY_SIZE(port), L"%u", uc->nPort );
             *len += 1; /* ":" */
         }
         if (uc->lpszUrlPath && *uc->lpszUrlPath != '/') *len += 1; /* '/' */
@@ -505,7 +505,7 @@ BOOL WINAPI WinHttpCreateUrl( LPURL_COMPONENTS uc, DWORD flags, LPWSTR url, LPDW
         if (!uses_default_port( scheme, uc->nPort ))
         {
             *url++ = ':';
-            url += swprintf( url, L"%u", uc->nPort );
+            url += swprintf( url, sizeof("65535"), L"%u", uc->nPort );
         }
 
         /* add slash between hostname and path if necessary */

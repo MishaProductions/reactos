@@ -33,8 +33,8 @@
 #include "httprequestid.h"
 #include "schannel.h"
 #include "winhttp.h"
+#include "wine/winternl.h"
 #include "ntsecapi.h"
-#include "winternl.h"
 
 #include "wine/debug.h"
 #include "winhttp_private.h"
@@ -126,111 +126,35 @@ static const WCHAR *attribute_table[] =
     NULL                            /* WINHTTP_QUERY_PASSPORT_CONFIG            = 78 */
 };
 
-static struct task_header *dequeue_task( struct queue *queue )
+static DWORD start_queue( struct queue *queue )
 {
-    struct task_header *task;
+    if (queue->pool) return ERROR_SUCCESS;
 
-    EnterCriticalSection( &queue->cs );
-    TRACE("%u tasks queued in %p\n", list_count(&queue->tasks), queue);
-    task = LIST_ENTRY( list_head( &queue->tasks ), struct task_header, entry );
-    if (task) list_remove( &task->entry );
-    LeaveCriticalSection( &queue->cs );
+    if (!(queue->pool = CreateThreadpool( NULL ))) return GetLastError();
+    SetThreadpoolThreadMinimum( queue->pool, 1 );
+    SetThreadpoolThreadMaximum( queue->pool, 1 );
 
-    TRACE("returning task %p\n", task);
-    return task;
+
+    memset( &queue->env, 0, sizeof(queue->env) );
+    queue->env.Version = 1;
+    queue->env.Pool = queue->pool;
+
+    TRACE("started %p\n", queue);
+    return ERROR_SUCCESS;
 }
 
-#ifdef __REACTOS__
-static DWORD CALLBACK run_queue( LPVOID param )
-#else
-static void CALLBACK run_queue( TP_CALLBACK_INSTANCE *instance, void *ctx )
-#endif
+static DWORD queue_task( struct queue *queue, PTP_WORK_CALLBACK task, void *ctx )
 {
-#ifdef __REACTOS__
-    struct queue *queue = param;
-#else
-    struct queue *queue = ctx;
-#endif
-    HANDLE handles[] = { queue->wait, queue->cancel };
-
-    for (;;)
-    {
-        DWORD err = WaitForMultipleObjects( 2, handles, FALSE, INFINITE );
-        switch (err)
-        {
-        case WAIT_OBJECT_0:
-        {
-            struct task_header *task;
-            while ((task = dequeue_task( queue )))
-            {
-                task->proc( task );
-                release_object( task->object );
-                heap_free( task );
-            }
-            break;
-        }
-        case WAIT_OBJECT_0 + 1:
-            TRACE("exiting\n");
-            CloseHandle( queue->wait );
-            CloseHandle( queue->cancel );
-            queue->object->vtbl->destroy( queue->object );
-#ifdef __REACTOS__
-            return 0;
-#else
-            return;
-#endif
-
-        default:
-            ERR("wait failed %u (%u)\n", err, GetLastError());
-            break;
-        }
-    }
-#ifdef __REACTOS__
-    return 0;
-#endif
-}
-
-static DWORD start_queue( struct object_header *object, struct queue *queue )
-{
-    DWORD ret = ERROR_OUTOFMEMORY;
-
-    if (queue->wait) return ERROR_SUCCESS;
-
-    queue->object = object;
-    list_init( &queue->tasks );
-    if (!(queue->wait = CreateEventW( NULL, FALSE, FALSE, NULL ))) goto error;
-    if (!(queue->cancel = CreateEventW( NULL, FALSE, FALSE, NULL ))) goto error;
-    #ifdef __REACTOS__
-    if (!CreateThread( NULL, 0, run_queue, queue, 0, NULL )) ret = GetLastError();
-    #else
-    if (!TrySubmitThreadpoolCallback( run_queue, queue, NULL )) ret = GetLastError();
-    #endif
-    else
-    {
-        queue->proc_running = TRUE;
-        TRACE("started %p\n", queue);
-        return ERROR_SUCCESS;
-    }
-
-error:
-    CloseHandle( queue->wait );
-    queue->wait = NULL;
-    CloseHandle( queue->cancel );
-    queue->cancel = NULL;
-    return ret;
-}
-
-static DWORD queue_task( struct object_header *object, struct queue *queue, struct task_header *task )
-{
+    TP_WORK *work;
     DWORD ret;
-    if ((ret = start_queue( object, queue ))) return ret;
 
-    EnterCriticalSection( &queue->cs );
-    TRACE("queueing task %p in %p\n", task, queue);
-    list_add_tail( &queue->tasks, &task->entry );
-    LeaveCriticalSection( &queue->cs );
- 
-    SetEvent( queue->wait );
+    if ((ret = start_queue( queue ))) return ret;
+
+    if (!(work = CreateThreadpoolWork( task, ctx, &queue->env ))) return GetLastError();
+    TRACE("queueing %p in %p\n", work, queue);
+    SubmitThreadpoolWork( work );
+    CloseThreadpoolWork( work );
+
     return ERROR_SUCCESS;
 }
 
@@ -518,10 +442,10 @@ static WCHAR *build_absolute_request_path( struct request *request, const WCHAR 
     len += lstrlenW( request->path );
     if ((ret = heap_alloc( len * sizeof(WCHAR) )))
     {
-        offset = swprintf( ret, L"%s://%s", scheme, request->connect->hostname );
+        offset = swprintf( ret, len, L"%s://%s", scheme, request->connect->hostname );
         if (request->connect->hostport)
         {
-            offset += swprintf( ret + offset, L":%u", request->connect->hostport );
+            offset += swprintf( ret + offset, len - offset, L":%u", request->connect->hostport );
         }
         lstrcpyW( ret + offset, request->path );
         if (path) *path = ret + offset;
@@ -1302,7 +1226,7 @@ static WCHAR *build_proxy_connect_string( struct request *request )
     int len = lstrlenW( request->connect->hostname ) + 7;
 
     if (!(host = heap_alloc( len * sizeof(WCHAR) ))) return NULL;
-    len = swprintf( host, L"%s:%u", request->connect->hostname, request->connect->hostport );
+    len = swprintf( host, len, L"%s:%u", request->connect->hostname, request->connect->hostport );
 
     len += ARRAY_SIZE(L"CONNECT");
     len += ARRAY_SIZE(L"HTTP/1.1");
@@ -1733,7 +1657,7 @@ static DWORD add_host_header( struct request *request, DWORD modifier )
     }
     len = lstrlenW( connect->hostname ) + 7; /* sizeof(":65335") */
     if (!(host = heap_alloc( len * sizeof(WCHAR) ))) return ERROR_OUTOFMEMORY;
-    swprintf( host, L"%s:%u", connect->hostname, port );
+    swprintf( host, len, L"%s:%u", connect->hostname, port );
     ret = process_header( request, L"Host", host, modifier, TRUE );
     heap_free( host );
     return ret;
@@ -2192,7 +2116,7 @@ static DWORD send_request( struct request *request, const WCHAR *headers, DWORD 
     if (total_len || (request->verb && !wcscmp( request->verb, L"POST" )))
     {
         WCHAR length[21]; /* decimal long int + null */
-        swprintf( length, L"%ld", total_len );
+        swprintf( length, ARRAY_SIZE(length), L"%ld", total_len );
         process_header( request, L"Content-Length", length, WINHTTP_ADDREQ_FLAG_ADD_IF_NEW, TRUE );
     }
     if (request->flags & REQUEST_FLAG_WEBSOCKET_UPGRADE)
@@ -4338,7 +4262,7 @@ static HRESULT WINAPI winhttp_request_SetRequestHeader(
         err = ERROR_OUTOFMEMORY;
         goto done;
     }
-    swprintf( str, L"%s: %s\r\n", header, value ? value : L"" );
+    swprintf( str, len + 1, L"%s: %s\r\n", header, value ? value : L"" );
     if (!WinHttpAddRequestHeaders( request->hrequest, str, len,
                                    WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE ))
     {
@@ -4587,10 +4511,10 @@ static void request_set_utf8_content_type( struct winhttp_request *request )
     WCHAR headerW[64];
     int len;
 
-    len = swprintf( headerW, L"%s: %s", L"Content-Type", L"text/plain" );
+    len = swprintf( headerW, ARRAY_SIZE(headerW), L"%s: %s", L"Content-Type", L"text/plain" );
     WinHttpAddRequestHeaders( request->hrequest, headerW, len, WINHTTP_ADDREQ_FLAG_ADD_IF_NEW );
 
-    len = swprintf( headerW, L"%s: %s", L"Content-Type", L"charset=utf-8" );
+    len = swprintf( headerW, ARRAY_SIZE(headerW), L"%s: %s", L"Content-Type", L"charset=utf-8" );
     WinHttpAddRequestHeaders( request->hrequest, headerW, len, WINHTTP_ADDREQ_FLAG_COALESCE_WITH_SEMICOLON );
 }
 

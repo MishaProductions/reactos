@@ -586,24 +586,8 @@ static void request_destroy( struct object_header *hdr )
 
     TRACE("%p\n", request);
 
-#ifdef __REACTOS__
-    if (request->task_thread)
-#else
-    if (request->queue.proc_running)
-#endif
-    {
-        /* Signal to the task proc to quit. It will call this again when it does. */
-#ifdef __REACTOS__
-        HANDLE thread = request->task_thread;
-        request->task_thread = 0;
-        SetEvent( request->task_cancel );
-        CloseHandle( thread );
-#else
-        request->queue.proc_running = FALSE;
-        SetEvent( request->queue.cancel );
-#endif
-        return;
-    }
+    if (request->queue.pool) CloseThreadpool( request->queue.pool );
+
     release_object( &request->connect->hdr );
 
     if (request->cred_handle_initialized) FreeCredentialsHandle( &request->cred_handle );
@@ -2262,7 +2246,7 @@ BOOL WINAPI WinHttpTimeFromSystemTime( const SYSTEMTIME *time, LPWSTR string )
         return FALSE;
     }
 
-    swprintf( string,
+    swprintf( string, WINHTTP_TIME_FORMAT_BUFSIZE / sizeof(WCHAR),
               L"%s, %02d %s %4d %02d:%02d:%02d GMT",
               wkday[time->wDayOfWeek],
               time->wDay,
