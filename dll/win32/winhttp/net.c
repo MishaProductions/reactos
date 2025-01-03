@@ -776,7 +776,7 @@ static struct async_resolve *create_async_resolve( const WCHAR *hostname, INTERN
         return NULL;
     }
     ret->ref = 1;
-    ret->hostname = wcsdup( hostname );
+    ret->hostname = _wcsdup( hostname );
     ret->port     = port;
     if (!(ret->done = CreateEventW( NULL, FALSE, FALSE, NULL )))
     {
