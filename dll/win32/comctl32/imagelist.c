@@ -1343,6 +1343,18 @@ static BOOL alpha_blend_image( HIMAGELIST himl, HDC dest_dc, int dest_x, int des
         }
     }
 
+    if (grayscale)
+    {
+        for (i = 0, ptr = bits; i < cx * cy; i++, ptr++)
+        {
+            DWORD gray = (((*ptr & 0x00ff0000) >> 16) * 299 +
+                          ((*ptr & 0x0000ff00) >>  8) * 587 +
+                          ((*ptr & 0x000000ff) >>  0) * 114 + 500) / 1000;
+            if (has_alpha) gray = gray * (*ptr >> 24) / 255;
+            *ptr = (*ptr & 0xff000000)| (gray << 16) | (gray << 8) | gray;
+        }
+    }
+
     if (has_alpha)  /* we already have an alpha channel in this case */
     {
         /* pre-multiply by the alpha channel */
