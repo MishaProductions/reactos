@@ -1647,7 +1647,11 @@ static WCHAR *detect_autoproxyconfig_url_dns(void)
         strcpy( name, "wpad" );
         strcat( name, p );
         memset( &hints, 0, sizeof(hints) );
+#ifdef __REACTOS__
+        hints.ai_flags  = AI_ALL;
+#else
         hints.ai_flags  = AI_ALL | AI_DNS_ONLY;
+#endif
         hints.ai_family = AF_UNSPEC;
         res = getaddrinfo( name, NULL, &hints, &ai );
         if (!res)
