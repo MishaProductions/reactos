@@ -1604,7 +1604,7 @@ ImageList_DrawIndirect (IMAGELISTDRAWPARAMS *pimldp)
     }
 #endif
 
-    has_alpha = (himl->has_alpha && himl->has_alpha[pimldp->i]);
+    has_alpha = himl->item_flags[pimldp->i] & ILIF_ALPHA;
     if (!bMask && (has_alpha || (fState & ILS_ALPHA) || (fState & ILS_SATURATE)))
     {
         COLORREF colour, blend_col = CLR_NONE;
@@ -3485,7 +3485,7 @@ static ULONG WINAPI ImageListImpl_Release(IImageList2 *iface)
         This->usMagic = IMAGELIST_MAGIC_DESTROYED;
 #endif
         This->IImageList2_iface.lpVtbl = NULL;
-        heap_free(This->has_alpha);
+        heap_free(This->item_flags);
         heap_free(This);
     }
 
