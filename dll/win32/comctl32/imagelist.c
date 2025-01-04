@@ -250,16 +250,7 @@ static void add_dib_bits( HIMAGELIST himl, int pos, int count, int width, int he
             for (j = n * width; j < (n + 1) * width; j++)
                 if ((has_alpha = ((bits[i * stride + j] & 0xff000000) != 0))) break;
 
-        if (!has_alpha)  /* generate alpha channel from the mask */
-        {
-            for (i = 0; i < height; i++)
-                for (j = n * width; j < (n + 1) * width; j++)
-                    if (!mask_info || !((mask_bits[i * mask_stride + j / 8] << (j % 8)) & 0x80))
-                        bits[i * stride + j] |= 0xff000000;
-                    else
-                        bits[i * stride + j] = 0;
-        }
-        else
+        if (has_alpha)
         {
             himl->has_alpha[pos + n] = 1;
 
@@ -1352,7 +1343,7 @@ static BOOL alpha_blend_image( HIMAGELIST himl, HDC dest_dc, int dest_x, int des
         }
     }
 
-    if (himl->has_alpha)  /* we already have an alpha channel in this case */
+    if (has_alpha)  /* we already have an alpha channel in this case */
     {
         /* pre-multiply by the alpha channel */
         for (i = 0, ptr = bits; i < cx * cy; i++, ptr++)
@@ -1404,6 +1395,11 @@ static BOOL alpha_blend_image( HIMAGELIST himl, HDC dest_dc, int dest_x, int des
             for (j = 0; j < cx; j++, ptr++)
                 if ((((BYTE *)mask_bits)[i * width_bytes + j / 8] << (j % 8)) & 0x80) *ptr = 0;
                 else *ptr |= 0xff000000;
+    }
+    else
+    {
+        for (i = 0, ptr = bits; i < cx * cy; i++, ptr++)
+            *ptr |= 0xff000000;
     }
 
     ret = GdiAlphaBlend( dest_dc, dest_x, dest_y, cx, cy, hdc, 0, 0, cx, cy, func );
