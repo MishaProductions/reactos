@@ -1280,7 +1280,7 @@ static BOOL alpha_blend_image( HIMAGELIST himl, HDC srce_dc, HDC srce_dcMask, HD
 static BOOL alpha_blend_image( HIMAGELIST himl, HDC dest_dc, int dest_x, int dest_y,
 #endif
                                int src_x, int src_y, int cx, int cy, BLENDFUNCTION func,
-                               UINT style, COLORREF blend_col )
+                               UINT style, COLORREF blend_col, BOOL has_alpha )
 {
     BOOL ret = FALSE;
     HDC hdc;
@@ -1629,7 +1629,7 @@ ImageList_DrawIndirect (IMAGELISTDRAWPARAMS *pimldp)
 #else
             bResult = alpha_blend_image( himl, pimldp->hdcDst, pimldp->x, pimldp->y,
 #endif
-                                         pt.x, pt.y, cx, cy, func, fStyle, blend_col );
+                                         pt.x, pt.y, cx, cy, func, fStyle, blend_col, has_alpha );
             goto end;
         }
         colour = pimldp->rgbBk;
@@ -1639,9 +1639,9 @@ ImageList_DrawIndirect (IMAGELISTDRAWPARAMS *pimldp)
         hOldBrush = SelectObject (hImageDC, CreateSolidBrush (colour));
         PatBlt( hImageDC, 0, 0, cx, cy, PATCOPY );
 #ifdef __REACTOS__
-        alpha_blend_image( himl, hImageListDC, hMaskListDC, hImageDC, 0, 0, pt.x, pt.y, cx, cy, func, fStyle, blend_col );
+        alpha_blend_image( himl, hImageListDC, hMaskListDC, hImageDC, 0, 0, pt.x, pt.y, cx, cy, func, fStyle, blend_col, has_alpha );
 #else
-        alpha_blend_image( himl, hImageDC, 0, 0, pt.x, pt.y, cx, cy, func, fStyle, blend_col );
+        alpha_blend_image( himl, hImageDC, 0, 0, pt.x, pt.y, cx, cy, func, fStyle, blend_col, has_alpha );
 #endif
         DeleteObject (SelectObject (hImageDC, hOldBrush));
         bResult = BitBlt( pimldp->hdcDst, pimldp->x,  pimldp->y, cx, cy, hImageDC, 0, 0, SRCCOPY );

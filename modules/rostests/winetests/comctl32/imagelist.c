@@ -2273,7 +2273,9 @@ static void test_loadimage(void)
     pImageList_Destroy( list );
 }
 
+#ifndef __REACTOS__
 #define GetAValue(argb) ((BYTE) ((argb) >> 24))
+#endif
 
 static void get_image_alpha(HIMAGELIST himl, int index, int width, int height, UINT32 *alpha)
 {
@@ -2298,7 +2300,7 @@ static void get_image_alpha(HIMAGELIST himl, int index, int width, int height, U
 static void test_alpha(void)
 {
     /* each line is a 2*1 bitmap */
-    const static UINT32 test_bitmaps[] =
+    const UINT32 test_bitmaps[] =
     {
         0x00654321, 0x00ABCDEF,
         0x00654321, 0xFFABCDEF,
