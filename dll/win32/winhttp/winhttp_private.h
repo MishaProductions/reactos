@@ -30,6 +30,10 @@
 
 #define wcsicmp _wcsicmp
 #define wcslwr _wcslwr
+#define wcsnicmp _wcsnicmp
+#define wcsdup _wcsdup
+#define stricmp _stricmp
+#define AI_DNS_ONLY     0x00000010
 #endif
 
 #include "wine/list.h"

@@ -211,8 +211,8 @@ BOOL WINAPI WinHttpCrackUrl( const WCHAR *url, DWORD len, DWORD flags, URL_COMPO
         free( url_transformed );
         return FALSE;
     }
-    if (p - url == 4 && !_wcsnicmp( url, L"http", 4 )) scheme_number = INTERNET_SCHEME_HTTP;
-    else if (p - url == 5 && !_wcsnicmp( url, L"https", 5 )) scheme_number = INTERNET_SCHEME_HTTPS;
+    if (p - url == 4 && !wcsnicmp( url, L"http", 4 )) scheme_number = INTERNET_SCHEME_HTTP;
+    else if (p - url == 5 && !wcsnicmp( url, L"https", 5 )) scheme_number = INTERNET_SCHEME_HTTPS;
     else
     {
         err = ERROR_WINHTTP_UNRECOGNIZED_SCHEME;

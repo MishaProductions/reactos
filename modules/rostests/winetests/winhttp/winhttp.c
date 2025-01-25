@@ -42,6 +42,10 @@ static DWORD (WINAPI *pWinHttpWebSocketReceive)(HINTERNET,void*,DWORD,DWORD*,WIN
 static DWORD (WINAPI *pWinHttpWebSocketSend)(HINTERNET,WINHTTP_WEB_SOCKET_BUFFER_TYPE,void*,DWORD);
 static DWORD (WINAPI *pWinHttpWebSocketShutdown)(HINTERNET,USHORT,void*,DWORD);
 
+#ifdef __REACTOS__
+#define PKCS12_NO_PERSIST_KEY                   0x00008000
+#endif
+
 static BOOL proxy_active(void)
 {
     WINHTTP_PROXY_INFO proxy_info;

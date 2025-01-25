@@ -25,7 +25,11 @@
 #include "ws2tcpip.h"
 #include "winhttp.h"
 #include "winreg.h"
+#ifdef __REACTOS__
 #include "wine/winternl.h"
+#else
+#include "winternl.h"
+#endif
 #include "iphlpapi.h"
 #include "dhcpcsdk.h"
 #define COBJMACROS
@@ -326,31 +330,31 @@ HINTERNET WINAPI WinHttpOpen( LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCWST
     InitializeCriticalSectionEx( &session->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO );
     session->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": session.cs");
 
-    if (agent && !(session->agent = _wcsdup( agent ))) goto end;
+    if (agent && !(session->agent = wcsdup( agent ))) goto end;
     if (access == WINHTTP_ACCESS_TYPE_DEFAULT_PROXY)
     {
         WINHTTP_PROXY_INFO info;
 
         WinHttpGetDefaultProxyConfiguration( &info );
         session->access = info.dwAccessType;
-        if (info.lpszProxy && !(session->proxy_server = _wcsdup( info.lpszProxy )))
+        if (info.lpszProxy && !(session->proxy_server = wcsdup( info.lpszProxy )))
         {
-            GlobalFree( (LPWSTR)info.lpszProxy );
-            GlobalFree( (LPWSTR)info.lpszProxyBypass );
+            GlobalFree( info.lpszProxy );
+            GlobalFree( info.lpszProxyBypass );
             goto end;
         }
-        if (info.lpszProxyBypass && !(session->proxy_bypass = _wcsdup( info.lpszProxyBypass )))
+        if (info.lpszProxyBypass && !(session->proxy_bypass = wcsdup( info.lpszProxyBypass )))
         {
-            GlobalFree( (LPWSTR)info.lpszProxy );
-            GlobalFree( (LPWSTR)info.lpszProxyBypass );
+            GlobalFree( info.lpszProxy );
+            GlobalFree( info.lpszProxyBypass );
             goto end;
         }
     }
     else if (access == WINHTTP_ACCESS_TYPE_NAMED_PROXY)
     {
         session->access = access;
-        if (proxy && !(session->proxy_server = _wcsdup( proxy ))) goto end;
-        if (bypass && !(session->proxy_bypass = _wcsdup( bypass ))) goto end;
+        if (proxy && !(session->proxy_server = wcsdup( proxy ))) goto end;
+        if (bypass && !(session->proxy_bypass = wcsdup( bypass ))) goto end;
     }
 
     handle = alloc_handle( &session->hdr );
@@ -540,7 +544,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
 
         if ((colon = wcschr( session->proxy_server, ':' )))
         {
-            if (!connect->servername || _wcsnicmp( connect->servername,
+            if (!connect->servername || wcsnicmp( connect->servername,
                 session->proxy_server, colon - session->proxy_server - 1 ))
             {
                 free( connect->servername );
@@ -564,7 +568,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
             {
                 free( connect->servername );
                 connect->resolved = FALSE;
-                if (!(connect->servername = _wcsdup( session->proxy_server )))
+                if (!(connect->servername = wcsdup( session->proxy_server )))
                 {
                     ret = FALSE;
                     goto end;
@@ -577,7 +581,7 @@ BOOL set_server_for_hostname( struct connect *connect, const WCHAR *server, INTE
     {
         free( connect->servername );
         connect->resolved = FALSE;
-        if (!(connect->servername = _wcsdup( server )))
+        if (!(connect->servername = wcsdup( server )))
         {
             ret = FALSE;
             goto end;
@@ -632,7 +636,7 @@ HINTERNET WINAPI WinHttpConnect( HINTERNET hsession, const WCHAR *server, INTERN
     addref_object( &session->hdr );
     connect->session = session;
 
-    if (!(connect->hostname = _wcsdup( server ))) goto end;
+    if (!(connect->hostname = wcsdup( server ))) goto end;
     connect->hostport = port;
     if (!set_server_for_hostname( connect, server, port )) goto end;
 
@@ -1332,11 +1336,11 @@ HINTERNET WINAPI WinHttpOpenRequest( HINTERNET hconnect, const WCHAR *verb, cons
     request->read_reply_status = ERROR_WINHTTP_INCORRECT_HANDLE_STATE;
 
     if (!verb || !verb[0]) verb = L"GET";
-    if (!(request->verb = _wcsdup( verb ))) goto end;
+    if (!(request->verb = wcsdup( verb ))) goto end;
     if (!(request->path = get_request_path( object ))) goto end;
 
     if (!version || !version[0]) version = L"HTTP/1.1";
-    if (!(request->version = _wcsdup( version ))) goto end;
+    if (!(request->version = wcsdup( version ))) goto end;
     if (!(add_accept_types_header( request, types ))) goto end;
 
     if ((hrequest = alloc_handle( &request->hdr )))
@@ -1591,7 +1595,7 @@ static BOOL is_domain_suffix( const char *domain, const char *suffix )
     int len_domain = strlen( domain ), len_suffix = strlen( suffix );
 
     if (len_suffix > len_domain) return FALSE;
-    if (!_stricmp( domain + len_domain - len_suffix, suffix )) return TRUE;
+    if (!stricmp( domain + len_domain - len_suffix, suffix )) return TRUE;
     return FALSE;
 }
 
@@ -1647,11 +1651,7 @@ static WCHAR *detect_autoproxyconfig_url_dns(void)
         strcpy( name, "wpad" );
         strcat( name, p );
         memset( &hints, 0, sizeof(hints) );
-#ifdef __REACTOS__
-        hints.ai_flags  = AI_ALL;
-#else
         hints.ai_flags  = AI_ALL | AI_DNS_ONLY;
-#endif
         hints.ai_family = AF_UNSPEC;
         res = getaddrinfo( name, NULL, &hints, &ai );
         if (!res)
@@ -2009,7 +2009,7 @@ static void cache_script( const WCHAR *url, char *buffer, DWORD size )
     cached_script_size = 0;
     cached_script = NULL;
 
-    if ((cached_url = _wcsdup( url )) && buffer && (cached_script = malloc( size )))
+    if ((cached_url = wcsdup( url )) && buffer && (cached_script = malloc( size )))
     {
         memcpy( cached_script, buffer, size );
         cached_script_size = size;

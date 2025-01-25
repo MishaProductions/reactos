@@ -25,6 +25,9 @@
 #include "ws2tcpip.h"
 #include "winhttp.h"
 #include "schannel.h"
+#ifndef __REACTOS__
+#include "winternl.h"
+#endif
 
 #include "wine/debug.h"
 #include "winhttp_private.h"
@@ -209,7 +212,7 @@ static void set_blocking( struct netconn *conn, BOOL blocking )
 }
 
 DWORD netconn_create( struct hostdata *host, const struct sockaddr_storage *sockaddr, int timeout,
-                      struct netconn **ret_conn)
+                      struct netconn **ret_conn )
 {
     struct netconn *conn;
     unsigned int addr_len;
@@ -786,7 +789,7 @@ static struct async_resolve *create_async_resolve( const WCHAR *hostname, INTERN
         return NULL;
     }
     ret->ref = 1;
-    ret->hostname = _wcsdup( hostname );
+    ret->hostname = wcsdup( hostname );
     ret->port     = port;
     if (!(ret->done = CreateEventW( NULL, FALSE, FALSE, NULL )))
     {
