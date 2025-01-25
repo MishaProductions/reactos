@@ -1125,8 +1125,8 @@ WINAPI
 WinHttpWebSocketClose(
   _In_ HINTERNET,
   _In_ USHORT,
-  _In_opt_ PVOID,
-  _In_ DWORD);
+  _In_reads_bytes_opt_(dwReasonLength) PVOID,
+  _In_range_(0, WINHTTP_WEB_SOCKET_MAX_CLOSE_REASON_LENGTH) DWORD dwReasonLength);
 
 HINTERNET
 WINHTTPAPI
@@ -1141,18 +1141,18 @@ WINAPI
 WinHttpWebSocketQueryCloseStatus(
   _In_ HINTERNET,
   _Out_ USHORT*,
-  _Out_ void*,
-  _In_ DWORD,
-  _Out_ DWORD*);
+  _Out_writes_bytes_to_opt_(dwReasonLength, *pdwReasonLengthConsumed) void*,
+  _In_range_(0, WINHTTP_WEB_SOCKET_MAX_CLOSE_REASON_LENGTH) DWORD dwReasonLength,
+  _Out_range_(0, WINHTTP_WEB_SOCKET_MAX_CLOSE_REASON_LENGTH) DWORD *pdwReasonLengthConsumed);
 
 DWORD
 WINHTTPAPI
 WINAPI
 WinHttpWebSocketReceive(
   _In_ HINTERNET,
-  _Out_ PVOID,
-  _In_ DWORD,
-  _Out_ DWORD*,
+  _Out_writes_bytes_to_(dwBufferLength, *pdwBytesRead)  PVOID,
+  _In_ DWORD dwBufferLength,
+  _Out_range_(0, dwBufferLength) DWORD* pdwBytesRead,
   _Out_ WINHTTP_WEB_SOCKET_BUFFER_TYPE*);
 
 DWORD
@@ -1170,8 +1170,8 @@ WINAPI
 WinHttpWebSocketShutdown(
   _In_ HINTERNET,
   _In_ USHORT,
-  _In_reads_bytes_(dwReasonLength) _In_opt_ void* pvReason,
-  _In_ DWORD dwReasonLength);
+  _In_reads_bytes_opt_(dwReasonLength) _In_opt_ void* pvReason,
+  _In_range_(0, WINHTTP_WEB_SOCKET_MAX_CLOSE_REASON_LENGTH) DWORD dwReasonLength);
 
 BOOL
 WINHTTPAPI
