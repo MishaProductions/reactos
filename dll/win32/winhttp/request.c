@@ -46,6 +46,10 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(winhttp);
 
+#ifdef __REACTOS__
+#include "inet_ntop.c"
+#endif
+
 #define DEFAULT_KEEP_ALIVE_TIMEOUT 30000
 
 #define ACTUAL_DEFAULT_RECEIVE_RESPONSE_TIMEOUT 21000
@@ -6170,3 +6174,29 @@ HRESULT WinHttpRequest_create( void **obj )
     TRACE("returning iface %p\n", *obj);
     return S_OK;
 }
+
+#ifdef __REACTOS__
+/******************************************************************
+ *              DllCanUnloadNow (winhttp.@)
+ */
+HRESULT WINAPI DllCanUnloadNow(void)
+{
+    return S_FALSE;
+}
+
+/***********************************************************************
+ *          DllRegisterServer (winhttp.@)
+ */
+HRESULT WINAPI DllRegisterServer(void)
+{
+    return __wine_register_resources( winhttp_instance );
+}
+
+/***********************************************************************
+ *          DllUnregisterServer (winhttp.@)
+ */
+HRESULT WINAPI DllUnregisterServer(void)
+{
+    return __wine_unregister_resources( winhttp_instance );
+}
+#endif
