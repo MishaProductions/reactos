@@ -32,7 +32,7 @@ add_library(winhttp MODULE
 remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS)
 
 set_module_type(winhttp win32dll)
-target_link_libraries(winhttp uuid wine)
+target_link_libraries(winhttp uuid wine wine_dll_register)
 add_delay_importlibs(winhttp oleaut32 crypt32 secur32 iphlpapi dhcpcsvc)
 add_importlibs(winhttp user32 advapi32 ws2_32 jsproxy kernel32_vista msvcrt kernel32 ntdll)
 add_dependencies(winhttp stdole2)

@@ -238,12 +238,7 @@ struct request
     DWORD num_headers;
     struct authinfo *authinfo;
     struct authinfo *proxy_authinfo;
-    HANDLE task_wait;
-    HANDLE task_cancel;
     struct queue queue;
-#ifdef __REACTOS__
-    HANDLE task_thread;
-#endif
     struct
     {
         WCHAR *username;
