@@ -115,22 +115,22 @@ add_compile_options(-march=${OARCH} -mtune=${TUNE})
 # Warnings, errors
 if((NOT CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT CMAKE_C_COMPILER_ID STREQUAL Clang))
     add_compile_options(-Werror)
-else()
-    if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-        add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:-Werror=unknown-warning-option>)
-    endif()
 endif()
 
 add_compile_options(-Wall -Wpointer-arith)
-add_compile_options(-Wno-char-subscripts -Wno-multichar -Wno-unused-value)
-add_compile_options(-Wno-unused-const-variable)
-add_compile_options(-Wno-unused-local-typedefs)
-add_compile_options(-Wno-deprecated)
-add_compile_options(-Wno-unused-result) # FIXME To be removed when CORE-17637 is resolved
 
-if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-Wno-maybe-uninitialized)
-endif()
+# Disable some overzealous warnings
+add_compile_options(
+    -Wno-unknown-warning-option
+    -Wno-char-subscripts
+    -Wno-multichar
+    -Wno-unused-value
+    -Wno-unused-const-variable
+    -Wno-unused-local-typedefs
+    -Wno-deprecated
+    -Wno-unused-result # FIXME To be removed when CORE-17637 is resolved
+    -Wno-maybe-uninitialized
+)
 
 if(ARCH STREQUAL "amd64")
     add_compile_options(-Wno-format)
@@ -373,11 +373,16 @@ function(fixup_load_config _target)
         DEPENDS native-pefixup)
 endfunction()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR
+   CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(__spec2def_dbg_arg "--dbg")
+endif()
+
 function(generate_import_lib _libname _dllname _spec_file __version_arg)
     # Generate the def for the import lib
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${_libname}_implib.def
-        COMMAND native-spec2def ${__version_arg} -n=${_dllname} -a=${ARCH2} ${ARGN} --implib -d=${CMAKE_CURRENT_BINARY_DIR}/${_libname}_implib.def ${CMAKE_CURRENT_SOURCE_DIR}/${_spec_file}
+        COMMAND native-spec2def ${__version_arg} ${__spec2def_dbg_arg} -n=${_dllname} -a=${ARCH2} ${ARGN} --implib -d=${CMAKE_CURRENT_BINARY_DIR}/${_libname}_implib.def ${CMAKE_CURRENT_SOURCE_DIR}/${_spec_file}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${_spec_file} native-spec2def)
 
     # With this, we let DLLTOOL create an import library
@@ -450,7 +455,7 @@ function(spec2def _dllname _spec_file)
     # Generate exports def and C stubs file for the DLL
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${_file}.def ${CMAKE_CURRENT_BINARY_DIR}/${_file}_stubs.c
-        COMMAND native-spec2def -n=${_dllname} -a=${ARCH2} -d=${CMAKE_CURRENT_BINARY_DIR}/${_file}.def -s=${CMAKE_CURRENT_BINARY_DIR}/${_file}_stubs.c ${__with_relay_arg} ${__version_arg} ${CMAKE_CURRENT_SOURCE_DIR}/${_spec_file}
+        COMMAND native-spec2def -n=${_dllname} -a=${ARCH2} -d=${CMAKE_CURRENT_BINARY_DIR}/${_file}.def -s=${CMAKE_CURRENT_BINARY_DIR}/${_file}_stubs.c ${__with_relay_arg} ${__version_arg} ${__spec2def_dbg_arg} ${CMAKE_CURRENT_SOURCE_DIR}/${_spec_file}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${_spec_file} native-spec2def)
 
     # Do not use precompiled headers for the stub file

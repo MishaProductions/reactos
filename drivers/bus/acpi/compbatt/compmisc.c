@@ -1,9 +1,8 @@
 /*
- * PROJECT:         ReactOS Composite Battery Driver
- * LICENSE:         BSD - See COPYING.ARM in the top level directory
- * FILE:            boot/drivers/bus/acpi/compbatt/compmisc.c
- * PURPOSE:         Miscellaneous Support Routines
- * PROGRAMMERS:     ReactOS Portable Systems Group
+ * PROJECT:     ReactOS Composite Battery Driver
+ * LICENSE:     MIT (https://spdx.org/licenses/MIT)
+ * PURPOSE:     Miscellaneous Support Routines
+ * COPYRIGHT:   Copyright 2010 ReactOS Portable Systems Group <ros.arm@reactos.org>
  */
 
 /* INCLUDES *******************************************************************/
@@ -14,20 +13,21 @@
 
 NTSTATUS
 NTAPI
-BatteryIoctl(IN ULONG IoControlCode,
-             IN PDEVICE_OBJECT DeviceObject,
-             IN PVOID InputBuffer,
-             IN ULONG InputBufferLength,
-             IN PVOID OutputBuffer,
-             IN ULONG OutputBufferLength,
-             IN BOOLEAN InternalDeviceIoControl)
+BatteryIoctl(
+    _In_ ULONG IoControlCode,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID InputBuffer,
+    _In_ ULONG InputBufferLength,
+    _Out_ PVOID OutputBuffer,
+    _Inout_ ULONG OutputBufferLength,
+    _In_ BOOLEAN InternalDeviceIoControl)
 {
     IO_STATUS_BLOCK IoStatusBlock;
     KEVENT Event;
     NTSTATUS Status;
     PIRP Irp;
     PAGED_CODE();
-    if (CompBattDebug & 0x100) DbgPrint("CompBatt: ENTERING BatteryIoctl\n");
+    if (CompBattDebug & COMPBATT_DEBUG_TRACE) DbgPrint("CompBatt: ENTERING BatteryIoctl\n");
 
     /* Initialize the event and IRP */
     KeInitializeEvent(&Event, SynchronizationEvent, 0);
@@ -52,16 +52,16 @@ BatteryIoctl(IN ULONG IoControlCode,
         }
 
         /* Print failure */
-        if (!(NT_SUCCESS(Status)) && (CompBattDebug & 8))
+        if (!(NT_SUCCESS(Status)) && (CompBattDebug & COMPBATT_DEBUG_ERR))
             DbgPrint("BatteryIoctl: Irp failed - %x\n", Status);
 
         /* Done */
-        if (CompBattDebug & 0x100) DbgPrint("CompBatt: EXITING BatteryIoctl\n");
+        if (CompBattDebug & COMPBATT_DEBUG_TRACE) DbgPrint("CompBatt: EXITING BatteryIoctl\n");
     }
     else
     {
         /* Out of memory */
-        if (CompBattDebug & 8) DbgPrint("BatteryIoctl: couldn't create Irp\n");
+        if (CompBattDebug & COMPBATT_DEBUG_ERR) DbgPrint("BatteryIoctl: couldn't create Irp\n");
         Status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -71,10 +71,11 @@ BatteryIoctl(IN ULONG IoControlCode,
 
 NTSTATUS
 NTAPI
-CompBattGetDeviceObjectPointer(IN PUNICODE_STRING DeviceName,
-                               IN ACCESS_MASK DesiredAccess,
-                               OUT PFILE_OBJECT *FileObject,
-                               OUT PDEVICE_OBJECT *DeviceObject)
+CompBattGetDeviceObjectPointer(
+    _In_ PUNICODE_STRING DeviceName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _Out_ PFILE_OBJECT *FileObject,
+    _Out_ PDEVICE_OBJECT *DeviceObject)
 {
     NTSTATUS Status;
     OBJECT_ATTRIBUTES ObjectAttributes;
