@@ -33,6 +33,7 @@
 #include "strsafe.h"
 
 #ifdef __REACTOS__
+#include <oleauto.h>
 #include <oaidl.h>
 #endif
 
