@@ -1081,7 +1081,11 @@ HRESULT WINAPI PropVariantToVariant(const PROPVARIANT *propvar, VARIANT *var)
         return E_INVALIDARG;
 
     VariantInit(var);
+#ifdef __REACTOS__
+    V_VT(var) = propvar->vt;
+#else
     var->vt = propvar->vt;
+#endif
 
     switch (propvar->vt)
     {
@@ -1125,7 +1129,11 @@ HRESULT WINAPI PropVariantToVariant(const PROPVARIANT *propvar, VARIANT *var)
         case VT_LPWSTR:
         case VT_BSTR:
         case VT_CLSID:
+#ifdef __REACTOS__
+            V_VT(var) = VT_BSTR;
+#else
             var->vt = VT_BSTR;
+#endif
             hr = PropVariantToBSTR(propvar, &V_BSTR(var));
             break;
         default:
@@ -1145,13 +1153,27 @@ HRESULT WINAPI VariantToPropVariant(const VARIANT *var, PROPVARIANT *propvar)
     if (!var || !propvar)
         return E_INVALIDARG;
 
+#ifdef __REACTOS__
+    if (FAILED(hr = VARIANT_ValidateType(V_VT(var))))
+#else
     if (FAILED(hr = VARIANT_ValidateType(var->vt)))
+#endif
         return hr;
 
     PropVariantInit(propvar);
-    propvar->vt = var->vt;
 
+
+#ifdef __REACTOS__
+    propvar->vt = V_VT(var);
+#else
+    propvar->vt = var->vt;
+#endif
+
+#ifdef __REACTOS__
+    switch (V_VT(var))
+#else
     switch (var->vt)
+#endif
     {
         case VT_EMPTY:
         case VT_NULL:
@@ -1193,7 +1215,11 @@ HRESULT WINAPI VariantToPropVariant(const VARIANT *var, PROPVARIANT *propvar)
             propvar->bstrVal = SysAllocString(V_BSTR(var));
             break;
         default:
+#ifdef __REACTOS__
+            FIXME("Unsupported type %d.\n", V_VT(var));
+#else
             FIXME("Unsupported type %d.\n", var->vt);
+#endif
             return E_INVALIDARG;
     }
 
