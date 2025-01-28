@@ -151,7 +151,7 @@
 @ stub PropVariantToUInt64Vector
 @ stub PropVariantToUInt64VectorAlloc
 @ stub PropVariantToUInt64WithDefault
-@ stub PropVariantToVariant
+@ stdcall PropVariantToVariant(ptr ptr)
 @ stub StgDeserializePropVariant
 @ stub StgSerializePropVariant
 @ stub VariantCompare
@@ -189,7 +189,7 @@
 @ stub VariantToInt64Array
 @ stub VariantToInt64ArrayAlloc
 @ stub VariantToInt64WithDefault
-@ stub VariantToPropVariant
+@ stdcall VariantToPropVariant(ptr ptr)
 @ stub VariantToStrRet
 @ stdcall VariantToString(ptr ptr long)
 @ stub VariantToStringAlloc
