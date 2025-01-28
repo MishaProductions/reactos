@@ -245,10 +245,6 @@ HRESULT WINAPI PropVariantToUInt64(REFPROPVARIANT propvarIn, ULONGLONG *ret)
 
 HRESULT WINAPI PropVariantToBoolean(REFPROPVARIANT propvarIn, BOOL *ret)
 {
-    static const WCHAR trueW[] = {'t','r','u','e',0};
-    static const WCHAR falseW[] = {'f','a','l','s','e',0};
-    static const WCHAR true2W[] = {'#','T','R','U','E','#',0};
-    static const WCHAR false2W[] = {'#','F','A','L','S','E','#',0};
     LONGLONG res;
     HRESULT hr;
 
@@ -267,13 +263,13 @@ HRESULT WINAPI PropVariantToBoolean(REFPROPVARIANT propvarIn, BOOL *ret)
             if (!propvarIn->u.pwszVal)
                 return DISP_E_TYPEMISMATCH;
 
-            if (!lstrcmpiW(propvarIn->u.pwszVal, trueW) || !lstrcmpW(propvarIn->u.pwszVal, true2W))
+            if (!lstrcmpiW(propvarIn->u.pwszVal, L"true") || !lstrcmpW(propvarIn->u.pwszVal, L"#TRUE#"))
             {
                 *ret = TRUE;
                 return S_OK;
             }
 
-            if (!lstrcmpiW(propvarIn->u.pwszVal, falseW) || !lstrcmpW(propvarIn->u.pwszVal, false2W))
+            if (!lstrcmpiW(propvarIn->u.pwszVal, L"false") || !lstrcmpW(propvarIn->u.pwszVal, L"#FALSE#"))
             {
                 *ret = FALSE;
                 return S_OK;
@@ -406,11 +402,10 @@ HRESULT WINAPI PropVariantToStringAlloc(REFPROPVARIANT propvarIn, WCHAR **ret)
 
 PCWSTR WINAPI PropVariantToStringWithDefault(REFPROPVARIANT propvarIn, LPCWSTR pszDefault)
 {
-    static const WCHAR str_empty[] = {0};
     if (propvarIn->vt == VT_BSTR)
     {
         if (propvarIn->u.bstrVal == NULL)
-            return str_empty;
+            return L"";
 
         return propvarIn->u.bstrVal;
     }

@@ -283,12 +283,6 @@ HRESULT WINAPI PSRefreshPropertySchema(void)
 
 HRESULT WINAPI PSStringFromPropertyKey(REFPROPERTYKEY pkey, LPWSTR psz, UINT cch)
 {
-    static const WCHAR guid_fmtW[] = {'{','%','0','8','X','-','%','0','4','X','-',
-                                      '%','0','4','X','-','%','0','2','X','%','0','2','X','-',
-                                      '%','0','2','X','%','0','2','X','%','0','2','X',
-                                      '%','0','2','X','%','0','2','X','%','0','2','X','}',0};
-    static const WCHAR pid_fmtW[] = {'%','u',0};
-
     WCHAR pidW[PKEY_PIDSTR_MAX + 1];
     LPWSTR p = psz;
     int len;
