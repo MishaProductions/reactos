@@ -1,6 +1,7 @@
 
 include_directories(${REACTOS_SOURCE_DIR}/sdk/include/reactos/wine)
 remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS)
+remove_definitions(-D__ROS_LONG64__)
 add_definitions(-D__WINESRC__)
 spec2def(propsys.dll propsys.spec ADD_IMPORTLIB)
 
