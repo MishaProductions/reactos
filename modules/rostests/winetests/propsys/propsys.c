@@ -25,10 +25,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#ifndef __REACTOS__
-#define NONAMELESSUNION
-#endif
-
 #include "windef.h"
 #include "winbase.h"
 #include "initguid.h"

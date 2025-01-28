@@ -23,10 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef __REACTOS__
-#define NONAMELESSUNION
-#endif
-
 #include "windef.h"
 #include "winbase.h"
 #include "winerror.h"
