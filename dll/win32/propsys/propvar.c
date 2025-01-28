@@ -23,7 +23,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef __REACTOS__
 #define NONAMELESSUNION
+#endif
 
 #include "windef.h"
 #include "winbase.h"
@@ -116,7 +118,7 @@ static HRESULT PROPVAR_ConvertNumber(REFPROPVARIANT pv, int dest_bits,
 #else
         *res = strtoll(pv->pszVal, &end, 0);
 #endif
-        if (pv->u.pszVal == end)
+        if (pv->pszVal == end)
             return DISP_E_TYPEMISMATCH;
         src_signed = *res < 0;
         break;
