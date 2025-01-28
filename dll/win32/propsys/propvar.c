@@ -35,6 +35,8 @@
 #ifdef __REACTOS__
 #include <oleauto.h>
 #include <oaidl.h>
+// TEST
+#define __oaidl_h__ 1
 #endif
 
 #include "wine/debug.h"
