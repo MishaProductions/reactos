@@ -111,7 +111,11 @@ static HRESULT PROPVAR_ConvertNumber(REFPROPVARIANT pv, int dest_bits,
     case VT_LPSTR:
     {
         char *end;
+        #ifdef __REACTOS__
         *res = _strtoi64(pv->u.pszVal, &end, 0);
+        #else
+        *res = strtoll(pv->u.pszVal, &end, 0);
+        #endif
         if (pv->u.pszVal == end)
             return DISP_E_TYPEMISMATCH;
         src_signed = *res < 0;
@@ -575,13 +579,9 @@ HRESULT WINAPI PropVariantChangeType(PROPVARIANT *ppropvarDest, REFPROPVARIANT p
 
 static void PROPVAR_GUIDToWSTR(REFGUID guid, WCHAR *str)
 {
-    static const WCHAR format[] = {'{','%','0','8','X','-','%','0','4','X','-','%','0','4','X',
-        '-','%','0','2','X','%','0','2','X','-','%','0','2','X','%','0','2','X','%','0','2','X',
-        '%','0','2','X','%','0','2','X','%','0','2','X','}',0};
-
-    swprintf(str, format, guid->Data1, guid->Data2, guid->Data3,
-            guid->Data4[0], guid->Data4[1], guid->Data4[2], guid->Data4[3],
-            guid->Data4[4], guid->Data4[5], guid->Data4[6], guid->Data4[7]);
+    swprintf(str, 39, L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}", guid->Data1,
+            guid->Data2, guid->Data3, guid->Data4[0], guid->Data4[1], guid->Data4[2],
+            guid->Data4[3], guid->Data4[4], guid->Data4[5], guid->Data4[6], guid->Data4[7]);
 }
 
 HRESULT WINAPI InitPropVariantFromGUIDAsString(REFGUID guid, PROPVARIANT *ppropvar)
