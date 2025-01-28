@@ -15,6 +15,8 @@
 #include <winnls.h>
 #include <objbase.h>
 #include <propsys.h>
+#include <oleauto.h>
+#include <oaidl.h>
 
 #include <wine/debug.h>
 
