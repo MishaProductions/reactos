@@ -42,7 +42,7 @@
 @ stub InitPropVariantFromResource
 @ stub InitPropVariantFromStrRet
 @ stub InitPropVariantFromStringAsVector
-@ stub InitPropVariantFromStringVector
+@ stdcall InitPropVariantFromStringVector(ptr long ptr)
 @ stub InitPropVariantFromUInt16Vector
 @ stub InitPropVariantFromUInt32Vector
 @ stub InitPropVariantFromUInt64Vector
