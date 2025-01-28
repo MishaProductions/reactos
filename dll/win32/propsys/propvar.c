@@ -111,11 +111,11 @@ static HRESULT PROPVAR_ConvertNumber(REFPROPVARIANT pv, int dest_bits,
     case VT_LPSTR:
     {
         char *end;
-        #ifdef __REACTOS__
-        *res = _strtoi64(pv->u.pszVal, &end, 0);
-        #else
-        *res = strtoll(pv->u.pszVal, &end, 0);
-        #endif
+#ifdef __REACTOS__
+        *res = _strtoi64(pv->pszVal, &end, 0);
+#else
+        *res = strtoll(pv->pszVal, &end, 0);
+#endif
         if (pv->u.pszVal == end)
             return DISP_E_TYPEMISMATCH;
         src_signed = *res < 0;
