@@ -32,6 +32,10 @@
 #include "propvarutil.h"
 #include "strsafe.h"
 
+#ifdef __REACTOS__
+#include <oaidl.h>
+#endif
+
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(propsys);
