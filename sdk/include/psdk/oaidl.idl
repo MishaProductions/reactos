@@ -230,7 +230,7 @@ typedef VARIANT *LPVARIANT;
 typedef VARIANT VARIANTARG;
 typedef VARIANTARG *LPVARIANTARG;
 
-cpp_quote("#if 0")
+cpp_quote("#ifdef MIDL_PASS")
 typedef const VARIANT *REFVARIANT;
 cpp_quote("#elif !defined(_REFVARIANT_DEFINED)")
 cpp_quote("#define _REFVARIANT_DEFINED")

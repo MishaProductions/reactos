@@ -22,11 +22,6 @@
 #include <shtypes.h>
 #include <shlwapi.h>
 
-#ifndef WINE_NTSTATUS_DECLARED
-#define WINE_NTSTATUS_DECLARED
-typedef LONG NTSTATUS;
-#endif
-
 #ifndef PSSTDAPI
 #ifdef _PROPSYS_
 #define PSSTDAPI          STDAPI
@@ -202,11 +197,7 @@ inline HRESULT InitPropVariantFromString(PCWSTR psz, PROPVARIANT *ppropvar)
 
 inline HRESULT InitPropVariantFromGUIDAsBuffer(REFGUID guid, PROPVARIANT *ppropvar)
 {
-#ifdef __cplusplus
     return InitPropVariantFromBuffer(&guid, sizeof(GUID), ppropvar);
-#else
-    return InitPropVariantFromBuffer(guid, sizeof(GUID), ppropvar);
-#endif
 }
 
 inline BOOL IsPropVariantVector(REFPROPVARIANT propvar)
