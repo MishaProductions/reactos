@@ -22,6 +22,7 @@
 #endif
 
 #include <math.h>
+#include <assert.h>
 
 #include "jscript.h"
 #include "engine.h"
