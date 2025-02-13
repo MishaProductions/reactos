@@ -470,9 +470,8 @@ static HRESULT json_quote(stringify_ctx_t *ctx, const WCHAR *ptr, size_t len)
             break;
         default:
             if(*ptr < ' ') {
-                static const WCHAR formatW[] = {'\\','u','%','0','4','x',0};
                 WCHAR buf[7];
-                swprintf(buf, formatW, *ptr);
+                swprintf(buf, ARRAY_SIZE(buf), L"\\u%04x", *ptr);
                 if(!append_string(ctx, buf))
                     return E_OUTOFMEMORY;
             }else {

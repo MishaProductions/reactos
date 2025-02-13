@@ -1,8 +1,10 @@
 
+remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS -D_WIN32_WINNT=0x502)
 add_definitions(
     -D__WINESRC__
     -D__ROS_LONG64__
-    -D_USE_MATH_DEFINES)
+    -D_USE_MATH_DEFINES
+    -D_WIN32_WINNT=0x600)
 
 include_directories(${REACTOS_SOURCE_DIR}/sdk/include/reactos/wine)
 spec2def(jscript.dll jscript.spec)

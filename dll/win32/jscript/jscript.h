@@ -29,6 +29,8 @@
 #include "winuser.h"
 #ifdef __REACTOS__
 #include "winnls.h"
+#include <wine/config.h>
+#include <wine/port.h>
 #endif
 #include "ole2.h"
 #include "dispex.h"
