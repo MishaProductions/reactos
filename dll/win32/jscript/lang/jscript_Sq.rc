@@ -26,6 +26,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Gabim ne konvertimin e subjektit te tipit primitiv"
     IDS_INVALID_CALL_ARG    "Procedure a pavlefshme ne thirrje apo argument"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "Out of stack space"
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "Serveri i Automatizuar nuk mund te krijoje objektin"
     IDS_NO_PROPERTY         "Objekti nuk mbeshtet kete tipar apo metode"

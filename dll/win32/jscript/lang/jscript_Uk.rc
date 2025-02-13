@@ -24,6 +24,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Помилка конвертування об'єкту в примітивний тип"
     IDS_INVALID_CALL_ARG    "Невірний виклик процедури або аргумент"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "Не вистачає паперу; "
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "Сервер автоматизації не може створити об'єкт"
     IDS_NO_PROPERTY         "Об'єкт не підтримує цю властивість чи метод"

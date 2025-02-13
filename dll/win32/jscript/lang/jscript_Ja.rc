@@ -24,6 +24,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "オブジェクトを基本型に変換できません"
     IDS_INVALID_CALL_ARG    "手続き呼び出しまたは引数が無効です"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "用紙切れ - "
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "オートメーション サーバはオブジェクトを生成できません"
     IDS_NO_PROPERTY         "オブジェクトはこのプロパティまたはメソッドをサポートしていません"

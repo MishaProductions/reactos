@@ -23,6 +23,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Fehler beim Umwandeln des Objektes in einen Grundtyp"
     IDS_INVALID_CALL_ARG    "Ungültiger Funktionsaufruf oder ungültiges Argument"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "Papierfach leer; "
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "Automatisierungsserver konnte das Objekt nicht erstellen"
     IDS_NO_PROPERTY         "Das Objekt unterstützt diese Eigenschaft oder Methode nicht"

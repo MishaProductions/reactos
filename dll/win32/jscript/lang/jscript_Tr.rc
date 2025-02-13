@@ -23,6 +23,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Nesneyi ilk türe dönüştürmede hata."
     IDS_INVALID_CALL_ARG    "Geçersiz yordam çağrısı ya da değişkeni."
     IDS_SUBSCRIPT_OUT_OF_RANGE "Alt indis aralık dışında."
+    IDS_STACK_OVERFLOW      "Kağıt yok; "
     IDS_OBJECT_REQUIRED     "Nesne gerekli."
     IDS_CREATE_OBJ_ERROR    "Otomasyon sunucusu nesne oluşturamıyor."
     IDS_NO_PROPERTY         "Nesne bu özelliği/yöntemi desteklemiyor."

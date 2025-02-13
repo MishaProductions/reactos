@@ -27,6 +27,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Eroare la convertirea obiectului la un tip primitiv"
     IDS_INVALID_CALL_ARG    "Apel de procedură sau argument nevalid"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript în afara limitelor admise"
+    IDS_STACK_OVERFLOW      "Fără hârtia; "
     IDS_OBJECT_REQUIRED     "Obiect necesar"
     IDS_CREATE_OBJ_ERROR    "Serverul de automatizare nu poate crea obiectul"
     IDS_NO_PROPERTY         "Proprietatea sau metoda este neaplicabilă obiectului"

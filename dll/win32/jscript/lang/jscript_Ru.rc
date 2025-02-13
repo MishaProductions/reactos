@@ -24,6 +24,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Ошибка конвертирования объекта в примитивный тип"
     IDS_INVALID_CALL_ARG    "Недопустимый вызов или аргумент процедуры"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Нижний индекс вне диапазона"
+    IDS_STACK_OVERFLOW      "Не хватило бумаги; "
     IDS_OBJECT_REQUIRED     "Требуется объект"
     IDS_CREATE_OBJ_ERROR    "Сервер автоматизации не может создать объект"
     IDS_NO_PROPERTY         "Объект не поддерживает это свойство или метод"

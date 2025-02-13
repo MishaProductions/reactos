@@ -24,6 +24,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "객페를 기본 형식으로 변환하는 중에 에러 발생"
     IDS_INVALID_CALL_ARG    "올바르지 않은 프로시져 호출이나 인수"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "종이 초과; "
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "자동화 서버가 객체를 만들 수 없습니다"
     IDS_NO_PROPERTY         "객체는 이 속성이나 메소드를 지원하지 않습니다"

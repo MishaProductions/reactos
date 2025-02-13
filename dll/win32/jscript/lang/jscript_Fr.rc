@@ -25,6 +25,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Erreur lors de la conversion de l'objet vers un type primitif"
     IDS_INVALID_CALL_ARG    "Appel de procédure ou argument invalide"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "Plus de papier ; "
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "Le serveur d'automatisation ne peut créer l'objet"
     IDS_NO_PROPERTY         "Cet objet ne supporte pas cette propriété ou méthode"

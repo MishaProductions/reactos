@@ -23,6 +23,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Błąd przy przekształcaniu obiektu do typu podstawowego"
     IDS_INVALID_CALL_ARG    "Nieprawidłowe wywołanie procedury lub nieprawidłowy argument"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Indeks poza zakresem"
+    IDS_STACK_OVERFLOW      "Brak papieru; "
     IDS_OBJECT_REQUIRED     "Wymagany jest obiekt"
     IDS_CREATE_OBJ_ERROR    "Serwer automatyzacji nie może utworzyć obiektu"
     IDS_NO_PROPERTY         "Obiekt nie obsługuje tej właściwości lub metody"

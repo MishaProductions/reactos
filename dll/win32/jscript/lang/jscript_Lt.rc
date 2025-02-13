@@ -23,6 +23,7 @@ STRINGTABLE
     IDS_TO_PRIMITIVE        "Klaida keičiant objektą į primityvų tipą"
     IDS_INVALID_CALL_ARG    "Netinkamas kreipinys į procedūrą ar argumentas"
     IDS_SUBSCRIPT_OUT_OF_RANGE "Subscript out of range"
+    IDS_STACK_OVERFLOW      "Pasibaigęs popierius; "
     IDS_OBJECT_REQUIRED     "Object required"
     IDS_CREATE_OBJ_ERROR    "Automatizacijos serveriui nepavyko sukurti objekto"
     IDS_NO_PROPERTY         "Objektas nepalaiko šios savybės ar metodo"
