@@ -167,10 +167,6 @@ DEFINE_EXPECT(BindHandler);
 #define JS_E_OUT_OF_MEMORY 0x800a03ec
 #define JS_E_INVALID_CHAR 0x800a03f6
 
-static const WCHAR testW[] = {'t','e','s','t',0};
-static const WCHAR test_valW[] = {'t','e','s','t','V','a','l',0};
-static const WCHAR emptyW[] = {0};
-
 static BOOL strict_dispid_check, testing_expr;
 static const char *test_name = "(null)";
 static IDispatch *script_disp;
@@ -1675,9 +1671,9 @@ static HRESULT WINAPI ActiveScriptSite_GetItemInfo(IActiveScriptSite *iface, LPC
     ok(dwReturnMask == SCRIPTINFO_IUNKNOWN, "unexpected dwReturnMask %x\n", dwReturnMask);
     ok(!ppti, "ppti != NULL\n");
 
-    if(!lstrcmpW(pstrName, test_valW))
+    if(!lstrcmpW(pstrName, L"testVal"))
         CHECK_EXPECT(GetItemInfo_testVal);
-    else if(lstrcmpW(pstrName, testW))
+    else if(lstrcmpW(pstrName, L"test"))
         ok(0, "unexpected pstrName %s\n", wine_dbgstr_w(pstrName));
 
     *ppiunkItem = (IUnknown*)&Global;
@@ -1822,7 +1818,7 @@ static HRESULT parse_script(DWORD flags, const WCHAR *script_str)
     hres = IActiveScript_SetScriptSite(engine, &ActiveScriptSite);
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
-    hres = IActiveScript_AddNamedItem(engine, testW,
+    hres = IActiveScript_AddNamedItem(engine, L"test",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|flags);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
 
@@ -1873,7 +1869,7 @@ static HRESULT invoke_procedure(const WCHAR *args, const WCHAR *source, DISPPARA
     hres = IActiveScript_QueryInterface(engine, &IID_IActiveScriptParseProcedure2, (void**)&parse_proc);
     ok(hres == S_OK, "Could not get IActiveScriptParse: %08x\n", hres);
 
-    hres = IActiveScriptParseProcedure2_ParseProcedureText(parse_proc, source, args, emptyW, NULL, NULL, NULL, 0, 0,
+    hres = IActiveScriptParseProcedure2_ParseProcedureText(parse_proc, source, args, L"", NULL, NULL, NULL, 0, 0,
         SCRIPTPROC_HOSTMANAGESSOURCE|SCRIPTPROC_IMPLICIT_THIS|SCRIPTPROC_IMPLICIT_PARENTS, &disp);
     ok(hres == S_OK, "ParseProcedureText failed: %08x\n", hres);
 
@@ -1918,7 +1914,7 @@ static HRESULT parse_htmlscript(const WCHAR *script_str)
     hres = IActiveScript_SetScriptSite(engine, &ActiveScriptSite);
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
-    hres = IActiveScript_AddNamedItem(engine, testW,
+    hres = IActiveScript_AddNamedItem(engine, L"test",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
 
@@ -2046,7 +2042,7 @@ static void parse_script_with_error(DWORD flags, const WCHAR *script_str, SCODE 
     hres = IActiveScript_SetScriptSite(engine, &ActiveScriptSite_CheckError);
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
-    hres = IActiveScript_AddNamedItem(engine, testW,
+    hres = IActiveScript_AddNamedItem(engine, L"test",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|flags);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
 
@@ -2207,7 +2203,7 @@ static void test_isvisible(BOOL global_members)
 
     if(global_members)
         SET_EXPECT(GetItemInfo_testVal);
-    hres = IActiveScript_AddNamedItem(engine, test_valW,
+    hres = IActiveScript_AddNamedItem(engine, L"testVal",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|
             (global_members ? SCRIPTITEM_GLOBALMEMBERS : 0));
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
@@ -2251,7 +2247,7 @@ static void test_start(void)
     hres = IActiveScript_SetScriptSite(engine, &ActiveScriptSite);
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
-    hres = IActiveScript_AddNamedItem(engine, testW, SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
+    hres = IActiveScript_AddNamedItem(engine, L"test", SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
 
     str = SysAllocString(L"ok(getScriptState() === 5, \"getScriptState = \" + getScriptState());\n"
@@ -2292,7 +2288,7 @@ static void test_automagic(void)
     hres = IActiveScript_SetScriptSite(engine, &ActiveScriptSite);
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
-    hres = IActiveScript_AddNamedItem(engine, testW, SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
+    hres = IActiveScript_AddNamedItem(engine, L"test", SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
 
     str = SysAllocString(L"function bindEventHandler::eventName() {}\n"
@@ -2335,7 +2331,7 @@ static HRESULT parse_script_expr(const WCHAR *expr, VARIANT *res, IActiveScript 
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
     SET_EXPECT(GetItemInfo_testVal);
-    hres = IActiveScript_AddNamedItem(engine, test_valW,
+    hres = IActiveScript_AddNamedItem(engine, L"testVal",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
     CHECK_CALLED(GetItemInfo_testVal);
@@ -2377,7 +2373,7 @@ static void test_retval(void)
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
     SET_EXPECT(GetItemInfo_testVal);
-    hres = IActiveScript_AddNamedItem(engine, test_valW,
+    hres = IActiveScript_AddNamedItem(engine, L"testVal",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
     CHECK_CALLED(GetItemInfo_testVal);
@@ -2560,7 +2556,7 @@ static void test_eval(void)
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
     SET_EXPECT(GetItemInfo_testVal);
-    hres = IActiveScript_AddNamedItem(engine, test_valW,
+    hres = IActiveScript_AddNamedItem(engine, L"testVal",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|SCRIPTITEM_GLOBALMEMBERS);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
     CHECK_CALLED(GetItemInfo_testVal);
@@ -3213,7 +3209,7 @@ static void run_benchmark(const char *script_name)
     hres = IActiveScript_SetScriptSite(engine, &ActiveScriptSite);
     ok(hres == S_OK, "SetScriptSite failed: %08x\n", hres);
 
-    hres = IActiveScript_AddNamedItem(engine, testW,
+    hres = IActiveScript_AddNamedItem(engine, L"test",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE);
     ok(hres == S_OK, "AddNamedItem failed: %08x\n", hres);
 
