@@ -58,6 +58,8 @@ STRINGTABLE
     IDS_INVALID_DELETE      "Cannot delete '|'"
     IDS_NOT_VBARRAY         "VBArray object expected"
     IDS_JSCRIPT_EXPECTED    "Очікується об'єкт JScript"
+    IDS_ENUMERATOR_EXPECTED "Очікується об'єкт Array"
+    IDS_REGEXP_EXPECTED     "Очікується об'єкт Boolean"
     IDS_REGEXP_SYNTAX_ERROR "Синтаксична помилка в регулярному виразі"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"

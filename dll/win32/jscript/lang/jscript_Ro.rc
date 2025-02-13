@@ -61,6 +61,8 @@ STRINGTABLE
     IDS_INVALID_DELETE      "„|” nu poate fi șters"
     IDS_NOT_VBARRAY         "Era așteptat un obiect de tip VBArray"
     IDS_JSCRIPT_EXPECTED    "Era așteptat un obiect JScript"
+    IDS_ENUMERATOR_EXPECTED "Se așteaptă un obiect matrice"
+    IDS_REGEXP_EXPECTED     "Se așteaptă un obiect boolean"
     IDS_REGEXP_SYNTAX_ERROR "Eroare de sintaxă în expresia regulată"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI ce urmează a fi decodificat nu este corect"

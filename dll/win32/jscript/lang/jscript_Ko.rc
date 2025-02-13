@@ -58,6 +58,8 @@ STRINGTABLE
     IDS_INVALID_DELETE      "Cannot delete '|'"
     IDS_NOT_VBARRAY         "VBArray object expected"
     IDS_JSCRIPT_EXPECTED    "JScript 객체가 필요합니다"
+    IDS_ENUMERATOR_EXPECTED "배열 객체가 필요합니다"
+    IDS_REGEXP_EXPECTED     "볼린 객제가 필요함"
     IDS_REGEXP_SYNTAX_ERROR "정규 표현식에 문법에러가 있습니다"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
