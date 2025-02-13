@@ -380,6 +380,8 @@ static HRESULT JSGlobal_parseFloat(script_ctx_t *ctx, vdisp_t *jsthis, WORD flag
         return S_OK;
     }
 
+    TRACE("%s\n", debugstr_jsval(argv[0]));
+
     hres = to_flat_string(ctx, argv[0], &val_str, &str);
     if(FAILED(hres))
         return hres;
@@ -393,10 +395,10 @@ static HRESULT JSGlobal_parseFloat(script_ctx_t *ctx, vdisp_t *jsthis, WORD flag
         str++;
     }
 
-    if(iswdigit(*str))
+    if(is_digit(*str))
         ret_nan = FALSE;
 
-    while(iswdigit(*str)) {
+    while(is_digit(*str)) {
         hlp = d*10 + *(str++) - '0';
         if(d>MAXLONGLONG/10 || hlp<0) {
             exp++;
@@ -405,17 +407,17 @@ static HRESULT JSGlobal_parseFloat(script_ctx_t *ctx, vdisp_t *jsthis, WORD flag
         else
             d = hlp;
     }
-    while(iswdigit(*str)) {
+    while(is_digit(*str)) {
         exp++;
         str++;
     }
 
     if(*str == '.') str++;
 
-    if(iswdigit(*str))
+    if(is_digit(*str))
         ret_nan = FALSE;
 
-    while(iswdigit(*str)) {
+    while(is_digit(*str)) {
         hlp = d*10 + *(str++) - '0';
         if(d>MAXLONGLONG/10 || hlp<0)
             break;
@@ -423,7 +425,7 @@ static HRESULT JSGlobal_parseFloat(script_ctx_t *ctx, vdisp_t *jsthis, WORD flag
         d = hlp;
         exp--;
     }
-    while(iswdigit(*str))
+    while(is_digit(*str))
         str++;
 
     if(*str && !ret_nan && (*str=='e' || *str=='E')) {
@@ -437,7 +439,7 @@ static HRESULT JSGlobal_parseFloat(script_ctx_t *ctx, vdisp_t *jsthis, WORD flag
             str++;
         }
 
-        while(iswdigit(*str)) {
+        while(is_digit(*str)) {
             if(e>INT_MAX/10 || (e = e*10 + *str++ - '0')<0)
                 e = INT_MAX;
         }
@@ -465,7 +467,7 @@ static HRESULT JSGlobal_parseFloat(script_ctx_t *ctx, vdisp_t *jsthis, WORD flag
 
 static inline int hex_to_int(const WCHAR wch) {
     if(towupper(wch)>='A' && towupper(wch)<='F') return towupper(wch)-'A'+10;
-    if(iswdigit(wch)) return wch-'0';
+    if(is_digit(wch)) return wch-'0';
     return -1;
 }
 

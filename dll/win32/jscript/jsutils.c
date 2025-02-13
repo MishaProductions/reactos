@@ -559,7 +559,7 @@ static HRESULT str_to_number(jsstr_t *str, double *ret)
         return S_OK;
     }
 
-    while(iswdigit(*ptr))
+    while(is_digit(*ptr))
         d = d*10 + (*ptr++ - '0');
 
     if(*ptr == 'e' || *ptr == 'E') {
@@ -574,7 +574,7 @@ static HRESULT str_to_number(jsstr_t *str, double *ret)
             ptr++;
         }
 
-        while(iswdigit(*ptr))
+        while(is_digit(*ptr))
             l = l*10 + (*ptr++ - '0');
         if(eneg)
             l = -l;
@@ -584,7 +584,7 @@ static HRESULT str_to_number(jsstr_t *str, double *ret)
         DOUBLE dec = 0.1;
 
         ptr++;
-        while(iswdigit(*ptr)) {
+        while(is_digit(*ptr)) {
             d += dec * (*ptr++ - '0');
             dec *= 0.1;
         }
