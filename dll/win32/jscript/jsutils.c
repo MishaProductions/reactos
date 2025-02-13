@@ -724,6 +724,38 @@ HRESULT to_uint32(script_ctx_t *ctx, jsval_t val, UINT32 *ret)
     return S_OK;
 }
 
+#ifdef __REACTOS__
+static jsstr_t *int_to_string(int i)
+{
+    WCHAR buf[12], *p;
+    BOOL neg = FALSE;
+
+    if(!i) {
+        static const WCHAR zeroW[] = {'0',0};
+        return jsstr_alloc(zeroW);
+    }
+
+    if(i < 0) {
+        neg = TRUE;
+        i = -i;
+    }
+
+    p = buf + ARRAY_SIZE(buf)-1;
+    *p-- = 0;
+    while(i) {
+        *p-- = i%10 + '0';
+        i /= 10;
+    }
+
+    if(neg)
+        *p = '-';
+    else
+        p++;
+
+    return jsstr_alloc(p);
+}
+#endif
+
 HRESULT double_to_string(double n, jsstr_t **str)
 {
     if(isnan(n)) {
@@ -732,7 +764,11 @@ HRESULT double_to_string(double n, jsstr_t **str)
         *str = jsstr_alloc(n<0 ? L"-Infinity" : L"Infinity");
     }else if(is_int32(n)) {
         WCHAR buf[12];
+#ifdef __REACTOS__
+    *str = int_to_string(n);
+#else
         _ltow_s(n, buf, ARRAY_SIZE(buf), 10);
+#endif
         *str = jsstr_alloc(buf);
     }else {
         VARIANT strv, v;
