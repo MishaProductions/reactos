@@ -183,6 +183,7 @@ struct _bytecode_t {
     heap_pool_t heap;
 
     function_code_t global_code;
+    named_item_t *named_item;
 
     WCHAR *source;
     UINT64 source_context;
@@ -199,7 +200,7 @@ struct _bytecode_t {
     struct list entry;
 };
 
-HRESULT compile_script(script_ctx_t*,const WCHAR*,UINT64,unsigned,const WCHAR*,const WCHAR*,BOOL,BOOL,bytecode_t**) DECLSPEC_HIDDEN;
+HRESULT compile_script(script_ctx_t*,const WCHAR*,UINT64,unsigned,const WCHAR*,const WCHAR*,BOOL,BOOL,named_item_t*,bytecode_t**) DECLSPEC_HIDDEN;
 void release_bytecode(bytecode_t*) DECLSPEC_HIDDEN;
 
 static inline bytecode_t *bytecode_addref(bytecode_t *code)
