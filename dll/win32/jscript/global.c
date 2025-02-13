@@ -1059,7 +1059,7 @@ static HRESULT init_constructors(script_ctx_t *ctx, jsdisp_t *object_prototype)
 HRESULT init_global(script_ctx_t *ctx)
 {
     unsigned const_flags = ctx->version >= SCRIPTLANGUAGEVERSION_ES5 ? 0 : PROPF_WRITABLE;
-    jsdisp_t *math, *object_prototype, *constr;
+    jsdisp_t *math, *constr;
     HRESULT hres;
 
     if(ctx->global)
@@ -1069,12 +1069,11 @@ HRESULT init_global(script_ctx_t *ctx)
     if(FAILED(hres))
         return hres;
 
-    hres = create_object_prototype(ctx, &object_prototype);
+    hres = create_object_prototype(ctx, &ctx->object_prototype);
     if(FAILED(hres))
         return hres;
 
-    hres = init_constructors(ctx, object_prototype);
-    jsdisp_release(object_prototype);
+    hres = init_constructors(ctx, ctx->object_prototype);
     if(FAILED(hres))
         return hres;
 
