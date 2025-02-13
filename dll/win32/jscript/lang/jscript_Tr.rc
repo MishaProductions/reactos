@@ -55,6 +55,7 @@ STRINGTABLE
     IDS_NOT_VBARRAY         "VBArray nesnesi bekleniyordu."
     IDS_JSCRIPT_EXPECTED    "JScript nesnesi bekleniyordu."
     IDS_REGEXP_SYNTAX_ERROR "Düzenli deyişte söz dizimi hatası."
+    IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "Çözülecek URI geçersiz."
     IDS_URI_INVALID_CHAR    "Kodlanacak URI geçersiz karakterler içeriyor."
     IDS_FRACTION_DIGITS_OUT_OF_RANGE "Kesir basamaklarının sayısı aralık dışında."

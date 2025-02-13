@@ -56,6 +56,7 @@ STRINGTABLE
     IDS_NOT_VBARRAY         "Предполагается наличие VBArray"
     IDS_JSCRIPT_EXPECTED    "Предполагается наличие объекта 'JScript'"
     IDS_REGEXP_SYNTAX_ERROR "Синтаксическая ошибка в регулярном выражении"
+    IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "Обнаружена недопустимая кодировка при попытке декодирования URI"
     IDS_URI_INVALID_CHAR    "Обнаружен недопустимый знак при попытке кодирования URI"
     IDS_FRACTION_DIGITS_OUT_OF_RANGE "Количество цифр дробной части числа вышла из диапазона"

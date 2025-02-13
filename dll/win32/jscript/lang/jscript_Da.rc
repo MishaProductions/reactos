@@ -56,6 +56,7 @@ STRINGTABLE
     IDS_NOT_VBARRAY         "VBArray object expected"
     IDS_JSCRIPT_EXPECTED    "JScript objekt forventet"
     IDS_REGEXP_SYNTAX_ERROR "Syntax fejl i regulært udtryk"
+    IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "URI, der skal kodes indeholder ugyldige tegn"
     IDS_FRACTION_DIGITS_OUT_OF_RANGE "Number of fraction digits is out of range"
