@@ -123,6 +123,7 @@ typedef enum {
 struct _statement_t {
     statement_type_t type;
     statement_t *next;
+    unsigned loc;
 };
 
 typedef struct {
