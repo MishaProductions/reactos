@@ -681,7 +681,7 @@ static HRESULT Object_preventExtensions(script_ctx_t *ctx, vdisp_t *jsthis, WORD
         return E_NOTIMPL;
     }
 
-    FIXME("(%s) semi-stub\n", debugstr_jsval(argv[0]));
+    TRACE("(%s)\n", debugstr_jsval(argv[0]));
 
     obj = to_jsdisp(get_object(argv[0]));
     if(!obj) {
@@ -689,6 +689,7 @@ static HRESULT Object_preventExtensions(script_ctx_t *ctx, vdisp_t *jsthis, WORD
         return E_NOTIMPL;
     }
 
+    obj->extensible = FALSE;
     if(r) *r = jsval_obj(jsdisp_addref(obj));
     return S_OK;
 }
