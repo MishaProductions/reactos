@@ -66,25 +66,12 @@ typedef struct {
     } u;
 } exprval_t;
 
+static const size_t stack_size = 0x4000;
+
 static HRESULT stack_push(script_ctx_t *ctx, jsval_t v)
 {
-    if(!ctx->stack_size) {
-        ctx->stack = heap_alloc(16*sizeof(*ctx->stack));
-        if(!ctx->stack)
-            return E_OUTOFMEMORY;
-        ctx->stack_size = 16;
-    }else if(ctx->stack_size == ctx->stack_top) {
-        jsval_t *new_stack;
-
-        new_stack = heap_realloc(ctx->stack, ctx->stack_size*2*sizeof(*new_stack));
-        if(!new_stack) {
-            jsval_release(v);
-            return E_OUTOFMEMORY;
-        }
-
-        ctx->stack = new_stack;
-        ctx->stack_size *= 2;
-    }
+    if(ctx->stack_top == stack_size)
+        return E_OUTOFMEMORY;
 
     ctx->stack[ctx->stack_top++] = v;
     return S_OK;
@@ -3014,6 +3001,12 @@ HRESULT exec_source(script_ctx_t *ctx, DWORD flags, bytecode_t *bytecode, functi
     call_frame_t *frame;
     unsigned i;
     HRESULT hres;
+
+    if(!ctx->stack) {
+        ctx->stack = heap_alloc(stack_size * sizeof(*ctx->stack));
+        if(!ctx->stack)
+            return E_OUTOFMEMORY;
+    }
 
     if(bytecode->named_item) {
         if(!bytecode->named_item->script_obj) {
