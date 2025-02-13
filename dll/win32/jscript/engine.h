@@ -229,6 +229,7 @@ struct _jsexcept_t {
     BOOL valid_value;
     jsval_t value;
 
+    BOOL enter_notified;
     jsexcept_t *prev;
 };
 
