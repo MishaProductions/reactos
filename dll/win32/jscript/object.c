@@ -845,10 +845,8 @@ static HRESULT Object_getPrototypeOf(script_ctx_t *ctx, jsval_t vthis, WORD flag
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0])) {
-        FIXME("invalid arguments\n");
-        return E_NOTIMPL;
-    }
+    if(!argc || !is_object_instance(argv[0]))
+        return JS_E_OBJECT_EXPECTED;
 
     TRACE("(%s)\n", debugstr_jsval(argv[0]));
 
@@ -873,10 +871,8 @@ static HRESULT object_keys(script_ctx_t *ctx, jsval_t arg, enum jsdisp_enum_type
     jsstr_t *key;
     HRESULT hres;
 
-    if(!is_object_instance(arg)) {
-        FIXME("invalid arguments %s\n", debugstr_jsval(arg));
-        return E_NOTIMPL;
-    }
+    if(!is_object_instance(arg))
+        return JS_E_OBJECT_EXPECTED;
 
     obj = to_jsdisp(get_object(arg));
     if(!obj) {
@@ -932,10 +928,8 @@ static HRESULT Object_preventExtensions(script_ctx_t *ctx, jsval_t vthis, WORD f
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0])) {
-        FIXME("invalid arguments\n");
-        return E_NOTIMPL;
-    }
+    if(!argc || !is_object_instance(argv[0]))
+        return JS_E_OBJECT_EXPECTED;
 
     TRACE("(%s)\n", debugstr_jsval(argv[0]));
 
