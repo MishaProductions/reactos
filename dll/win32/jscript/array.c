@@ -1055,14 +1055,8 @@ static HRESULT Array_every(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigne
     }
     callback = get_object(argv[0]);
 
-    if(argc > 1 && !is_undefined(argv[1])) {
-        if(!is_object_instance(argv[1])) {
-            FIXME("Unsupported context this %s\n", debugstr_jsval(argv[1]));
-            hres = E_NOTIMPL;
-            goto done;
-        }
+    if(argc > 1)
         context_this = argv[1];
-    }
 
     for(i = 0; i < length; i++) {
         hres = jsdisp_get_idx(jsthis, i, &value);
@@ -1122,14 +1116,8 @@ static HRESULT Array_filter(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsign
     }
     callback = get_object(argv[0]);
 
-    if(argc > 1 && !is_undefined(argv[1])) {
-        if(!is_object_instance(argv[1])) {
-            FIXME("Unsupported context this %s\n", debugstr_jsval(argv[1]));
-            hres = E_NOTIMPL;
-            goto done;
-        }
+    if(argc > 1)
         context_this = argv[1];
-    }
 
     hres = create_array(ctx, 0, &arr);
     if(FAILED(hres))
@@ -1196,14 +1184,8 @@ static HRESULT Array_forEach(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsig
     }
     callback = get_object(argv[0]);
 
-    if(argc > 1 && !is_undefined(argv[1])) {
-        if(!is_object_instance(argv[1])) {
-            FIXME("Unsupported context this %s\n", debugstr_jsval(argv[1]));
-            hres = E_NOTIMPL;
-            goto done;
-        }
+    if(argc > 1)
         context_this = argv[1];
-    }
 
     for(i = 0; i < length; i++) {
         hres = jsdisp_get_idx(jsthis, i, &value);
@@ -1374,15 +1356,8 @@ static HRESULT Array_map(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned 
     }
     callback = get_object(argv[0]);
 
-    if(argc > 1) {
-        if(is_object_instance(argv[1])) {
-            context_this = argv[1];
-        }else if(!is_undefined(argv[1])) {
-            FIXME("Unsupported context this %s\n", debugstr_jsval(argv[1]));
-            hres = E_NOTIMPL;
-            goto done;
-        }
-    }
+    if(argc > 1)
+        context_this = argv[1];
 
     hres = create_array(ctx, length, &array);
     if(FAILED(hres))
@@ -1512,14 +1487,8 @@ static HRESULT Array_some(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned
     }
     callback = get_object(argv[0]);
 
-    if(argc > 1 && !is_undefined(argv[1])) {
-        if(!is_object_instance(argv[1])) {
-            FIXME("Unsupported context this %s\n", debugstr_jsval(argv[1]));
-            hres = E_NOTIMPL;
-            goto done;
-        }
+    if(argc > 1)
         context_this = argv[1];
-    }
 
     for(i = 0; i < length; i++) {
         hres = jsdisp_get_idx(jsthis, i, &value);
