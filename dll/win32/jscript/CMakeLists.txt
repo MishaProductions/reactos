@@ -36,8 +36,8 @@ list(APPEND SOURCE
     string.c
     vbarray.c)
 
-BISON_TARGET(cc_parser cc_parser.y ${CMAKE_CURRENT_BINARY_DIR}/cc_parser.tab.c COMPILE_FLAGS "-p cc_parser_")
-BISON_TARGET(parser parser.y ${CMAKE_CURRENT_BINARY_DIR}/parser.tab.c COMPILE_FLAGS "-p parser_")
+BISON_TARGET(cc_parser cc_parser.y ${CMAKE_CURRENT_BINARY_DIR}/cc_parser.tab.c)
+BISON_TARGET(parser parser.y ${CMAKE_CURRENT_BINARY_DIR}/parser.tab.c)
 
 list(APPEND PCH_SKIP_SOURCE
     ${BISON_cc_parser_OUTPUTS}
