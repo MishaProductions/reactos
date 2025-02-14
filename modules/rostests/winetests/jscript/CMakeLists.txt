@@ -1,5 +1,5 @@
 
-remove_definitions(-D__ROS_LONG64__)
+remove_definitions(-D__ROS_LONG64__ -D_CRT_NON_CONFORMING_SWPRINTFS)
 add_definitions(-DUSE_WINE_TODOS)
 
 list(APPEND SOURCE

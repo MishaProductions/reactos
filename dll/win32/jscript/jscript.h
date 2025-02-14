@@ -31,9 +31,6 @@
 #include "winnls.h"
 #include <wine/config.h>
 #include <wine/port.h>
-#ifndef _swprintf_l
-#define _swprintf_l __swprintf_l
-#endif
 #endif
 #include "ole2.h"
 #include "dispex.h"

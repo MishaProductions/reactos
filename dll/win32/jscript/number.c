@@ -363,7 +363,11 @@ HRESULT localize_number(script_ctx_t *ctx, DOUBLE val, BOOL new_format, jsstr_t 
        This is even for very small numbers, such as 0.0000999, which will simply be 0. */
     if(!(locale = _create_locale(LC_ALL, "C")))
         return E_OUTOFMEMORY;
+#ifdef __REACTOS__
+    len = __swprintf_l(buf, L"%.3f", locale, val);
+#else
     len = _swprintf_l(buf, ARRAY_SIZE(buf), L"%.3f", locale, val);
+#endif
     _free_locale(locale);
 
     if(new_format) {
