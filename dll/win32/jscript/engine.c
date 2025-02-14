@@ -331,7 +331,7 @@ static HRESULT exprval_call(script_ctx_t *ctx, exprval_t *ref, WORD flags, unsig
             return E_FAIL;
         }
 
-        return disp_call_value(ctx, get_object(v), NULL, flags, argc, argv, r);
+        return disp_call_value(ctx, get_object(v), jsval_undefined(), flags, argc, argv, r);
     }
     case EXPRVAL_IDREF:
         /* ECMA-262 3rd Edition 11.2.3.7 / ECMA-262 5.1 Edition 11.2.3.6 *
@@ -344,7 +344,7 @@ static HRESULT exprval_call(script_ctx_t *ctx, exprval_t *ref, WORD flags, unsig
                 FIXME("invoke %s\n", debugstr_jsval(v));
                 hres = E_FAIL;
             }else {
-                hres = disp_call_value(ctx, get_object(v), NULL, flags, argc, argv, r);
+                hres = disp_call_value(ctx, get_object(v), jsval_undefined(), flags, argc, argv, r);
             }
             jsval_release(v);
             return hres;
@@ -355,7 +355,7 @@ static HRESULT exprval_call(script_ctx_t *ctx, exprval_t *ref, WORD flags, unsig
 
         hres = to_object(ctx, ref->u.val, &obj);
         if(SUCCEEDED(hres)) {
-            hres = disp_call_value(ctx, obj, NULL, flags, argc, argv, r);
+            hres = disp_call_value(ctx, obj, jsval_undefined(), flags, argc, argv, r);
             IDispatch_Release(obj);
         }
         return hres;
@@ -1389,7 +1389,7 @@ static HRESULT interp_new(script_ctx_t *ctx)
         return JS_E_INVALID_ACTION;
 
     clear_acc(ctx);
-    return disp_call_value(ctx, get_object(constr), NULL, DISPATCH_CONSTRUCT | DISPATCH_JSCRIPT_CALLEREXECSSOURCE,
+    return disp_call_value(ctx, get_object(constr), jsval_undefined(), DISPATCH_CONSTRUCT | DISPATCH_JSCRIPT_CALLEREXECSSOURCE,
                            argc, stack_args(ctx, argc), &ctx->acc);
 }
 
@@ -1407,7 +1407,7 @@ static HRESULT interp_call(script_ctx_t *ctx)
         return JS_E_INVALID_PROPERTY;
 
     clear_acc(ctx);
-    return disp_call_value(ctx, get_object(obj), NULL, DISPATCH_METHOD | DISPATCH_JSCRIPT_CALLEREXECSSOURCE,
+    return disp_call_value(ctx, get_object(obj), jsval_undefined(), DISPATCH_METHOD | DISPATCH_JSCRIPT_CALLEREXECSSOURCE,
                            argn, stack_args(ctx, argn), do_ret ? &ctx->acc : NULL);
 }
 
