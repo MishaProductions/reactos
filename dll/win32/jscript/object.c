@@ -128,6 +128,11 @@ static HRESULT Object_valueOf(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsi
 
     TRACE("\n");
 
+    if(is_null_disp(vthis)) {
+        if(r) *r = jsval_null_disp();
+        return S_OK;
+    }
+
     hres = to_object(ctx, vthis, &disp);
     if(FAILED(hres))
         return hres;
@@ -555,7 +560,7 @@ static HRESULT jsdisp_define_properties(script_ctx_t *ctx, jsdisp_t *obj, jsval_
         if(FAILED(hres))
             break;
 
-        if(!is_object_instance(desc_val) || !get_object(desc_val) || !(desc_obj = to_jsdisp(get_object(desc_val)))) {
+        if(!is_object_instance(desc_val) || !(desc_obj = to_jsdisp(get_object(desc_val)))) {
             jsval_release(desc_val);
             break;
         }
@@ -632,7 +637,7 @@ static HRESULT Object_defineProperties(script_ctx_t *ctx, jsval_t vthis, WORD fl
     jsdisp_t *obj;
     HRESULT hres;
 
-    if(argc < 1 || !is_object_instance(argv[0]) || !get_object(argv[0]) || !(obj = to_jsdisp(get_object(argv[0])))) {
+    if(argc < 1 || !is_object_instance(argv[0]) || !(obj = to_jsdisp(get_object(argv[0])))) {
         FIXME("not an object\n");
         return E_NOTIMPL;
     }
@@ -780,7 +785,7 @@ static HRESULT object_keys(script_ctx_t *ctx, jsval_t arg, enum jsdisp_enum_type
     jsstr_t *key;
     HRESULT hres;
 
-    if(!is_object_instance(arg) || !get_object(arg)) {
+    if(!is_object_instance(arg)) {
         FIXME("invalid arguments %s\n", debugstr_jsval(arg));
         return E_NOTIMPL;
     }
@@ -839,7 +844,7 @@ static HRESULT Object_preventExtensions(script_ctx_t *ctx, jsval_t vthis, WORD f
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0]) || !get_object(argv[0])) {
+    if(!argc || !is_object_instance(argv[0])) {
         FIXME("invalid arguments\n");
         return E_NOTIMPL;
     }
@@ -862,7 +867,7 @@ static HRESULT Object_freeze(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsig
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0]) || !get_object(argv[0])) {
+    if(!argc || !is_object_instance(argv[0])) {
         WARN("argument is not an object\n");
         return JS_E_OBJECT_EXPECTED;
     }
@@ -885,7 +890,7 @@ static HRESULT Object_seal(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigne
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0]) || !get_object(argv[0])) {
+    if(!argc || !is_object_instance(argv[0])) {
         WARN("argument is not an object\n");
         return JS_E_OBJECT_EXPECTED;
     }
@@ -907,7 +912,7 @@ static HRESULT Object_isExtensible(script_ctx_t *ctx, jsval_t vthis, WORD flags,
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0]) || !get_object(argv[0])) {
+    if(!argc || !is_object_instance(argv[0])) {
         WARN("argument is not an object\n");
         return JS_E_OBJECT_EXPECTED;
     }
@@ -929,7 +934,7 @@ static HRESULT Object_isFrozen(script_ctx_t *ctx, jsval_t vthis, WORD flags, uns
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0]) || !get_object(argv[0])) {
+    if(!argc || !is_object_instance(argv[0])) {
         WARN("argument is not an object\n");
         return JS_E_OBJECT_EXPECTED;
     }
@@ -951,7 +956,7 @@ static HRESULT Object_isSealed(script_ctx_t *ctx, jsval_t vthis, WORD flags, uns
 {
     jsdisp_t *obj;
 
-    if(!argc || !is_object_instance(argv[0]) || !get_object(argv[0])) {
+    if(!argc || !is_object_instance(argv[0])) {
         WARN("argument is not an object\n");
         return JS_E_OBJECT_EXPECTED;
     }
@@ -1006,7 +1011,7 @@ static HRESULT ObjectConstr_value(script_ctx_t *ctx, jsval_t vthis, WORD flags, 
         jsdisp_t *obj;
 
         if(argc) {
-            if(!is_undefined(argv[0]) && !is_null(argv[0]) && (!is_object_instance(argv[0]) || get_object(argv[0]))) {
+            if(!is_undefined(argv[0]) && !is_null(argv[0])) {
                 IDispatch *disp;
 
                 hres = to_object(ctx, argv[0], &disp);
