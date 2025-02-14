@@ -342,6 +342,16 @@ static HRESULT Number_toString(script_ctx_t *ctx, jsval_t vthis, WORD flags, uns
     return S_OK;
 }
 
+#ifdef __REACTOS__
+HRESULT localize_number(script_ctx_t *ctx, DOUBLE val, BOOL new_format, jsstr_t **ret)
+{
+    if(!isfinite(val))
+        return to_string(ctx, jsval_number(val), ret);
+    
+    // TODO: ReactOS does not have an implementation for _create_locale and _swprintf_l
+    return E_NOTIMPL;
+}
+#else
 HRESULT localize_number(script_ctx_t *ctx, DOUBLE val, BOOL new_format, jsstr_t **ret)
 {
     WCHAR buf[316], decimal[8], thousands[8], *numstr;
@@ -363,11 +373,7 @@ HRESULT localize_number(script_ctx_t *ctx, DOUBLE val, BOOL new_format, jsstr_t 
        This is even for very small numbers, such as 0.0000999, which will simply be 0. */
     if(!(locale = _create_locale(LC_ALL, "C")))
         return E_OUTOFMEMORY;
-#ifdef __REACTOS__
-    len = __swprintf_l(buf, L"%.3f", locale, val);
-#else
     len = _swprintf_l(buf, ARRAY_SIZE(buf), L"%.3f", locale, val);
-#endif
     _free_locale(locale);
 
     if(new_format) {
@@ -409,6 +415,7 @@ HRESULT localize_number(script_ctx_t *ctx, DOUBLE val, BOOL new_format, jsstr_t 
     *ret = str;
     return S_OK;
 }
+#endif
 
 static HRESULT Number_toLocaleString(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned argc, jsval_t *argv,
         jsval_t *r)

@@ -75,7 +75,7 @@ STRINGTABLE
     IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "Cannot redefine non-configurable property '|'"
     IDS_NONWRITABLE_MODIFIED       "Cannot modify non-writable property '|'"
-    IDS_MAP_EXPECTED               "'[object]' 不是日期对象"
+    IDS_WRONG_THIS               "'[object]' 不是日期对象"
     IDS_PROP_DESC_MISMATCH         "Property cannot have both accessors and a value"
 }
 
@@ -135,6 +135,6 @@ STRINGTABLE
     IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "無法重新定義不可設定的屬性 '|'"
     IDS_NONWRITABLE_MODIFIED       "無法修改不可寫入的屬性 '|'"
-    IDS_MAP_EXPECTED               "[object] 並非日期物件"
+    IDS_WRONG_THIS               "[object] 並非日期物件"
     IDS_PROP_DESC_MISMATCH         "屬性不可同時有存取子和值"
 }

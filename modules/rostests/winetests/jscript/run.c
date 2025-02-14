@@ -3578,7 +3578,11 @@ static void test_invokeex(void)
     hres = IDispatchEx_InvokeEx(dispex, func_id, 0, DISPATCH_METHOD, &dp, &v, NULL, NULL);
     ok(hres == S_OK, "InvokeEx failed: %08lx\n", hres);
     ok(V_VT(&v) == VT_I4, "V_VT(v) = %d\n", V_VT(&v));
+#ifdef __REACTOS__
+    ok(V_I4(&v) == 42, "V_I4(v)\n");
+#else
     ok(V_I4(&v) == 42, "V_I4(v) = %s\n", wine_dbgstr_variant(&v));
+#endif
     CHECK_CALLED(test_caller_null);
     V_VT(&v) = VT_EMPTY;
 
@@ -3586,7 +3590,11 @@ static void test_invokeex(void)
     hres = IDispatchEx_InvokeEx(dispex, func_id, 0, DISPATCH_METHOD, &dp, &v, NULL, &sp_obj);
     ok(hres == S_OK, "InvokeEx failed: %08lx\n", hres);
     ok(V_VT(&v) == VT_I4, "V_VT(v) = %d\n", V_VT(&v));
+#ifdef __REACTOS__
+    ok(V_I4(&v) == 137, "V_I4(v)\n");
+#else
     ok(V_I4(&v) == 137, "V_I4(v) = %s\n", wine_dbgstr_variant(&v));
+#endif
     CHECK_CALLED(test_caller_obj);
 
     IDispatchEx_Release(dispex);

@@ -72,6 +72,6 @@ STRINGTABLE
     IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "Nie można ponownie zdefiniować niekonfigurowalnej właściwości '|'"
     IDS_NONWRITABLE_MODIFIED       "Nie można zdefiniować niezapisywalnej właściwości '|'"
-    IDS_MAP_EXPECTED               "'[obiekt]' nie jest obiektem daty"
+    IDS_WRONG_THIS               "'[obiekt]' nie jest obiektem daty"
     IDS_PROP_DESC_MISMATCH         "Właściwość nie może mieć jednocześnie metod dostępu i wartości"
 }

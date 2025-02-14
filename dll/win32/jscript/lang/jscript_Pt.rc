@@ -73,7 +73,7 @@ STRINGTABLE
     IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "Cannot redefine non-configurable property '|'"
     IDS_NONWRITABLE_MODIFIED       "Cannot modify non-writable property '|'"
-    IDS_MAP_EXPECTED               "'[object]' não é um objeto de data"
+    IDS_WRONG_THIS               "'[object]' não é um objeto de data"
     IDS_PROP_DESC_MISMATCH         "Property cannot have both accessors and a value"
 }
 
@@ -129,6 +129,6 @@ STRINGTABLE
     IDS_INVALID_WRITABLE_PROP_DESC "O atributo 'gravável' no descritor de propriedades não pode ser definido como 'true' neste objecto"
     IDS_NONCONFIGURABLE_REDEFINED  "Não é possível redefinir a propriedade não configurável '|'"
     IDS_NONWRITABLE_MODIFIED       "Não é possível modificar a propriedade não gravável '|'"
-    IDS_MAP_EXPECTED               "'[object]' não é um objecto de data"
+    IDS_WRONG_THIS               "'[object]' não é um objecto de data"
     IDS_PROP_DESC_MISMATCH         "A propriedade não pode ter acessadores e um valor"
 }
