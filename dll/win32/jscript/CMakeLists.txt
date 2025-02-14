@@ -32,6 +32,7 @@ list(APPEND SOURCE
     number.c
     object.c
     regexp.c
+    set.c
     string.c
     vbarray.c)
 

@@ -73,4 +73,5 @@ STRINGTABLE
     IDS_NONCONFIGURABLE_REDEFINED  "'|' yapılandırılamayan nesnesi yeniden tanımlanamaz."
     IDS_NONWRITABLE_MODIFIED       "'|' yazılamayan nesnesi değiştirilemez."
     IDS_PROP_DESC_MISMATCH         "Nesnenin aynı anda erişeni ve değeri olamaz."
+    IDS_MAP_EXPECTED               "'[object]' bir tarih nesnesi değil"
 }

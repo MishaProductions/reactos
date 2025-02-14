@@ -72,5 +72,6 @@ STRINGTABLE
     IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "Cannot redefine non-configurable property '|'"
     IDS_NONWRITABLE_MODIFIED       "Cannot modify non-writable property '|'"
+    IDS_MAP_EXPECTED               "„[objektas]“ nėra datos objektas"
     IDS_PROP_DESC_MISMATCH         "Property cannot have both accessors and a value"
 }
