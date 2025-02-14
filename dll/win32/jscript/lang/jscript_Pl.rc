@@ -69,6 +69,7 @@ STRINGTABLE
     IDS_INVALID_LENGTH      "Długość tablicy musi być skończoną dodatnią liczbą całkowitą"
     IDS_ARRAY_EXPECTED      "Oczekiwano obiektu tablicy"
     IDS_INVALID_WRITABLE_PROP_DESC "Atrybut 'writable' dotyczący deskryptora właściwości nie może mieć wartości 'true' dla tego obiektu"
+    IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "Nie można ponownie zdefiniować niekonfigurowalnej właściwości '|'"
     IDS_NONWRITABLE_MODIFIED       "Nie można zdefiniować niezapisywalnej właściwości '|'"
     IDS_PROP_DESC_MISMATCH         "Właściwość nie może mieć jednocześnie metod dostępu i wartości"

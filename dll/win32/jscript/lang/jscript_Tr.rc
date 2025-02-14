@@ -69,6 +69,7 @@ STRINGTABLE
     IDS_INVALID_LENGTH      "Dizi büyüklüğü bir sonlu artı tam sayı olmalı."
     IDS_ARRAY_EXPECTED      "Dizi nesnesi bekleniyordu."
     IDS_INVALID_WRITABLE_PROP_DESC "Nesne açıklayıcısındaki 'yazılabilir' özelliği bu nesnede 'doğru' olarak ayarlanamaz."
+    IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "'|' yapılandırılamayan nesnesi yeniden tanımlanamaz."
     IDS_NONWRITABLE_MODIFIED       "'|' yazılamayan nesnesi değiştirilemez."
     IDS_PROP_DESC_MISMATCH         "Nesnenin aynı anda erişeni ve değeri olamaz."
