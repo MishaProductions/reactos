@@ -138,6 +138,7 @@ typedef enum {
     JSCLASS_ARGUMENTS,
     JSCLASS_VBARRAY,
     JSCLASS_JSON,
+    JSCLASS_MAP,
     JSCLASS_SET,
 } jsclass_t;
 
@@ -474,6 +475,7 @@ struct _script_ctx_t {
     jsdisp_t *regexp_constr;
     jsdisp_t *string_constr;
     jsdisp_t *vbarray_constr;
+    jsdisp_t *map_prototype;
     jsdisp_t *set_prototype;
 };
 
