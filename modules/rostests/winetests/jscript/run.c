@@ -3058,40 +3058,40 @@ static void test_invokeex(void)
     hres = parse_script_expr(L"function c() { this.func = function() { return this.prop1 * this.prop2 };"
                              L"this.prop1 = 6; this.prop2 = 9; }; var o = new c(); o.prop2 = 7; o",
                              &v, &script);
-    ok(hres == S_OK, "parse_script_expr failed: %08x\n", hres);
+    ok(hres == S_OK, "parse_script_expr failed: %08lx\n", hres);
     ok(V_VT(&v) == VT_DISPATCH, "V_VT(v) = %d\n", V_VT(&v));
 
     hres = IDispatch_QueryInterface(V_DISPATCH(&v), &IID_IDispatchEx, (void**)&dispex);
-    ok(hres == S_OK, "Could not get IDispatchEx iface: %08x\n", hres);
+    ok(hres == S_OK, "Could not get IDispatchEx iface: %08lx\n", hres);
     VariantClear(&v);
 
     str = SysAllocString(L"prop1");
     hres = IDispatchEx_GetDispID(dispex, str, 0, &prop_id);
     SysFreeString(str);
-    ok(hres == S_OK, "GetDispID failed: %08x\n", hres);
+    ok(hres == S_OK, "GetDispID failed: %08lx\n", hres);
 
     hres = IDispatchEx_InvokeEx(dispex, prop_id, 0, DISPATCH_PROPERTYGET, &dp, &v, NULL, NULL);
-    ok(hres == S_OK, "InvokeEx failed: %08x\n", hres);
+    ok(hres == S_OK, "InvokeEx failed: %08lx\n", hres);
     ok(V_VT(&v) == VT_I4, "V_VT(v) = %d\n", V_VT(&v));
-    ok(V_I4(&v) == 6, "V_I4(v) = %d\n", V_I4(&v));
+    ok(V_I4(&v) == 6, "V_I4(v) = %ld\n", V_I4(&v));
 
     str = SysAllocString(L"prop2");
     hres = IDispatchEx_GetDispID(dispex, str, 0, &prop_id);
     SysFreeString(str);
-    ok(hres == S_OK, "GetDispID failed: %08x\n", hres);
+    ok(hres == S_OK, "GetDispID failed: %08lx\n", hres);
 
     hres = IDispatchEx_InvokeEx(dispex, prop_id, 0, DISPATCH_PROPERTYGET, &dp, &v, NULL, NULL);
-    ok(hres == S_OK, "InvokeEx failed: %08x\n", hres);
+    ok(hres == S_OK, "InvokeEx failed: %08lx\n", hres);
     ok(V_VT(&v) == VT_I4, "V_VT(v) = %d\n", V_VT(&v));
-    ok(V_I4(&v) == 7, "V_I4(v) = %d\n", V_I4(&v));
+    ok(V_I4(&v) == 7, "V_I4(v) = %ld\n", V_I4(&v));
 
     str = SysAllocString(L"func");
     hres = IDispatchEx_GetDispID(dispex, str, 0, &func_id);
     SysFreeString(str);
-    ok(hres == S_OK, "GetDispID failed: %08x\n", hres);
+    ok(hres == S_OK, "GetDispID failed: %08lx\n", hres);
 
     hres = IDispatchEx_InvokeEx(dispex, func_id, 0, DISPATCH_METHOD, &dp, &v, NULL, NULL);
-    ok(hres == S_OK, "InvokeEx failed: %08x\n", hres);
+    ok(hres == S_OK, "InvokeEx failed: %08lx\n", hres);
     ok(V_VT(&v) == VT_I4, "V_VT(v) = %d\n", V_VT(&v));
 #ifdef __REACTOS__
     ok(V_I4(&v) == 42, "V_I4(v)\n");
