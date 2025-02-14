@@ -608,6 +608,9 @@ static HRESULT detach_scope(script_ctx_t *ctx, call_frame_t *frame, scope_chain_
 
         if (FAILED(hres = jsdisp_propput_name(scope->jsobj, name, ctx->stack[local_off(frame, ref)])))
             return hres;
+        if (frame->function->variables[ref].func_id != -1 && scope != frame->base_scope
+                && FAILED(hres = jsdisp_propput_name(frame->variable_obj, name, ctx->stack[local_off(frame, ref)])))
+            return hres;
     }
     return S_OK;
 }
@@ -616,15 +619,9 @@ static HRESULT detach_scope_chain(script_ctx_t *ctx, call_frame_t *frame, scope_
 {
     HRESULT hres;
 
-    while (1)
-    {
-        if ((hres = detach_scope(ctx, frame, scope)))
-            return hres;
-        if (scope == frame->base_scope)
-            break;
-        scope = scope->next;
-    }
-    return S_OK;
+    if (scope != frame->base_scope && FAILED(hres = detach_scope_chain(ctx, frame, scope->next)))
+        return hres;
+    return detach_scope(ctx, frame, scope);
 }
 
 /*
@@ -919,7 +916,24 @@ static HRESULT scope_init_locals(script_ctx_t *ctx)
     {
         WCHAR *name = frame->function->local_scopes[index].locals[i].name;
         int ref = frame->function->local_scopes[index].locals[i].ref;
-        jsval_t val = jsval_undefined();
+        jsdisp_t *func_obj;
+        jsval_t val;
+
+        if (frame->function->variables[ref].func_id != -1)
+        {
+            TRACE("function %s %d\n", debugstr_w(name), i);
+
+            if (FAILED(hres = create_source_function(ctx, frame->bytecode, frame->function->funcs
+                    + frame->function->variables[ref].func_id, ctx->call_ctx->scope, &func_obj)))
+                return hres;
+            val = jsval_obj(func_obj);
+            if (detached_vars && FAILED(hres = jsdisp_propput_name(frame->variable_obj, name, jsval_obj(func_obj))))
+                return hres;
+        }
+        else
+        {
+            val = jsval_undefined();
+        }
 
         if (detached_vars)
         {
@@ -979,6 +993,12 @@ static HRESULT interp_push_block_scope(script_ctx_t *ctx)
 static HRESULT interp_pop_scope(script_ctx_t *ctx)
 {
     TRACE("\n");
+
+    if(ctx->call_ctx->scope->ref > 1) {
+        HRESULT hres = detach_variable_object(ctx, ctx->call_ctx, FALSE);
+        if(FAILED(hres))
+            ERR("Failed to detach variable object: %08x\n", hres);
+    }
 
     scope_pop(&ctx->call_ctx->scope);
     return S_OK;
@@ -3174,7 +3194,9 @@ static HRESULT setup_scope(script_ctx_t *ctx, call_frame_t *frame, scope_chain_t
     }
 
     for(i = 0; i < frame->function->func_cnt; i++) {
-        if(frame->function->funcs[i].local_ref != INVALID_LOCAL_REF) {
+        if(frame->function->funcs[i].local_ref != INVALID_LOCAL_REF
+                && !frame->function->funcs[i].scope_index)
+        {
             jsdisp_t *func_obj;
             unsigned off;
 
@@ -3228,6 +3250,12 @@ HRESULT exec_source(script_ctx_t *ctx, DWORD flags, bytecode_t *bytecode, functi
         if(!function->funcs[i].event_target)
             continue;
 
+        if (function->funcs[i].scope_index)
+        {
+            /* TODO: Add tests and handle in interp_push_scope(). */
+            FIXME("Event target with scope index are not properly handled.\n");
+        }
+
         hres = create_source_function(ctx, bytecode, function->funcs+i, scope, &func_obj);
         if(FAILED(hres))
             return hres;
@@ -3257,6 +3285,12 @@ HRESULT exec_source(script_ctx_t *ctx, DWORD flags, bytecode_t *bytecode, functi
             TRACE("[%d] %s %d\n", i, debugstr_w(function->variables[i].name), function->variables[i].func_id);
             if(function->variables[i].func_id != -1) {
                 jsdisp_t *func_obj;
+
+                if (function->funcs[function->variables[i].func_id].scope_index && flags & EXEC_EVAL)
+                {
+                    /* TODO: Add tests and handle in interp_push_scope(). */
+                    FIXME("Functions with scope index inside eval() are not properly handled.\n");
+                }
 
                 hres = create_source_function(ctx, bytecode, function->funcs+function->variables[i].func_id, scope, &func_obj);
                 if(FAILED(hres))
