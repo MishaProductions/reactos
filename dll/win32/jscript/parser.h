@@ -131,6 +131,7 @@ struct _statement_t {
 
 typedef struct {
     statement_t stat;
+    unsigned int scope_index;
     statement_t *stat_list;
 } block_statement_t;
 
