@@ -248,7 +248,7 @@ HRESULT jsval_copy(jsval_t v, jsval_t *r)
     return E_FAIL;
 }
 
-HRESULT variant_to_jsval(VARIANT *var, jsval_t *r)
+HRESULT variant_to_jsval(script_ctx_t *ctx, VARIANT *var, jsval_t *r)
 {
     if(V_VT(var) == (VT_VARIANT|VT_BYREF))
         var = V_VARIANTREF(var);
@@ -285,7 +285,7 @@ HRESULT variant_to_jsval(VARIANT *var, jsval_t *r)
     }
     case VT_DISPATCH: {
         if(!V_DISPATCH(var)) {
-            *r = jsval_null_disp();
+            *r = ctx->html_mode ? jsval_null() : jsval_null_disp();
             return S_OK;
         }
         IDispatch_AddRef(V_DISPATCH(var));
@@ -337,7 +337,7 @@ HRESULT variant_to_jsval(VARIANT *var, jsval_t *r)
                 return S_OK;
             }
         }else {
-            *r = jsval_null_disp();
+            *r = ctx->html_mode ? jsval_null() : jsval_null_disp();
             return S_OK;
         }
         /* fall through */
@@ -922,7 +922,7 @@ HRESULT variant_change_type(script_ctx_t *ctx, VARIANT *dst, VARIANT *src, VARTY
     jsval_t val;
     HRESULT hres;
 
-    hres = variant_to_jsval(src, &val);
+    hres = variant_to_jsval(ctx, src, &val);
     if(FAILED(hres))
         return hres;
 
