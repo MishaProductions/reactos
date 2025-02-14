@@ -246,7 +246,7 @@ static HRESULT array_join(script_ctx_t *ctx, jsdisp_t *array, DWORD length, cons
         return S_OK;
     }
 
-    str_tab = heap_alloc_zero(length * sizeof(*str_tab));
+    str_tab = calloc(length, sizeof(*str_tab));
     if(!str_tab)
         return E_OUTOFMEMORY;
 
@@ -308,7 +308,7 @@ static HRESULT array_join(script_ctx_t *ctx, jsdisp_t *array, DWORD length, cons
         if(str_tab[i])
             jsstr_release(str_tab[i]);
     }
-    heap_free(str_tab);
+    free(str_tab);
     if(FAILED(hres))
         return hres;
 
@@ -727,7 +727,7 @@ static HRESULT Array_sort(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned
         goto done;
     }
 
-    vtab = heap_alloc_zero(length * sizeof(*vtab));
+    vtab = calloc(length, sizeof(*vtab));
     if(vtab) {
         for(i=0; i<length; i++) {
             hres = jsdisp_get_idx(jsthis, i, vtab+i);
@@ -744,7 +744,7 @@ static HRESULT Array_sort(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned
     }
 
     if(SUCCEEDED(hres)) {
-        sorttab = heap_alloc(length*2*sizeof(*sorttab));
+        sorttab = malloc(length*2*sizeof(*sorttab));
         if(!sorttab)
             hres = E_OUTOFMEMORY;
     }
@@ -816,9 +816,9 @@ static HRESULT Array_sort(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned
     if(vtab) {
         for(i=0; i < length; i++)
             jsval_release(vtab[i]);
-        heap_free(vtab);
+        free(vtab);
     }
-    heap_free(sorttab);
+    free(sorttab);
     if(cmp_func)
         jsdisp_release(cmp_func);
 
@@ -1614,7 +1614,7 @@ done:
 
 static void Array_destructor(jsdisp_t *dispex)
 {
-    heap_free(dispex);
+    free(dispex);
 }
 
 static void Array_on_put(jsdisp_t *dispex, const WCHAR *name)
@@ -1762,7 +1762,7 @@ static HRESULT alloc_array(script_ctx_t *ctx, jsdisp_t *object_prototype, ArrayI
     ArrayInstance *array;
     HRESULT hres;
 
-    array = heap_alloc_zero(sizeof(ArrayInstance));
+    array = calloc(1, sizeof(ArrayInstance));
     if(!array)
         return E_OUTOFMEMORY;
 
@@ -1772,7 +1772,7 @@ static HRESULT alloc_array(script_ctx_t *ctx, jsdisp_t *object_prototype, ArrayI
         hres = init_dispex_from_constr(&array->dispex, ctx, &ArrayInst_info, ctx->array_constr);
 
     if(FAILED(hres)) {
-        heap_free(array);
+        free(array);
         return hres;
     }
 

@@ -435,7 +435,7 @@ static HRESULT scope_push(scope_chain_t *scope, jsdisp_t *jsobj, IDispatch *obj,
 {
     scope_chain_t *new_scope;
 
-    new_scope = heap_alloc(sizeof(scope_chain_t));
+    new_scope = malloc(sizeof(scope_chain_t));
     if(!new_scope)
         return E_OUTOFMEMORY;
 
@@ -472,7 +472,7 @@ void scope_release(scope_chain_t *scope)
 
     if (scope->obj)
         IDispatch_Release(scope->obj);
-    heap_free(scope);
+    free(scope);
 }
 
 static HRESULT disp_get_id(script_ctx_t *ctx, IDispatch *disp, const WCHAR *name, BSTR name_bstr, DWORD flags, DISPID *id)
@@ -1124,7 +1124,7 @@ static HRESULT interp_push_except(script_ctx_t *ctx)
 
     TRACE("\n");
 
-    except = heap_alloc(sizeof(*except));
+    except = malloc(sizeof(*except));
     if(!except)
         return E_OUTOFMEMORY;
 
@@ -1152,7 +1152,7 @@ static HRESULT interp_pop_except(script_ctx_t *ctx)
 
     finally_off = except->finally_off;
     frame->except_frame = except->next;
-    heap_free(except);
+    free(except);
 
     if(finally_off) {
         HRESULT hres;
@@ -2953,7 +2953,7 @@ static void pop_call_frame(script_ctx_t *ctx)
         IDispatch_Release(frame->this_obj);
     jsval_release(frame->ret);
     release_bytecode(frame->bytecode);
-    heap_free(frame);
+    free(frame);
 }
 
 static void print_backtrace(script_ctx_t *ctx)
@@ -3065,7 +3065,7 @@ static HRESULT unwind_exception(script_ctx_t *ctx, HRESULT exception_hres)
         except_frame->catch_off = 0;
     }else {
         frame->except_frame = except_frame->next;
-        heap_free(except_frame);
+        free(except_frame);
     }
 
     hres = stack_push(ctx, except_val);
@@ -3240,7 +3240,7 @@ HRESULT exec_source(script_ctx_t *ctx, DWORD flags, bytecode_t *bytecode, functi
     HRESULT hres;
 
     if(!ctx->stack) {
-        ctx->stack = heap_alloc(stack_size * sizeof(*ctx->stack));
+        ctx->stack = malloc(stack_size * sizeof(*ctx->stack));
         if(!ctx->stack)
             return E_OUTOFMEMORY;
     }
@@ -3340,7 +3340,7 @@ HRESULT exec_source(script_ctx_t *ctx, DWORD flags, bytecode_t *bytecode, functi
             goto fail;
     }
 
-    frame = heap_alloc_zero(sizeof(*frame));
+    frame = calloc(1, sizeof(*frame));
     if(!frame) {
         hres = E_OUTOFMEMORY;
         goto fail;
@@ -3355,7 +3355,7 @@ HRESULT exec_source(script_ctx_t *ctx, DWORD flags, bytecode_t *bytecode, functi
         hres = setup_scope(ctx, frame, scope, variable_obj, argc, argv);
         if(FAILED(hres)) {
             release_bytecode(frame->bytecode);
-            heap_free(frame);
+            free(frame);
             goto fail;
         }
     }else if(scope) {
