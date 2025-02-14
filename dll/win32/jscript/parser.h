@@ -38,7 +38,7 @@ typedef struct _parser_ctx_t {
 
     script_ctx_t *script;
     struct _compiler_ctx_t *compiler;
-    statement_list_t *source;
+    statement_t *source;
     BOOL nl;
     BOOL implicit_nl_semicolon;
     BOOL is_html;
@@ -298,7 +298,7 @@ typedef struct _function_expression_t {
     const WCHAR *identifier;
     const WCHAR *event_target;
     parameter_t *parameter_list;
-    statement_list_t *statement_list;
+    statement_t *statement_list;
     const WCHAR *src_str;
     DWORD src_len;
     unsigned func_id;
