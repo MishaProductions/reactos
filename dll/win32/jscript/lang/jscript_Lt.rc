@@ -77,7 +77,7 @@ STRINGTABLE
     IDS_NOT_DATAVIEW               "'this' is not a DataView object"
     IDS_DATAVIEW_NO_ARGUMENT       "DataView operation access beyond specified buffer length"
     IDS_DATAVIEW_INVALID_ACCESS    "DataView operacijos kreiptis už nurodyto buferio ilgio"
-    IDS_DATAVIEW_INVALID_OFFSET    "DataView konstruktoriaus argumentas poslinkis yra netinkamas
+    IDS_DATAVIEW_INVALID_OFFSET    "DataView konstruktoriaus argumentas poslinkis yra netinkamas"
     IDS_WRONG_THIS               "„[objektas]“ nėra datos objektas"
     IDS_KEY_NOT_OBJECT             "„raktas“ nėra objektas"
     IDS_ARRAYBUFFER_EXPECTED       "Tikėtasi ArrayBuffer objekto"

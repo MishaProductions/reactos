@@ -90,12 +90,14 @@ static HRESULT Object_toString(script_ctx_t *ctx, jsval_t vthis, WORD flags, uns
 
 set_output:
     if(r) {
-        jsstr_t *ret;
-        ret = jsstr_alloc(str);
-        if(!ret)
-            return E_OUTOFMEMORY;
-
+        if(!ret) {
+            ret = jsstr_alloc(str);
+            if(!ret)
+                return E_OUTOFMEMORY;
+        }
         *r = jsval_string(ret);
+    }else if(ret) {
+        jsstr_release(ret);
     }
 
     return S_OK;

@@ -62,7 +62,7 @@ if(MSVC)
     target_compile_options(jscript PRIVATE /wd4146 /wd4267)
 endif()
 
-add_idl_headers(jscript_idlheader jscript_classes.idl)
+add_idl_headers(jscript_idlheader jscript_classes.idl jsdisp.idl)
 add_typelib(jsglobal.idl)
 add_dependencies(jscript jscript_idlheader stdole2)
 set_module_type(jscript win32dll)
