@@ -27,8 +27,9 @@ WINE_DEFAULT_DEBUG_CHANNEL(jscript);
 static HRESULT Object_toString(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned argc, jsval_t *argv,
         jsval_t *r)
 {
+    const WCHAR *str = NULL;
+    jsstr_t *ret = NULL;
     jsdisp_t *jsdisp;
-    const WCHAR *str;
     IDispatch *disp;
     HRESULT hres;
 
@@ -74,6 +75,8 @@ static HRESULT Object_toString(script_ctx_t *ctx, jsval_t vthis, WORD flags, uns
     jsdisp = to_jsdisp(disp);
     if(!jsdisp) {
         str = L"[object Object]";
+    }else if(jsdisp->builtin_info->to_string) {
+        hres = jsdisp->builtin_info->to_string(jsdisp, &ret);
     }else if(names[jsdisp->builtin_info->class]) {
         str = names[jsdisp->builtin_info->class];
     }else {
