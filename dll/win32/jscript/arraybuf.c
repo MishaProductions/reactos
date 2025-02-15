@@ -28,7 +28,11 @@ WINE_DEFAULT_DEBUG_CHANNEL(jscript);
 typedef struct {
     jsdisp_t dispex;
     DWORD size;
+#ifdef __REACTOS__
+    BYTE buf[];
+#else
     DECLSPEC_ALIGN(sizeof(double)) BYTE buf[];
+#endif
 } ArrayBufferInstance;
 
 typedef struct {
