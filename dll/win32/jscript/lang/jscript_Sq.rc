@@ -77,5 +77,6 @@ STRINGTABLE
     IDS_NONCONFIGURABLE_REDEFINED  "Cannot redefine non-configurable property '|'"
     IDS_NONWRITABLE_MODIFIED       "Cannot modify non-writable property '|'"
     IDS_WRONG_THIS               "'this' is not a Map object"
+    IDS_KEY_NOT_OBJECT             "'key' is not an object"
     IDS_PROP_DESC_MISMATCH         "Property cannot have both accessors and a value"
 }

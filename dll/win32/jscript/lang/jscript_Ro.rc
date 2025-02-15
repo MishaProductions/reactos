@@ -78,5 +78,6 @@ STRINGTABLE
     IDS_NONCONFIGURABLE_REDEFINED  "Nu se poate redefini proprietatea neconfigurabilă „|”"
     IDS_NONWRITABLE_MODIFIED       "Nu se poate modifica proprietatea neinscriptibilă „|”"
     IDS_WRONG_THIS               "„[obiect]” nu este un obiect de tip dată"
+    IDS_KEY_NOT_OBJECT             "'key' is not an object"
     IDS_PROP_DESC_MISMATCH         "Proprietatea nu poate avea atât accesori, cât și o valoare"
 }

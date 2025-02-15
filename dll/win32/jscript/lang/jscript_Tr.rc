@@ -73,6 +73,7 @@ STRINGTABLE
     IDS_OBJECT_NONEXTENSIBLE       "Cannot define property '|': object is not extensible"
     IDS_NONCONFIGURABLE_REDEFINED  "'|' yapılandırılamayan nesnesi yeniden tanımlanamaz."
     IDS_NONWRITABLE_MODIFIED       "'|' yazılamayan nesnesi değiştirilemez."
-    IDS_PROP_DESC_MISMATCH         "Nesnenin aynı anda erişeni ve değeri olamaz."
     IDS_WRONG_THIS               "'[object]' bir tarih nesnesi değil"
+    IDS_KEY_NOT_OBJECT             "'bu' bir | nesne değil"
+    IDS_PROP_DESC_MISMATCH         "Nesnenin aynı anda erişeni ve değeri olamaz."
 }

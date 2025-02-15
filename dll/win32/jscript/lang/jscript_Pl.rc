@@ -74,5 +74,6 @@ STRINGTABLE
     IDS_NONCONFIGURABLE_REDEFINED  "Nie można ponownie zdefiniować niekonfigurowalnej właściwości '|'"
     IDS_NONWRITABLE_MODIFIED       "Nie można zdefiniować niezapisywalnej właściwości '|'"
     IDS_WRONG_THIS               "'[obiekt]' nie jest obiektem daty"
+    IDS_KEY_NOT_OBJECT             "'key' nie jest obiektem"
     IDS_PROP_DESC_MISMATCH         "Właściwość nie może mieć jednocześnie metod dostępu i wartości"
 }

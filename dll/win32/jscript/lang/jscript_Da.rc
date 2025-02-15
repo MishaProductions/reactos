@@ -75,5 +75,6 @@ STRINGTABLE
     IDS_NONCONFIGURABLE_REDEFINED  "Cannot redefine non-configurable property '|'"
     IDS_NONWRITABLE_MODIFIED       "Cannot modify non-writable property '|'"
     IDS_WRONG_THIS               "«[objekt]» er ikke et dato objekt"
+    IDS_KEY_NOT_OBJECT             "«[objekt]» er ikke et dato objekt"
     IDS_PROP_DESC_MISMATCH         "Property cannot have both accessors and a value"
 }

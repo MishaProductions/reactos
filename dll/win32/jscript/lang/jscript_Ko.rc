@@ -75,5 +75,6 @@ STRINGTABLE
     IDS_NONCONFIGURABLE_REDEFINED  "Cannot redefine non-configurable property '|'"
     IDS_NONWRITABLE_MODIFIED       "Cannot modify non-writable property '|'"
     IDS_WRONG_THIS               "'[object]'은(는) 날짜 개체가 아닙니다"
+    IDS_KEY_NOT_OBJECT             "'key'는 개체가 아닙니다"
     IDS_PROP_DESC_MISMATCH         "Property cannot have both accessors and a value"
 }
