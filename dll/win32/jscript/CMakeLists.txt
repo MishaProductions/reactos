@@ -10,6 +10,7 @@ spec2def(jscript.dll jscript.spec)
 list(APPEND SOURCE
     activex.c
     array.c
+    arraybuf.c
     bool.c
     compile.c
     date.c
