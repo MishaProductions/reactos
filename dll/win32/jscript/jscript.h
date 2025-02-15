@@ -31,6 +31,16 @@
 #include "winnls.h"
 #include <wine/config.h>
 #include <wine/port.h>
+
+// See wine commit 3527230c461b6baba9c29e69b575ada85bdbbc43
+#define rb_tree wine_rb_tree
+#define rb_entry wine_rb_entry
+#define RB_ENTRY_VALUE WINE_RB_ENTRY_VALUE
+#define RB_FOR_EACH_ENTRY WINE_RB_FOR_EACH_ENTRY
+#define rb_get wine_rb_get
+#define rb_init wine_rb_init
+#define rb_remove wine_rb_remove
+#define rb_put wine_rb_put
 #endif
 #include "ole2.h"
 #include "dispex.h"
