@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Array object verwacht"
     IDS_REGEXP_EXPECTED     "Boolean object verwacht"
     IDS_REGEXP_SYNTAX_ERROR "Syntax fout in reguliere expressie"
+    IDS_UNEXPECTED_QUANTIFIER "Verwachte ID"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "De te coderen URI bevat ongeldige tekens"

@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Array-Objekt erwartet"
     IDS_REGEXP_EXPECTED     "Boolesches Objekt erwartet"
     IDS_REGEXP_SYNTAX_ERROR "Syntaxfehler in regulärem Ausdruck"
+    IDS_UNEXPECTED_QUANTIFIER "Bezeichner erwartet"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "Zu verschlüsselnde URI enthält ungültige Zeichen"

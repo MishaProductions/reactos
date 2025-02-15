@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Oczekiwany obiekt tablicowy"
     IDS_REGEXP_EXPECTED     "Oczekiwany obiekt boolean"
     IDS_REGEXP_SYNTAX_ERROR "Błąd składniowy w wyrażeniu zwykłym"
+    IDS_UNEXPECTED_QUANTIFIER "Oczekiwano identyfikatora"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI do zdekodowania jest nieprawidłowy"
     IDS_URI_INVALID_CHAR    "URI do zakodowania zawiera nieprawidłowe znaki"

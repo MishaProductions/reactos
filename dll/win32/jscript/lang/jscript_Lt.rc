@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Tikėtasi masyvo objekto"
     IDS_REGEXP_EXPECTED     "Tikėtasi loginio objekto"
     IDS_REGEXP_SYNTAX_ERROR "Sintaksės klaida reguliariajame reiškinyje"
+    IDS_UNEXPECTED_QUANTIFIER "Tikėtasi identifikatoriaus"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "Koduotiname URI yra netinkamų simbolių"

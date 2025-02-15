@@ -62,6 +62,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Ожидается объект типа «Array»"
     IDS_REGEXP_EXPECTED     "Ожидается объект типа «bool»"
     IDS_REGEXP_SYNTAX_ERROR "Синтаксическая ошибка в регулярном выражении"
+    IDS_UNEXPECTED_QUANTIFIER "Ожидается идентификатор"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "Обнаружена недопустимая кодировка при попытке декодирования URI"
     IDS_URI_INVALID_CHAR    "Обнаружен недопустимый знак при попытке кодирования URI"

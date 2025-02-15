@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Forventet rekke-objekt"
     IDS_REGEXP_EXPECTED     "Forventet boolsk verdi"
     IDS_REGEXP_SYNTAX_ERROR "Syntaksfeil i regulært uttrykk"
+    IDS_UNEXPECTED_QUANTIFIER "Forventet identifiserer"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "URI'en som skulle kodes inneholder ugyldige tegn"

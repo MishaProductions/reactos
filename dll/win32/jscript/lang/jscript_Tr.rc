@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Beklenen dizi nesnesi"
     IDS_REGEXP_EXPECTED     "Beklenen mantıksal nesne"
     IDS_REGEXP_SYNTAX_ERROR "Düzenli deyişte söz dizimi hatası."
+    IDS_UNEXPECTED_QUANTIFIER "Beklenen kimlik"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "Çözülecek URI geçersiz."
     IDS_URI_INVALID_CHAR    "Kodlanacak URI geçersiz karakterler içeriyor."

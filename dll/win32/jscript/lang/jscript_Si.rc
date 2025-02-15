@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Pričakovan je bil predmet polja"
     IDS_REGEXP_EXPECTED     "Pričakovan je bil Boolov predmet"
     IDS_REGEXP_SYNTAX_ERROR "Napačna sintaksa v regularnem izrazu"
+    IDS_UNEXPECTED_QUANTIFIER "Določilo ključa zahteve"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "URI vsebuje neveljavne znake"

@@ -65,6 +65,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Se așteaptă un obiect matrice"
     IDS_REGEXP_EXPECTED     "Se așteaptă un obiect boolean"
     IDS_REGEXP_SYNTAX_ERROR "Eroare de sintaxă în expresia regulată"
+    IDS_UNEXPECTED_QUANTIFIER "Se așteaptă un identificator"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI ce urmează a fi decodificat nu este corect"
     IDS_URI_INVALID_CHAR    "URI care trebuie codificat conține caractere nevalide"

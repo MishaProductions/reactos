@@ -61,6 +61,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Tömb objektumot vártam"
     IDS_REGEXP_EXPECTED     "Boolean (igaz-hamis) objektumot vártam"
     IDS_REGEXP_SYNTAX_ERROR "Szinttaktikai hiba a reguláris kifejezésben"
+    IDS_UNEXPECTED_QUANTIFIER "Tárgy kulcs azonosító"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "A kódolandó URI érvénytelen karaktereket tartalmaz"

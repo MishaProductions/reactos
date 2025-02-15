@@ -64,6 +64,7 @@ STRINGTABLE
     IDS_ENUMERATOR_EXPECTED "Enumerator object expected"
     IDS_REGEXP_EXPECTED     "Regular Expression object expected"
     IDS_REGEXP_SYNTAX_ERROR "Gabim sintaksti ne shprehjen e rregullt"
+    IDS_UNEXPECTED_QUANTIFIER "Unexpected quantifier"
     IDS_EXCEPTION_THROWN    "Exception thrown and not caught"
     IDS_URI_INVALID_CODING  "URI to be decoded is incorrect"
     IDS_URI_INVALID_CHAR    "URI për tu koduar përmban shenja të pavlefshme"
