@@ -50,12 +50,12 @@ IDM_EVENTWR_CTX MENU
 BEGIN
     POPUP ""
     BEGIN
-        MENUITEM "&Open Event Log...", IDM_OPEN_EVENTLOG
-        MENUITEM "&Save Event Log as...", IDM_SAVE_EVENTLOG
+        MENUITEM "&Ouvrir le journal d'événements...", IDM_OPEN_EVENTLOG
+        MENUITEM "Enregistrer le journal d'événements &sous...", IDM_SAVE_EVENTLOG
         MENUITEM SEPARATOR
-        MENUITEM "&Clear all Events", IDM_CLEAR_EVENTS
-        MENUITEM "&Rename\tF2", IDM_RENAME_EVENTLOG
-        MENUITEM "Log Se&ttings...", IDM_EVENTLOG_SETTINGS
+        MENUITEM "&Effacer tous les événements", IDM_CLEAR_EVENTS
+        MENUITEM "&Renommer\tF2", IDM_RENAME_EVENTLOG
+        MENUITEM "&Paramètres du journal...", IDM_EVENTLOG_SETTINGS
     END
 END
 
@@ -168,6 +168,8 @@ BEGIN
     IDS_CLEAREVENTS_MSG "Voulez-vous enregistrer ce journal d'événements avant de l'effacer ?"
     IDS_RESTOREDEFAULTS "Voulez-vous vraiment réinitialiser tous les paramètres pour ce journal aux valeurs par défaut ?"
     IDS_EVENTSTRINGIDNOTFOUND "La description pour l'événement d'ID ( %lu ) dans la source ( %s ) ne peut être trouvée. L'ordinateur local pourrait ne pas avoir les informations registres nécessaires ou les fichiers DLL de message pour afficher les messages depuis un ordinateur distant.\n\nLes informations suivantes font partie de l'événement :\n\n"
+    IDS_CONTFROMBEGINNING "You have reached the end of the event log. Do you want to continue from the beginning?"
+    IDS_CONTFROMEND "You have reached the beginning of the event log. Do you want to continue from the end?"
 END
 
 STRINGTABLE

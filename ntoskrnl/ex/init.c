@@ -863,6 +863,16 @@ ExpLoadBootSymbols(
                                 LdrEntry->DllBase,
                                 (ULONG_PTR)PsGetCurrentProcessId());
         }
+
+#ifdef CONFIG_SMP
+        /* Check that the image is safe to use if we have more than one CPU */
+        if (!MmVerifyImageIsOkForMpUse(LdrEntry->DllBase))
+        {
+            KeBugCheckEx(UP_DRIVER_ON_MP_SYSTEM,
+                         (ULONG_PTR)LdrEntry->DllBase,
+                         0, 0, 0);
+        }
+#endif // CONFIG_SMP
     }
 }
 
@@ -1559,6 +1569,34 @@ Phase1InitializationDiscard(IN PVOID Context)
     }
 
 #ifdef CONFIG_SMP
+    /*
+     * IMPORTANT NOTE:
+     * Because ReactOS is a "nice" OS, we do not care _at all_
+     * about any number of registered/licensed processors:
+     * no usage of KeRegisteredProcessors nor KeLicensedProcessors.
+     */
+    if (CommandLine)
+    {
+        PSTR Option;
+
+        /* Check for NUMPROC: maximum number of logical processors
+         * that can be started (including dynamically) at run-time */
+        Option = strstr(CommandLine, "NUMPROC");
+        if (Option) Option = strstr(Option, "=");
+        if (Option) KeNumprocSpecified = atol(Option + 1);
+
+        /* Check for BOOTPROC (NT6+ and ReactOS): maximum number
+         * of logical processors that can be started at boot-time */
+        Option = strstr(CommandLine, "BOOTPROC");
+        if (Option) Option = strstr(Option, "=");
+        if (Option) KeBootprocSpecified = atol(Option + 1);
+
+        /* Check for MAXPROC (NT6+ and ReactOS): forces the kernel to report
+         * as existing the maximum number of processors that can be handled */
+        if (strstr(CommandLine, "MAXPROC"))
+            KeMaximumProcessors = MAXIMUM_PROCESSORS;
+    }
+
     /* Start Application Processors */
     KeStartAllProcessors();
 #endif

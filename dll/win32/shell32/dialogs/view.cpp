@@ -249,7 +249,7 @@ ViewTree_InsertAll(HWND hwndTreeView)
 static BOOL
 ViewTree_LoadTree(HKEY hKey, LPCWSTR pszKeyName, DWORD dwParentID)
 {
-    DWORD dwIndex;
+    DWORD dwIndex = ~0UL;
     WCHAR szKeyName[64], szText[MAX_PATH], *pch;
     DWORD Size, Value;
     PVIEWTREE_ENTRY pAllocated;
@@ -975,9 +975,12 @@ FolderOptionsViewDlg(
                 case IDC_VIEW_RESET_ALL:
                 {
                     HRESULT hr = HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+                    bool ResetToDefault = LOWORD(wParam) == IDC_VIEW_RESET_ALL;
                     CFolderOptions *pFO = (CFolderOptions*)GetWindowLongPtr(hwndDlg, GWL_USERDATA);
                     if (pFO)
-                        hr = pFO->ApplyDefFolderSettings(LOWORD(wParam) == IDC_VIEW_RESET_ALL);
+                        hr = pFO->ApplyDefFolderSettings(ResetToDefault); // Use IBrowserService2
+                    if (ResetToDefault && hr == HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED))
+                        hr = CFolderOptions::ResetGlobalAndDefViewFolderSettings(); // No browser
                     if (FAILED(hr))
                         SHELL_ErrorBox(hwndDlg, hr);
                     break;

@@ -108,11 +108,15 @@ extern "C" {
 #define PT_FOLDERTYPEMASK       0x70
 #define PT_DESKTOP_REGITEM      0x1F // => SHDID_ROOT_REGITEM
 #define PT_COMPUTER_REGITEM     0x2E // => SHDID_COMPUTER_?
+#define PT_COMPUTER_DRIVE       0x2F
 #define PT_FS                   0x30 // Win95 SHSimpleIDListFromPath
 #define PT_FS_FOLDER_FLAG       0x01
 #define PT_FS_FILE_FLAG         0x02
 #define PT_FS_UNICODE_FLAG      0x04
+#define PT_FS_COMMON_FLAG       0x08
 //      PT_NET_REGITEM          0x4? // => SHDID_NET_OTHER
+#define PT_INTERNET             0x60
+#define PT_INTERNET_URL         0x61
 #define PT_CONTROLS_OLDREGITEM  0x70
 #define PT_CONTROLS_NEWREGITEM  0x71
 #endif
@@ -247,8 +251,6 @@ BOOL	_ILIsMyComputer		(LPCITEMIDLIST pidl) DECLSPEC_HIDDEN;
 #ifdef __REACTOS__
 BOOL	_ILIsMyDocuments	(LPCITEMIDLIST pidl);
 BOOL	_ILIsBitBucket		(LPCITEMIDLIST pidl);
-BOOL	_ILIsNetHood		(LPCITEMIDLIST pidl);
-BOOL    _ILIsControlPanel   (LPCITEMIDLIST pidl);
 #define _ILIsFolderOrFile   _ILGetFSType
 #endif
 BOOL	_ILIsDrive		(LPCITEMIDLIST pidl) DECLSPEC_HIDDEN;

@@ -219,7 +219,7 @@ class CDefaultContextMenu :
         STDMETHOD(GetSite)(REFIID riid, void **ppvSite) override;
 
         // IServiceProvider
-        virtual HRESULT STDMETHODCALLTYPE QueryService(REFGUID svc, REFIID riid, void**ppv)
+        STDMETHOD(QueryService)(REFGUID svc, REFIID riid, void**ppv) override
         {
             return IUnknown_QueryService(m_site, svc, riid, ppv);
         }
@@ -1031,10 +1031,16 @@ HRESULT CDefaultContextMenu::DoCopyOrCut(LPCMINVOKECOMMANDINFOEX lpcmi, BOOL bCo
     GlobalUnlock(medium.hGlobal);
     m_pDataObj->SetData(&formatetc, &medium, TRUE);
 
+    CComPtr<IShellFolderView> psfv;
+    if (SUCCEEDED(IUnknown_QueryService(m_site, SID_SFolderView, IID_PPV_ARG(IShellFolderView, &psfv))))
+        psfv->SetPoints(m_pDataObj);
+
     HRESULT hr = OleSetClipboard(m_pDataObj);
     if (FAILED_UNEXPECTEDLY(hr))
         return hr;
 
+    if (psfv)
+        psfv->SetClipboard(!bCopy);
     return S_OK;
 }
 
@@ -1161,7 +1167,7 @@ CDefaultContextMenu::DoCreateNewFolder(
         return S_OK;
 
     /* Get a pointer to the shell view */
-    hr = IUnknown_QueryService(m_site, SID_IFolderView, IID_PPV_ARG(IShellView, &psv));
+    hr = IUnknown_QueryService(m_site, SID_SFolderView, IID_PPV_ARG(IShellView, &psv));
     if (FAILED_UNEXPECTEDLY(hr))
         return S_OK;
 

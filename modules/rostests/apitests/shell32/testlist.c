@@ -26,6 +26,8 @@ extern void func_menu(void);
 extern void func_OpenAs_RunDLL(void);
 extern void func_PathIsEqualOrSubFolder(void);
 extern void func_PathIsTemporary(void);
+extern void func_PathMakeUniqueName(void);
+extern void func_PathProcessCommand(void);
 extern void func_PathResolve(void);
 extern void func_PIDL(void);
 extern void func_RealShellExecuteEx(void);
@@ -34,6 +36,7 @@ extern void func_SHChangeNotify(void);
 extern void func_SHCreateDataObject(void);
 extern void func_SHCreateFileDataObject(void);
 extern void func_SHCreateFileExtractIconW(void);
+extern void func_SHDefExtractIcon(void);
 extern void func_SHEnumerateUnreadMailAccountsW(void);
 extern void func_She(void);
 extern void func_ShellExec_RunDLL(void);
@@ -81,6 +84,8 @@ const struct test winetest_testlist[] =
     { "OpenAs_RunDLL", func_OpenAs_RunDLL },
     { "PathIsEqualOrSubFolder", func_PathIsEqualOrSubFolder },
     { "PathIsTemporary", func_PathIsTemporary },
+    { "PathMakeUniqueName", func_PathMakeUniqueName },
+    { "PathProcessCommand", func_PathProcessCommand },
     { "PathResolve", func_PathResolve },
     { "PIDL", func_PIDL },
     { "RealShellExecuteEx", func_RealShellExecuteEx },
@@ -89,6 +94,7 @@ const struct test winetest_testlist[] =
     { "SHCreateDataObject", func_SHCreateDataObject },
     { "SHCreateFileDataObject", func_SHCreateFileDataObject },
     { "SHCreateFileExtractIconW", func_SHCreateFileExtractIconW },
+    { "SHDefExtractIcon", func_SHDefExtractIcon },
     { "SHEnumerateUnreadMailAccountsW", func_SHEnumerateUnreadMailAccountsW },
     { "She", func_She },
     { "ShellExec_RunDLL", func_ShellExec_RunDLL },

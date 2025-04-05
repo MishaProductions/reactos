@@ -15,6 +15,7 @@ using namespace Gdiplus;
 
 HICON g_hDefaultPackageIcon = NULL;
 static int g_DefaultPackageIconILIdx = I_IMAGENONE;
+UINT g_IconSize = 0;
 
 // **** Menu helpers ****
 
@@ -1063,9 +1064,11 @@ AsyncLoadIconProc(LPVOID Param)
         if (task->TaskId == g_AsyncIconTaskId)
         {
             HICON hIcon;
+            HICON *phBigIcon = SettingsInfo.bSmallIcons ? NULL : &hIcon;
+            HICON *phSmallIcon = phBigIcon ? NULL : &hIcon;
             if (!task->Parse)
-                hIcon = (HICON)LoadImageW(NULL, task->Location, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
-            else if (!ExtractIconExW(task->Location, PathParseIconLocationW(task->Location), &hIcon, NULL, 1))
+                hIcon = (HICON)LoadImageW(NULL, task->Location, IMAGE_ICON, g_IconSize, g_IconSize, LR_LOADFROMFILE);
+            else if (!ExtractIconExW(task->Location, PathParseIconLocationW(task->Location), phBigIcon, phSmallIcon, 1))
                 hIcon = NULL;
 
             if (hIcon)
@@ -1392,13 +1395,14 @@ CAppsListView::SetDisplayAppType(APPLICATION_VIEW_TYPE AppType)
     if (!g_hDefaultPackageIcon)
     {
         ImageList_Destroy(m_hImageListView);
-        UINT IconSize = GetSystemMetrics(SM_CXICON);
+        g_IconSize = GetSystemMetrics(SettingsInfo.bSmallIcons ? SM_CXSMICON : SM_CXICON);
+        g_IconSize = max(g_IconSize, 8);
         UINT ilc = GetSystemColorDepth() | ILC_MASK;
-        m_hImageListView = ImageList_Create(IconSize, IconSize, ilc, 0, 1);
+        m_hImageListView = ImageList_Create(g_IconSize, g_IconSize, ilc, 0, 1);
         SetImageList(m_hImageListView, LVSIL_SMALL);
         SetImageList(m_hImageListView, LVSIL_NORMAL);
         g_hDefaultPackageIcon = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(IDI_MAIN),
-                                                  IMAGE_ICON, IconSize, IconSize, LR_SHARED);
+                                                  IMAGE_ICON, g_IconSize, g_IconSize, LR_SHARED);
     }
     ImageList_RemoveAll(m_hImageListView);
 
@@ -1640,6 +1644,11 @@ CApplicationView::ProcessWindowMessage(
                                 ItemCheckStateChanged(FALSE, (LPVOID)pnic->lParam);
                             }
                         }
+
+                        /* Ensure that if there are any items still focused/selected,
+                         * the ID_INSTALL menu item and toolbar button stay enabled */
+                        if ((pnic->uChanged & LVIF_STATE) && !m_MainWindow->bUpdating)
+                            _UpdateInstallBtn();
                     }
                     break;
 
@@ -2035,25 +2044,19 @@ BOOL
 CApplicationView::SetDisplayAppType(APPLICATION_VIEW_TYPE AppType)
 {
     if (!m_ListView->SetDisplayAppType(AppType))
-    {
         return FALSE;
-    }
+
     ApplicationViewType = AppType;
     m_AppsInfo->SetWelcomeText(m_MainWindow->m_bAppwizMode);
 
-    HMENU hMenu = ::GetMenu(m_hWnd);
+    HMENU hMenu = GetMenu();
     switch (AppType)
     {
         case AppViewTypeInstalledApps:
         {
             EnableMenuItem(hMenu, ID_INSTALL, MF_GRAYED);
-            EnableMenuItem(hMenu, ID_UNINSTALL, MF_ENABLED);
-            EnableMenuItem(hMenu, ID_MODIFY, MF_ENABLED);
-            EnableMenuItem(hMenu, ID_REGREMOVE, MF_ENABLED);
-
             m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_INSTALL, FALSE);
-            m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_UNINSTALL, TRUE);
-            m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_MODIFY, TRUE);
+
             m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_CHECK_ALL, FALSE);
             break;
         }
@@ -2063,18 +2066,22 @@ CApplicationView::SetDisplayAppType(APPLICATION_VIEW_TYPE AppType)
             // We shouldn't get there in APPWIZ-mode.
             ATLASSERT(!m_MainWindow->m_bAppwizMode);
 
-            EnableMenuItem(hMenu, ID_INSTALL, MF_ENABLED);
-            EnableMenuItem(hMenu, ID_UNINSTALL, MF_GRAYED);
-            EnableMenuItem(hMenu, ID_MODIFY, MF_GRAYED);
-            EnableMenuItem(hMenu, ID_REGREMOVE, MF_GRAYED);
+            /* Even if no ListView item is focused at this point, enable
+             * or disable ID_INSTALL if there are selected applications. */
+            _UpdateInstallBtn();
 
-            m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_INSTALL, TRUE);
-            m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_UNINSTALL, FALSE);
-            m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_MODIFY, FALSE);
             m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_CHECK_ALL, TRUE);
             break;
         }
     }
+
+    /* Always disable these items by default */
+    EnableMenuItem(hMenu, ID_UNINSTALL, MF_GRAYED);
+    EnableMenuItem(hMenu, ID_MODIFY, MF_GRAYED);
+    EnableMenuItem(hMenu, ID_REGREMOVE, MF_GRAYED);
+    m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_UNINSTALL, FALSE);
+    m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_MODIFY, FALSE);
+
     return TRUE;
 }
 
@@ -2159,30 +2166,70 @@ CApplicationView::RefreshDetailsPane(CAppInfo &Info, bool OnlyUpdateText)
     m_AppsInfo->ShowAppInfo(Info, OnlyUpdateText);
 }
 
-// this function is called when a item of listview get focus.
-// CallbackParam is the param passed to listview when adding the item (the one getting focus now).
-VOID
-CApplicationView::ItemGetFocus(LPVOID CallbackParam)
+void
+CApplicationView::_UpdateInstallBtn()
 {
-    if (CallbackParam)
+    if (ApplicationViewType == AppViewTypeInstalledApps)
     {
-        CAppInfo *Info = static_cast<CAppInfo *>(CallbackParam);
-        RefreshDetailsPane(*Info);
+        EnableMenuItem(GetMenu(), ID_INSTALL, MF_GRAYED);
+        m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_INSTALL, FALSE);
+    }
+    else if (ApplicationViewType == AppViewTypeAvailableApps)
+    {
+        // We shouldn't get there in APPWIZ-mode.
+        ATLASSERT(!m_MainWindow->m_bAppwizMode);
 
-        if (ApplicationViewType == AppViewTypeInstalledApps)
-        {
-            HMENU hMenu = ::GetMenu(m_hWnd);
-
-            BOOL CanModify = Info->CanModify();
-
-            EnableMenuItem(hMenu, ID_MODIFY, CanModify ? MF_ENABLED : MF_GRAYED);
-            m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_MODIFY, CanModify);
-        }
+        /* Even if no ListView item is focused at this point, enable
+         * or disable ID_INSTALL if there are selected applications. */
+        BOOL CanInstall = !m_MainWindow->m_Selected.IsEmpty();
+        CanInstall = CanInstall || (m_ListView->GetSelectedCount() > 0);
+        EnableMenuItem(GetMenu(), ID_INSTALL, CanInstall ? MF_ENABLED : MF_GRAYED);
+        m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_INSTALL, CanInstall);
     }
 }
 
-// this function is called when a item of listview is checked/unchecked
-// CallbackParam is the param passed to listview when adding the item (the one getting changed now).
+// This function is called when a ListView item gets the focus.
+// CallbackParam is the param passed to the ListView when adding the item (the one getting focus now).
+VOID
+CApplicationView::ItemGetFocus(LPVOID CallbackParam)
+{
+    if (!CallbackParam)
+        return;
+
+    CAppInfo *Info = static_cast<CAppInfo *>(CallbackParam);
+    RefreshDetailsPane(*Info);
+
+    HMENU hMenu = GetMenu();
+    if (ApplicationViewType == AppViewTypeInstalledApps)
+    {
+        /* ID_INSTALL is left disabled */
+
+        EnableMenuItem(hMenu, ID_UNINSTALL, MF_ENABLED);
+        m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_UNINSTALL, TRUE);
+
+        BOOL CanModify = Info->CanModify();
+        EnableMenuItem(hMenu, ID_MODIFY, CanModify ? MF_ENABLED : MF_GRAYED);
+        m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_MODIFY, CanModify);
+
+        EnableMenuItem(hMenu, ID_REGREMOVE, MF_ENABLED);
+    }
+    else if (ApplicationViewType == AppViewTypeAvailableApps)
+    {
+        // We shouldn't get there in APPWIZ-mode.
+        ATLASSERT(!m_MainWindow->m_bAppwizMode);
+
+        EnableMenuItem(hMenu, ID_INSTALL, MF_ENABLED);
+        m_Toolbar->SendMessageW(TB_ENABLEBUTTON, ID_INSTALL, TRUE);
+
+        /* ID_UNINSTALL, ID_MODIFY and ID_REGREMOVE are left disabled */
+        // TODO: When we are able to detect whether this selected available
+        // application is already installed (could be an older version),
+        // do also what's done in the AppViewTypeInstalledApps case above.
+    }
+}
+
+// This function is called when a ListView item (an application) is checked/unchecked.
+// CallbackParam is the param passed to the ListView when adding the item (the one getting changed now).
 VOID
 CApplicationView::ItemCheckStateChanged(BOOL bChecked, LPVOID CallbackParam)
 {

@@ -544,7 +544,7 @@ static BOOL Stream_LoadVolume(LOCAL_VOLUME_INFO *vol, CShellLink::volume_info *v
     INT len = vol->dwSize - vol->dwVolLabelOfs;
 
     LPSTR label = (LPSTR)vol;
-    label += vol->dwVolLabelOfs;
+    label += vol->dwVolLabelOfs; // FIXME: 0x14 Unicode
     MultiByteToWideChar(CP_ACP, 0, label, len, volume->label, _countof(volume->label));
 
     return TRUE;
@@ -595,7 +595,7 @@ static HRESULT Stream_LoadLocation(IStream *stm,
     /* if there's a local path, load it */
     DWORD n = loc->dwLocalPathOfs;
     if (n && n < loc->dwTotalSize)
-        *path = Stream_LoadPath(&p[n], loc->dwTotalSize - n);
+        *path = Stream_LoadPath(&p[n], loc->dwTotalSize - n); // FIXME: Unicode offset (if present)
 
     TRACE("type %d serial %08x name %s path %s\n", volume->type,
           volume->serial, debugstr_w(volume->label), debugstr_w(*path));
@@ -850,7 +850,7 @@ static HRESULT Stream_WriteString(IStream* stm, LPCWSTR str)
  *        Figure out how Windows deals with unicode paths here.
  */
 static HRESULT Stream_WriteLocationInfo(IStream* stm, LPCWSTR path,
-        CShellLink::volume_info *volume)
+        CShellLink::volume_info *volume) // FIXME: Write Unicode strings
 {
     LOCAL_VOLUME_INFO *vol;
     LOCATION_INFO *loc;
@@ -913,6 +913,7 @@ HRESULT STDMETHODCALLTYPE CShellLink::Save(IStream *stm, BOOL fClearDirty)
 
     m_Header.dwSize = sizeof(m_Header);
     m_Header.clsid = CLSID_ShellLink;
+    m_Header.dwReserved3 = m_Header.dwReserved2 = m_Header.wReserved1 = 0;
 
     /* Store target attributes */
     WIN32_FIND_DATAW wfd = {};
@@ -934,8 +935,9 @@ HRESULT STDMETHODCALLTYPE CShellLink::Save(IStream *stm, BOOL fClearDirty)
      * already set in accordance by the different mutator member functions.
      * The other flags will be determined now by the presence or absence of data.
      */
-    m_Header.dwFlags &= (SLDF_RUN_WITH_SHIMLAYER | SLDF_RUNAS_USER |
-                         SLDF_RUN_IN_SEPARATE | SLDF_HAS_DARWINID |
+    UINT NT6SimpleFlags = LOBYTE(GetVersion()) > 6 ? (0x00040000 | 0x00400000 | 0x00800000 | 0x02000000) : 0;
+    m_Header.dwFlags &= (SLDF_RUN_WITH_SHIMLAYER | SLDF_RUNAS_USER | SLDF_RUN_IN_SEPARATE |
+                         SLDF_HAS_DARWINID | SLDF_FORCE_NO_LINKINFO | NT6SimpleFlags |
 #if (NTDDI_VERSION < NTDDI_LONGHORN)
                          SLDF_HAS_LOGO3ID |
 #endif
@@ -1790,6 +1792,7 @@ HRESULT STDMETHODCALLTYPE CShellLink::GetIconLocation(UINT uFlags, PWSTR pszIcon
     }
     else
     {
+        // TODO: If GetIconLocation succeeded, why are we setting GIL_NOTFILENAME? And are we not PERINSTANCE?
         *pwFlags = GIL_NOTFILENAME | GIL_PERCLASS;
     }
 
@@ -2487,14 +2490,11 @@ HRESULT STDMETHODCALLTYPE CShellLink::GetFlags(DWORD *pdwFlags)
 
 HRESULT STDMETHODCALLTYPE CShellLink::SetFlags(DWORD dwFlags)
 {
-#if 0 // FIXME!
+    if (m_Header.dwFlags == dwFlags)
+        return S_FALSE;
     m_Header.dwFlags = dwFlags;
     m_bDirty = TRUE;
     return S_OK;
-#else
-    FIXME("\n");
-    return E_NOTIMPL;
-#endif
 }
 
 /**************************************************************************
@@ -2575,13 +2575,12 @@ HRESULT STDMETHODCALLTYPE CShellLink::QueryContextMenu(HMENU hMenu, UINT indexMe
     if (!InsertMenuItemW(hMenu, indexMenu++, TRUE, &mii))
         return E_FAIL;
 
-    UNREFERENCED_PARAMETER(indexMenu);
-
     return MAKE_HRESULT(SEVERITY_SUCCESS, 0, id);
 }
 
 HRESULT CShellLink::DoOpenFileLocation()
 {
+    // TODO: SHOpenFolderAndSelectItems
     WCHAR szParams[MAX_PATH + 64];
     StringCbPrintfW(szParams, sizeof(szParams), L"/select,%s", m_sPath);
 
@@ -2914,7 +2913,7 @@ BOOL CShellLink::OnInitDialog(HWND hwndDlg, HWND hwndFocus, LPARAM lParam)
 
     HWND hWndTarget = GetDlgItem(hwndDlg, IDC_SHORTCUT_TARGET_TEXT);
     EnableWindow(hWndTarget, !disablecontrols);
-    PostMessage(hWndTarget, EM_SETSEL, 0, -1); // Fix caret bug when first opening the tab
+    PostMessage(hWndTarget, EM_SETSEL, 0, -1); // Fix caret bug when first opening the tab [CORE-20016]
 
     /* auto-completion */
     SHAutoComplete(hWndTarget, SHACF_DEFAULT);
