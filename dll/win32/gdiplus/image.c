@@ -5214,8 +5214,6 @@ GpStatus WINGDIPAPI GdipCreateBitmapFromHBITMAP(HBITMAP hbm, HPALETTE hpal, GpBi
         if (retval == Ok)
         {
             HDC hdc;
-            char bmibuf[FIELD_OFFSET(BITMAPINFO, bmiColors) + 256 * sizeof(RGBQUAD)];
-            BITMAPINFO *pbmi = (BITMAPINFO *)bmibuf;
             INT src_height;
 
             hdc = CreateCompatibleDC(NULL);
