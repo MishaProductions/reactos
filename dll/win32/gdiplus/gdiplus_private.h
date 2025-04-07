@@ -36,6 +36,8 @@
 #include "gdiplus.h"
 
 #ifdef __REACTOS__
+#include "wine/config.h"
+#include "wine/port.h"
 /* ReactOS FIXME: Insect */
 #define fmin min
 #define fmax max
