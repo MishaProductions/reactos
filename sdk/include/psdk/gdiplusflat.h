@@ -1076,6 +1076,8 @@ extern "C"
     GpStatus WINGDIPAPI
     GdipCreateMetafileFromStream(IStream *, GpMetafile **);
     GpStatus WINGDIPAPI
+    GdipGetMetafileDownLevelRasterizationLimit(GDIPCONST GpMetafile *,UINT *);
+    GpStatus WINGDIPAPI
     GdipGetHemfFromMetafile(GpMetafile *, HENHMETAFILE *);
     GpStatus WINGDIPAPI
     GdipPlayMetafileRecord(GDIPCONST GpMetafile *, EmfPlusRecordType, UINT, UINT, GDIPCONST BYTE *);
