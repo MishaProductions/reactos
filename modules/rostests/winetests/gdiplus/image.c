@@ -6143,6 +6143,7 @@ START_TEST(image)
     test_tiff_color_formats();
     test_GdipInitializePalette();
     test_png_color_formats();
+    test_png_save_palette();
     test_supported_encoders();
     test_CloneBitmapArea();
     test_ARGB_conversion();
