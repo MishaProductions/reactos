@@ -514,6 +514,8 @@ extern "C"
     GpStatus WINGDIPAPI
     GdipGetPixelOffsetMode(GpGraphics *, PixelOffsetMode *);
     GpStatus WINGDIPAPI
+    GdipGetRenderingOrigin(GpGraphics *,INT *,INT *);
+    GpStatus WINGDIPAPI
     GdipGetRenderingOrigin(GpGraphics *, INT *, INT *);
     GpStatus WINGDIPAPI
     GdipGetSmoothingMode(GpGraphics *, SmoothingMode *);
