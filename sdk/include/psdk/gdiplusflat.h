@@ -443,6 +443,9 @@ extern "C"
         EnumerateMetafileProc,
         VOID *,
         GDIPCONST GpImageAttributes *);
+    GpStatus WINGDIPAPI GdipEnumerateMetafileSrcRectDestRect( GpGraphics*, GDIPCONST GpMetafile*,
+        GDIPCONST GpRectF* , GDIPCONST GpRectF*, Unit, EnumerateMetafileProc, VOID*,
+        GDIPCONST GpImageAttributes*);
     GpStatus WINGDIPAPI
     GdipFillClosedCurve2(GpGraphics *, GpBrush *, GDIPCONST GpPointF *, INT, REAL, GpFillMode);
     GpStatus WINGDIPAPI

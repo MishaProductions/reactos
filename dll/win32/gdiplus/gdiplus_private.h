@@ -35,6 +35,12 @@
 
 #include "gdiplus.h"
 
+#ifdef __REACTOS__
+/* ReactOS FIXME: Insect */
+#define fmin min
+#define fmax max
+#endif
+
 #define GP_DEFAULT_PENSTYLE (PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_FLAT | PS_JOIN_MITER)
 #define MAX_ARC_PTS (13)
 #define MAX_DASHLEN (16) /* this is a limitation of gdi */
