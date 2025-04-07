@@ -5774,6 +5774,7 @@ START_TEST(image)
     test_histogram();
     test_imageabort();
     test_GdipLoadImageFromStream();
+    test_graphics_clear();
 
     GdiplusShutdown(gdiplusToken);
 }
