@@ -294,7 +294,8 @@ static INT prepare_dc(GpGraphics *graphics, GpPen *pen)
         width = sqrt((pt[1].X - pt[0].X) * (pt[1].X - pt[0].X) +
                      (pt[1].Y - pt[0].Y) * (pt[1].Y - pt[0].Y)) / sqrt(2.0);
 
-        width *= units_to_pixels(pen->width, pen->unit == UnitWorld ? graphics->unit : pen->unit, graphics->xres);
+        width *= units_to_pixels(pen->width, pen->unit == UnitWorld ? graphics->unit : pen->unit,
+                                 graphics->xres, graphics->printer_display);
         width *= graphics->scale;
 
         pt[0].X = 0.0;
@@ -2374,14 +2375,14 @@ void get_log_fontW(const GpFont *font, GpGraphics *graphics, LOGFONTW *lf)
 
     if (font->unit == UnitPixel)
     {
-        height = units_to_pixels(font->emSize, graphics->unit, graphics->yres);
+        height = units_to_pixels(font->emSize, graphics->unit, graphics->yres, graphics->printer_display);
     }
     else
     {
         if (graphics->unit == UnitDisplay || graphics->unit == UnitPixel)
-            height = units_to_pixels(font->emSize, font->unit, graphics->xres);
+            height = units_to_pixels(font->emSize, font->unit, graphics->xres, graphics->printer_display);
         else
-            height = units_to_pixels(font->emSize, font->unit, graphics->yres);
+            height = units_to_pixels(font->emSize, font->unit, graphics->yres, graphics->printer_display);
     }
 
     lf->lfHeight = -(height + 0.5);
@@ -2418,7 +2419,7 @@ static void get_font_hfont(GpGraphics *graphics, GDIPCONST GpFont *font,
         REAL unit_scale, res;
 
         res = (graphics->unit == UnitDisplay || graphics->unit == UnitPixel) ? graphics->xres : graphics->yres;
-        unit_scale = units_scale(font->unit, graphics->unit, res);
+        unit_scale = units_scale(font->unit, graphics->unit, res, graphics->printer_display);
 
         font_height = font->emSize * unit_scale;
     }
@@ -3082,9 +3083,9 @@ GpStatus WINGDIPAPI GdipDrawImagePointRect(GpGraphics *graphics, GpImage *image,
 
     if (!graphics || !image) return InvalidParameter;
 
-    scale_x = units_scale(srcUnit, graphics->unit, graphics->xres);
+    scale_x = units_scale(srcUnit, graphics->unit, graphics->xres, graphics->printer_display);
     scale_x *= graphics->xres / image->xres;
-    scale_y = units_scale(srcUnit, graphics->unit, graphics->yres);
+    scale_y = units_scale(srcUnit, graphics->unit, graphics->yres, graphics->printer_display);
     scale_y *= graphics->yres / image->yres;
     width = srcwidth * scale_x;
     height = srcheight * scale_y;
@@ -3213,10 +3214,10 @@ GpStatus WINGDIPAPI GdipDrawImagePointsRect(GpGraphics *graphics, GpImage *image
     TRACE("%s %s %s %s\n", wine_dbgstr_point(&pti[0]), wine_dbgstr_point(&pti[1]),
         wine_dbgstr_point(&pti[2]), wine_dbgstr_point(&pti[3]));
 
-    srcx = units_to_pixels(srcx, srcUnit, image->xres);
-    srcy = units_to_pixels(srcy, srcUnit, image->yres);
-    srcwidth = units_to_pixels(srcwidth, srcUnit, image->xres);
-    srcheight = units_to_pixels(srcheight, srcUnit, image->yres);
+    srcx = units_to_pixels(srcx, srcUnit, image->xres, graphics->printer_display);
+    srcy = units_to_pixels(srcy, srcUnit, image->yres, graphics->printer_display);
+    srcwidth = units_to_pixels(srcwidth, srcUnit, image->xres, graphics->printer_display);
+    srcheight = units_to_pixels(srcheight, srcUnit, image->yres, graphics->printer_display);
     TRACE("src pixels: %f,%f %fx%f\n", srcx, srcy, srcwidth, srcheight);
 
     if (image->type == ImageTypeBitmap)
@@ -5583,7 +5584,7 @@ GpStatus WINGDIPAPI GdipMeasureCharacterRanges(GpGraphics* graphics,
                       (pt[2].X-pt[0].X)*(pt[2].X-pt[0].X));
 
     margin_x = stringFormat->generic_typographic ? 0.0 : font->emSize / 6.0;
-    margin_x *= units_scale(font->unit, graphics->unit, graphics->xres);
+    margin_x *= units_scale(font->unit, graphics->unit, graphics->xres, graphics->printer_display);
 
     scaled_rect.X = (layoutRect->X + margin_x) * args.rel_width;
     scaled_rect.Y = layoutRect->Y * args.rel_height;
@@ -5712,7 +5713,7 @@ GpStatus WINGDIPAPI GdipMeasureString(GpGraphics *graphics,
                       (pt[2].X-pt[0].X)*(pt[2].X-pt[0].X));
 
     margin_x = (format && format->generic_typographic) ? 0.0 : font->emSize / 6.0;
-    margin_x *= units_scale(font->unit, graphics->unit, graphics->xres);
+    margin_x *= units_scale(font->unit, graphics->unit, graphics->xres, graphics->printer_display);
 
     scaled_rect.X = (rect->X + margin_x) * args.rel_width;
     scaled_rect.Y = rect->Y * args.rel_height;
@@ -5890,7 +5891,7 @@ GpStatus WINGDIPAPI GdipDrawString(GpGraphics *graphics, GDIPCONST WCHAR *string
     round_points(corners, rectcpy, 4);
 
     margin_x = (format && format->generic_typographic) ? 0.0 : font->emSize / 6.0;
-    margin_x *= units_scale(font->unit, graphics->unit, graphics->xres);
+    margin_x *= units_scale(font->unit, graphics->unit, graphics->xres, graphics->printer_display);
 
     scaled_rect.X = margin_x * rel_width;
     scaled_rect.Y = 0.0;
@@ -6063,8 +6064,8 @@ GpStatus WINGDIPAPI GdipBeginContainer(GpGraphics *graphics, GDIPCONST GpRectF *
     list_add_head(&graphics->containers, &container->entry);
     *state = graphics->contid = container->contid;
 
-    scale_x = units_to_pixels(1.0, unit, graphics->xres);
-    scale_y = units_to_pixels(1.0, unit, graphics->yres);
+    scale_x = units_to_pixels(1.0, unit, graphics->xres, graphics->printer_display);
+    scale_y = units_to_pixels(1.0, unit, graphics->yres, graphics->printer_display);
 
     scaled_srcrect.X = scale_x * srcrect->X;
     scaled_srcrect.Y = scale_y * srcrect->Y;
@@ -7003,8 +7004,8 @@ GpStatus get_graphics_transform(GpGraphics *graphics, GpCoordinateSpace dst_spac
 
     if (dst_space != src_space)
     {
-        scale_x = units_to_pixels(1.0, graphics->unit, graphics->xres);
-        scale_y = units_to_pixels(1.0, graphics->unit, graphics->yres);
+        scale_x = units_to_pixels(1.0, graphics->unit, graphics->xres, graphics->printer_display);
+        scale_y = units_to_pixels(1.0, graphics->unit, graphics->yres, graphics->printer_display);
 
         if(graphics->unit != UnitDisplay)
         {
