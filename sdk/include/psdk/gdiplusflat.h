@@ -1090,6 +1090,15 @@ extern "C"
         MetafileFrameUnit,
         GDIPCONST WCHAR *,
         GpMetafile **);
+    GpStatus WINGDIPAPI
+    GdipRecordMetafileStreamI(
+        IStream *,
+        HDC,
+        EmfType,
+        GDIPCONST GpRect *,
+        MetafileFrameUnit,
+        GDIPCONST WCHAR *,
+        GpMetafile **);
 
     /* MetafileHeader */
     GpStatus WINGDIPAPI
