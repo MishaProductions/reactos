@@ -5332,7 +5332,14 @@ GpStatus gdip_format_string(HDC hdc,
     }
 
     if (hotkeyprefix_count)
+    {
         hotkeyprefix_offsets = heap_alloc_zero(sizeof(INT) * hotkeyprefix_count);
+        if (!hotkeyprefix_offsets)
+        {
+            heap_free(stringdup);
+            return OutOfMemory;
+        }
+    }
 
     hotkeyprefix_count = 0;
 
@@ -6695,6 +6702,7 @@ GpStatus WINGDIPAPI GdipDrawPolygonI(GpGraphics *graphics,GpPen *pen,GDIPCONST G
 
     if(count<=0)    return InvalidParameter;
     ptf = heap_alloc_zero(sizeof(GpPointF) * count);
+    if (!ptf) return OutOfMemory;
 
     for(i = 0;i < count; i++){
         ptf[i].X = (REAL)points[i].X;
