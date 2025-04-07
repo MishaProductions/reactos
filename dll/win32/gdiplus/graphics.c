@@ -2543,6 +2543,7 @@ GpStatus WINGDIPAPI GdipCreateFromHDC2(HDC hdc, HANDLE hDevice, GpGraphics **gra
 #else
     (*graphics)->contid = 0;
 #endif
+    (*graphics)->printer_display = (GetDeviceCaps(hdc, TECHNOLOGY) == DT_RASPRINTER);
     get_gdi_transform(*graphics, &(*graphics)->gdi_transform);
 
     (*graphics)->gdi_clip = CreateRectRgn(0,0,0,0);
