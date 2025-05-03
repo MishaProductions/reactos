@@ -2975,6 +2975,32 @@ Quit:
     return hDesktop;
 }
 
+VOID
+WINAPI
+DwmRenderDestop(PWND Object, int a2)
+{
+
+  if ( Object )
+  {
+    PWINDOWLIST WindowList = IntBuildHwndList(Object->spwndChild, IACE_LIST, 0);
+    if ( WindowList )
+    {
+     // PushW32ThreadLock(Object, WindowList, UserDereferenceObject);
+      ObfReferenceObject(Object);
+      DbgBreakPoint();
+     // for ( i = v2 + 4; *i != 1; ++i )
+     // {
+       // v4 = HMValidateHandleNoSecure(*i, 1);
+       // if ( v4 )
+          //xxxComposeWindow(v4, a2);
+     // }
+     // PopAndFreeW32ThreadLock(v5);
+      IntFreeHwndList(WindowList);
+      //DwmNotifyChildrenAddRemove(*(_DWORD *)(*((_DWORD *)Object + 1) + 8), a2);
+    }
+  }
+}
+
 /*
  * NtUserSwitchDesktop
  *
@@ -3067,6 +3093,17 @@ NtUserSwitchDesktop(HDESK hdesk)
     /* Set the global state. */
     gpdeskInputDesktop = pdesk;
 
+    /* DWM */
+    PWND DesktopWindow = gpdeskInputDesktop->DesktopWindow;
+    if (DesktopWindow && 1/*DwmIsCompositionActive*/)
+    {
+        /* DWM: Notify the desktop window to redraw itself */
+      //  DwmDesktopSwitch();
+        DwmRenderDestop(DesktopWindow, 1);
+    }
+
+
+   // IntBuildHwndList(pwndDesktop->spwndChild, IACE_LIST, gptiCurrent);
     /* Show the new desktop window */
     co_IntShowDesktop(pdesk, UserGetSystemMetrics(SM_CXSCREEN), UserGetSystemMetrics(SM_CYSCREEN), bRedrawDesktop);
 
