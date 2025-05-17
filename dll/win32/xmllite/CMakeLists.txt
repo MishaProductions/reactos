@@ -1,4 +1,5 @@
 
+remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS -D__ROS_LONG64__)
 spec2def(xmllite.dll xmllite.spec ADD_IMPORTLIB)
 
 list(APPEND SOURCE
