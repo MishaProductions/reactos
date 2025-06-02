@@ -1735,6 +1735,8 @@ VOID co_IntShellHookNotify(WPARAM Message, WPARAM wParam, LPARAM lParam)
     if (HwndList)
     {
         HWND* cursor = HwndList;
+        LPARAM shellhookparam = (Message == HSHELL_LANGUAGE || Message == HSHELL_APPCOMMAND)
+                                ? lParam : (LPARAM)wParam;
 
         for (; *cursor; cursor++)
         {
@@ -1742,11 +1744,11 @@ VOID co_IntShellHookNotify(WPARAM Message, WPARAM wParam, LPARAM lParam)
             UserPostMessage(*cursor,
                             gpsi->uiShellMsg,
                             Message,
-                            (Message == HSHELL_LANGUAGE ? lParam : (LPARAM)wParam) );
+                            shellhookparam);
 /*            co_IntPostOrSendMessage(*cursor,
                                     gpsi->uiShellMsg,
                                     Message,
-                                    (Message == HSHELL_LANGUAGE ? lParam : (LPARAM)wParam) );*/
+                                    shellhookparam);*/
         }
 
         ExFreePoolWithTag(HwndList, USERTAG_WINDOWLIST);
@@ -2532,7 +2534,7 @@ IntCreateDesktop(
        Tooltip dwExStyle: WS_EX_TOOLWINDOW|WS_EX_TOPMOST
        hWndParent are spwndMessage. Use hModuleWin for server side winproc!
        The rest is same as message window.
-       http://msdn.microsoft.com/en-us/library/bb760250(VS.85).aspx
+       https://learn.microsoft.com/en-us/windows/win32/controls/tooltip-controls
     */
     Status = STATUS_SUCCESS;
 

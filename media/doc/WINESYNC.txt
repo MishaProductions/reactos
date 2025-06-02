@@ -15,6 +15,8 @@ wine-patches@winehq.com and ros-dev@reactos.org
 
 The following build tools are shared with Wine.
 
+base/ctf/msctf                  # Synced to WineStaging-4.18
+
 sdk/tools/unicode               # Synced to WineStaging-4.18
 sdk/tools/widl                  # Synced to WineStaging-4.0
 sdk/tools/wpp                   # Synced to WineStaging-2.9
@@ -80,7 +82,6 @@ dll/win32/iccvid              # Synced to WineStaging-4.0
 dll/win32/ieframe             # Synced to WineStaging-4.18
 dll/win32/imaadp32.acm        # Synced to WineStaging-4.0
 dll/win32/imagehlp            # Synced to WineStaging-4.18
-dll/win32/imm32               # Forked at WineStaging-4.18
 dll/win32/inetcomm            # Synced to WineStaging-4.18
 dll/win32/inetmib1            # Synced to WineStaging-4.18
 dll/win32/initpki             # Synced to WineStaging-4.18
@@ -109,7 +110,6 @@ dll/win32/msadp32.acm         # Synced to WineStaging-4.0
 dll/win32/mscat32             # Synced to WineStaging-4.18
 dll/win32/mscms               # Synced to WineStaging-4.18
 dll/win32/mscoree             # Synced to Wine-1.5.4
-dll/win32/msctf               # Synced to WineStaging-4.18
 dll/win32/msftedit            # Synced to WineStaging-4.18
 dll/win32/msg711.acm          # Synced to WineStaging-4.18
 dll/win32/msgsm32.acm         # Synced to WineStaging-4.0
@@ -160,7 +160,7 @@ dll/win32/pdh                 # Synced to WineStaging-4.18
 dll/win32/pidgen              # Synced to WineStaging-4.18
 dll/win32/powrprof            # Forked at Wine-1.0rc5
 dll/win32/printui             # Synced to WineStaging-4.18
-dll/win32/propsys             # Synced to WineStaging-4.18
+dll/win32/propsys             # Synced to Wine-10.0
 dll/win32/pstorec             # Synced to WineStaging-3.3
 dll/win32/qmgr                # Synced to WineStaging-4.18
 dll/win32/qmgrprxy            # Synced to WineStaging-2.9
@@ -168,7 +168,7 @@ dll/win32/query               # Synced to WineStaging-4.18
 dll/win32/rasapi32            # Synced to WineStaging-3.3
 dll/win32/regapi              # Synced to WineStaging-5.7
 dll/win32/resutils            # Synced to WineStaging-3.3
-dll/win32/riched20            # Synced to WineStaging-4.18
+dll/win32/riched20            # Synced to Wine-6.10
 dll/win32/riched32            # Synced to WineStaging-3.3
 dll/win32/rpcrt4              # Synced to WineStaging-4.18
 dll/win32/rsabase             # Synced to WineStaging-3.3
@@ -206,8 +206,8 @@ dll/win32/version             # Synced to WineStaging-4.18
 dll/win32/vssapi              # Synced to WineStaging-4.18
 dll/win32/wbemdisp            # Synced to WineStaging-4.18
 dll/win32/wbemprox            # Synced to WineStaging-4.18
-dll/win32/windowscodecs       # Synced to WineStaging-4.18
-dll/win32/windowscodecsext    # Synced to WineStaging-2.9
+dll/win32/windowscodecs       # Synced to Wine-10.0
+dll/win32/windowscodecsext    # Synced to Wine-10.0
 dll/win32/winemp3.acm         # Synced to WineStaging-4.18
 dll/win32/wing32              # Synced to WineStaging-3.3
 dll/win32/winhttp             # Synced to WineStaging-4.18
@@ -361,6 +361,9 @@ user32 -
   win32ss/user/user32/windows/text.c       # Forked (lstr.c)
   win32ss/user/user32/windows/winpos.c     # Forked
 
+  win32ss/user/user32_vista/input.c        # Synced to Wine-10.0
+  win32ss/user/user32_vista/misc.c         # Synced to Wine-10.0
+  win32ss/user/user32_vista/win.c          # Synced to Wine-10.0
 schannel.c
   dll/win32/schannel/schannel_wine.c    # synced to wine-1.7.17 (secur32/schannel.c)
   dll/win32/schannel/secur32_wine.c     # partial sync to wine-1.7.17 (secur32/secur32.c)

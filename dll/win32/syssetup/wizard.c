@@ -33,6 +33,7 @@ typedef struct _REGISTRATIONDATA
     ULONG DllCount;
     ULONG Registered;
     PVOID DefaultContext;
+    PREGISTRATIONNOTIFY pNotify;
 } REGISTRATIONDATA, *PREGISTRATIONDATA;
 
 typedef struct _TIMEZONE_ENTRY
@@ -50,7 +51,6 @@ typedef struct _TIMEZONE_ENTRY
 /* FUNCTIONS ****************************************************************/
 
 extern void WINAPI Control_RunDLLW(HWND hWnd, HINSTANCE hInst, LPCWSTR cmd, DWORD nCmdShow);
-
 
 static VOID
 CenterWindow(HWND hWnd)
@@ -936,29 +936,34 @@ WriteComputerSettings(WCHAR * ComputerName, HWND hwndDlg)
     SetAccountsDomainSid(NULL, ComputerName);
 
     /* Now we need to set the Hostname */
-    lError = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-                           L"SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
-                           0,
-                           KEY_SET_VALUE,
-                           &hKey);
-    if (lError != ERROR_SUCCESS)
+    lError = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+                             L"SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+                             0,
+                             NULL,
+                             REG_OPTION_NON_VOLATILE,
+                             KEY_WRITE,
+                             NULL,
+                             &hKey,
+                             NULL);
+    if (lError == ERROR_SUCCESS)
     {
-        DPRINT1("RegOpenKeyExW for Tcpip\\Parameters failed (%08lX)\n", lError);
-        return TRUE;
-    }
+        lError = RegSetValueEx(hKey,
+                               L"Hostname",
+                               0,
+                               REG_SZ,
+                               (LPBYTE)ComputerName,
+                               (wcslen(ComputerName) + 1) * sizeof(WCHAR));
+        if (lError != ERROR_SUCCESS)
+        {
+            DPRINT1("RegSetValueEx(\"Hostname\") failed (%08lX)\n", lError);
+        }
 
-    lError = RegSetValueEx(hKey,
-                           L"Hostname",
-                           0,
-                           REG_SZ,
-                           (LPBYTE)ComputerName,
-                           (wcslen(ComputerName) + 1) * sizeof(WCHAR));
-    if (lError != ERROR_SUCCESS)
+        RegCloseKey(hKey);
+    }
+    else
     {
-        DPRINT1("RegSetValueEx(\"Hostname\") failed (%08lX)\n", lError);
+        DPRINT1("RegCreateKeyExW for Tcpip\\Parameters failed (%08lX)\n", lError);
     }
-
-    RegCloseKey(hKey);
 
     return TRUE;
 }
@@ -1360,6 +1365,90 @@ RunControlPanelApplet(HWND hwnd, PCWSTR pwszCPLParameters)
 
     return TRUE;
 }
+
+
+VOID
+EnableVisualTheme(
+    _In_opt_ HWND hwndParent,
+    _In_opt_ PCWSTR ThemeFile)
+{
+    enum { THEME_FILE, STYLE_FILE, UNKNOWN } fType;
+    WCHAR szPath[MAX_PATH]; // Expanded path of the file to use.
+    WCHAR szStyleFile[MAX_PATH];
+
+    fType = THEME_FILE; // Default to Classic theme.
+    if (ThemeFile)
+    {
+        /* Expand the path if possible */
+        if (ExpandEnvironmentStringsW(ThemeFile, szPath, _countof(szPath)) != 0)
+            ThemeFile = szPath;
+
+        /* Determine the file type from its extension */
+        fType = UNKNOWN; {
+        PCWSTR pszExt = wcsrchr(ThemeFile, L'.'); // PathFindExtensionW(ThemeFile);
+        if (pszExt)
+        {
+            if (_wcsicmp(pszExt, L".theme") == 0)
+                fType = THEME_FILE;
+            else if (_wcsicmp(pszExt, L".msstyles") == 0)
+                fType = STYLE_FILE;
+        } }
+        if (fType == UNKNOWN)
+        {
+            DPRINT1("EnableVisualTheme(): Unknown file '%S'\n", ThemeFile);
+            return;
+        }
+    }
+
+    DPRINT1("Applying visual %s '%S'\n",
+            (fType == THEME_FILE) ? "theme" : "style",
+            ThemeFile ? ThemeFile : L"(Classic)");
+
+//
+// TODO: Use instead uxtheme!SetSystemVisualStyle() once it is implemented,
+// https://stackoverflow.com/a/1036903
+// https://pinvoke.net/default.aspx/uxtheme.SetSystemVisualStyle
+// or ApplyTheme(NULL, 0, NULL) for restoring the classic theme.
+//
+// NOTE: The '/Action:ActivateMSTheme' is ReactOS-specific.
+//
+
+    if (ThemeFile && (fType == THEME_FILE))
+    {
+        /* Retrieve the visual style specified in the theme file.
+         * If none, fall back to the classic theme. */
+        if (GetPrivateProfileStringW(L"VisualStyles", L"Path", NULL,
+                                     szStyleFile, _countof(szStyleFile), ThemeFile) && *szStyleFile)
+        {
+            /* Expand the path if possible */
+            ThemeFile = szStyleFile;
+            if (ExpandEnvironmentStringsW(ThemeFile, szPath, _countof(szPath)) != 0)
+                ThemeFile = szPath;
+        }
+        else
+        {
+            ThemeFile = NULL;
+        }
+
+        DPRINT1("--> Applying visual style '%S'\n",
+                ThemeFile ? ThemeFile : L"(Classic)");
+    }
+
+    if (ThemeFile)
+    {
+        WCHAR wszParams[1024];
+        // FIXME: L"desk.cpl desk,@Appearance" regression, see commit 50d260a7f0
+        PCWSTR format = L"desk.cpl,,2 /Action:ActivateMSTheme /file:\"%s\"";
+
+        StringCchPrintfW(wszParams, _countof(wszParams), format, ThemeFile);
+        RunControlPanelApplet(hwndParent, wszParams);
+    }
+    else
+    {
+        RunControlPanelApplet(hwndParent, L"desk.cpl,,2 /Action:ActivateMSTheme");
+    }
+}
+
 
 static VOID
 WriteUserLocale(VOID)
@@ -1921,13 +2010,14 @@ ThemePageDlgProc(HWND hwndDlg,
 
             /* Register the imagelist */
             ListView_SetImageList(hListView, himl, LVSIL_NORMAL);
-            /* Transparant background */
+            /* Transparent background */
             ListView_SetBkColor(hListView, CLR_NONE);
             ListView_SetTextBkColor(hListView, CLR_NONE);
             /* Reduce the size between the items */
             ListView_SetIconSpacing(hListView, 190, 173);
             break;
         }
+
         case WM_NOTIFY:
             switch (((LPNMHDR)lParam)->code)
             {
@@ -1941,17 +2031,13 @@ ThemePageDlgProc(HWND hwndDlg,
 
                         if (Themes[iTheme].ThemeFile)
                         {
-                            WCHAR wszParams[1024];
                             WCHAR wszTheme[MAX_PATH];
-                            WCHAR* format = L"desk.cpl,,2 /Action:ActivateMSTheme /file:\"%s\"";
-
                             SHGetFolderPathAndSubDirW(0, CSIDL_RESOURCES, NULL, SHGFP_TYPE_DEFAULT, Themes[iTheme].ThemeFile, wszTheme);
-                            swprintf(wszParams, format, wszTheme);
-                            RunControlPanelApplet(hwndDlg, wszParams);
+                            EnableVisualTheme(hwndDlg, wszTheme);
                         }
                         else
                         {
-                            RunControlPanelApplet(hwndDlg, L"desk.cpl,,2 /Action:ActivateMSTheme");
+                            EnableVisualTheme(hwndDlg, Themes[iTheme].ThemeFile);
                         }
                     }
                     break;
@@ -1991,7 +2077,6 @@ RegistrationNotificationProc(PVOID Context,
                              UINT_PTR Param2)
 {
     PREGISTRATIONDATA RegistrationData;
-    REGISTRATIONNOTIFY RegistrationNotify;
     PSP_REGISTER_CONTROL_STATUSW StatusInfo;
     UINT MessageID;
 
@@ -2001,23 +2086,24 @@ RegistrationNotificationProc(PVOID Context,
         Notification == SPFILENOTIFY_ENDREGISTRATION)
     {
         StatusInfo = (PSP_REGISTER_CONTROL_STATUSW) Param1;
-        RegistrationNotify.CurrentItem = wcsrchr(StatusInfo->FileName, L'\\');
-        if (RegistrationNotify.CurrentItem == NULL)
+        RegistrationData->pNotify->CurrentItem = wcsrchr(StatusInfo->FileName, L'\\');
+        if (RegistrationData->pNotify->CurrentItem == NULL)
         {
-            RegistrationNotify.CurrentItem = StatusInfo->FileName;
+            RegistrationData->pNotify->CurrentItem = StatusInfo->FileName;
         }
         else
         {
-            RegistrationNotify.CurrentItem++;
+            RegistrationData->pNotify->CurrentItem++;
         }
 
         if (Notification == SPFILENOTIFY_STARTREGISTRATION)
         {
             DPRINT("Received SPFILENOTIFY_STARTREGISTRATION notification for %S\n",
                    StatusInfo->FileName);
-//            RegistrationNotify.ErrorMessage = NULL;
-            RegistrationNotify.Progress = RegistrationData->Registered;
-            SendMessage(RegistrationData->hwndDlg, PM_STEP_START, 0, (LPARAM)&RegistrationNotify);
+            RegistrationData->pNotify->Progress = RegistrationData->Registered;
+
+            DPRINT("RegisterDll: Start step %ld\n", RegistrationData->pNotify->Progress);
+            SendMessage(RegistrationData->hwndDlg, PM_STEP_START, 0, (LPARAM)RegistrationData->pNotify);
         }
         else
         {
@@ -2049,13 +2135,13 @@ RegistrationNotificationProc(PVOID Context,
                         break;
                 }
 
-                RegistrationNotify.MessageID = MessageID;
-                RegistrationNotify.LastError = StatusInfo->Win32Error;
+                RegistrationData->pNotify->MessageID = MessageID;
+                RegistrationData->pNotify->LastError = StatusInfo->Win32Error;
             }
             else
             {
-                RegistrationNotify.MessageID = 0;
-                RegistrationNotify.LastError = ERROR_SUCCESS;
+                RegistrationData->pNotify->MessageID = 0;
+                RegistrationData->pNotify->LastError = ERROR_SUCCESS;
             }
 
             if (RegistrationData->Registered < RegistrationData->DllCount)
@@ -2063,8 +2149,9 @@ RegistrationNotificationProc(PVOID Context,
                 RegistrationData->Registered++;
             }
 
-            RegistrationNotify.Progress = RegistrationData->Registered;
-            SendMessage(RegistrationData->hwndDlg, PM_STEP_END, 0, (LPARAM)&RegistrationNotify);
+            RegistrationData->pNotify->Progress = RegistrationData->Registered;
+            DPRINT("RegisterDll: End step %ld\n", RegistrationData->pNotify->Progress);
+            SendMessage(RegistrationData->hwndDlg, PM_STEP_END, 0, (LPARAM)RegistrationData->pNotify);
         }
 
         return FILEOP_DOIT;
@@ -2081,13 +2168,14 @@ RegistrationNotificationProc(PVOID Context,
 static
 DWORD
 RegisterDlls(
-    PITEMSDATA pItemsData)
+    _In_ PITEMSDATA pItemsData,
+    _In_ PREGISTRATIONNOTIFY pNotify)
 {
     REGISTRATIONDATA RegistrationData;
     WCHAR SectionName[512];
     INFCONTEXT Context;
     LONG DllCount = 0;
-    DWORD LastError = NO_ERROR;
+    DWORD Error = NO_ERROR;
 
     ZeroMemory(&RegistrationData, sizeof(REGISTRATIONDATA));
     RegistrationData.hwndDlg = pItemsData->hwndDlg;
@@ -2097,7 +2185,7 @@ RegisterDlls(
                              L"RegisterDlls", &Context))
     {
         DPRINT1("No RegistrationPhase2 section found\n");
-        return FALSE;
+        return GetLastError();
     }
 
     if (!SetupGetStringFieldW(&Context, 1, SectionName,
@@ -2105,21 +2193,19 @@ RegisterDlls(
                               NULL))
     {
         DPRINT1("Unable to retrieve section name\n");
-        return FALSE;
+        return GetLastError();
     }
 
     DllCount = SetupGetLineCountW(hSysSetupInf, SectionName);
-    DPRINT1("SectionName %S DllCount %ld\n", SectionName, DllCount);
+    DPRINT("SectionName %S DllCount %ld\n", SectionName, DllCount);
     if (DllCount < 0)
     {
-        SetLastError(STATUS_NOT_FOUND);
-        return FALSE;
+        return STATUS_NOT_FOUND;
     }
 
     RegistrationData.DllCount = (ULONG)DllCount;
     RegistrationData.DefaultContext = SetupInitDefaultQueueCallback(RegistrationData.hwndDlg);
-
-    SendMessage(pItemsData->hwndDlg, PM_ITEM_START, 0, (LPARAM)RegistrationData.DllCount);
+    RegistrationData.pNotify = pNotify;
 
     _SEH2_TRY
     {
@@ -2135,21 +2221,66 @@ RegisterDlls(
                                          NULL,
                                          NULL))
         {
-            LastError = GetLastError();
+            Error = GetLastError();
         }
     }
     _SEH2_EXCEPT(EXCEPTION_EXECUTE_HANDLER)
     {
         DPRINT("Catching exception\n");
-        LastError = RtlNtStatusToDosError(_SEH2_GetExceptionCode());
+        Error = RtlNtStatusToDosError(_SEH2_GetExceptionCode());
     }
     _SEH2_END;
 
     SetupTermDefaultQueueCallback(RegistrationData.DefaultContext);
 
-    SendMessage(pItemsData->hwndDlg, PM_ITEM_END, 0, LastError);
+    return Error;
+}
 
-    return 0;
+static
+VOID
+RegisterComponents(
+    PITEMSDATA pItemsData)
+{
+    WCHAR SectionName[512];
+    INFCONTEXT Context;
+    LONG Steps = 0;
+    DWORD Error = NO_ERROR;
+    REGISTRATIONNOTIFY Notify;
+
+    ZeroMemory(&Notify, sizeof(Notify));
+
+    /* Count the 'RegisterDlls' steps */
+    if (!SetupFindFirstLineW(hSysSetupInf, L"RegistrationPhase2",
+                             L"RegisterDlls", &Context))
+    {
+        DPRINT1("No RegistrationPhase2 section found\n");
+        return;
+    }
+
+    if (!SetupGetStringFieldW(&Context, 1, SectionName,
+                              ARRAYSIZE(SectionName),
+                              NULL))
+    {
+        DPRINT1("Unable to retrieve section name\n");
+        return;
+    }
+
+    Steps += SetupGetLineCountW(hSysSetupInf, SectionName);
+
+    /* Count the 'TypeLibratries' steps */
+    Steps += SetupGetLineCountW(hSysSetupInf, L"TypeLibraries");
+
+    /* Start the item */
+    DPRINT("Register Components: %ld Steps\n", Steps);
+    SendMessage(pItemsData->hwndDlg, PM_ITEM_START, 0, (LPARAM)Steps);
+
+    Error = RegisterDlls(pItemsData, &Notify);
+    if (Error == ERROR_SUCCESS)
+        RegisterTypeLibraries(pItemsData, &Notify, hSysSetupInf, L"TypeLibraries");
+
+    /* End the item */
+    DPRINT("Register Components: done\n");
+    SendMessage(pItemsData->hwndDlg, PM_ITEM_END, 0, Error);
 }
 
 
@@ -2166,9 +2297,7 @@ ItemCompletionThread(
     hwndDlg = pItemsData->hwndDlg;
 
     /* Step 0 - Registering components */
-    RegisterDlls(pItemsData);
-
-    RegisterTypeLibraries(hSysSetupInf, L"TypeLibraries");
+    RegisterComponents(pItemsData);
 
     /* Step 1 - Installing start menu items */
     InstallStartMenuItems(pItemsData);

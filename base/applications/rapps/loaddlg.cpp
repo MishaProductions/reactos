@@ -142,8 +142,11 @@ struct DownloadInfo
         AppInfo.GetDownloadInfo(szUrl, szSHA1, SizeInBytes);
         szName = AppInfo.szDisplayName;
         IType = AppInfo.GetInstallerType();
-        if (IType == INSTALLER_GENERATE)
-            szPackageName = AppInfo.szIdentifier;
+        szPackageName = AppInfo.szIdentifier;
+
+        CConfigParser *cfg = static_cast<const CAvailableApplicationInfo&>(AppInfo).GetConfigParser();
+        if (cfg)
+            cfg->GetString(DB_SAVEAS, szFileName);
     }
 
     bool Equal(const DownloadInfo &other) const
@@ -157,6 +160,7 @@ struct DownloadInfo
     CStringW szName;
     CStringW szSHA1;
     CStringW szPackageName;
+    CStringW szFileName;
     ULONG SizeInBytes;
 };
 
@@ -447,6 +451,8 @@ ShowLastError(HWND hWndOwner, BOOL bInetError, DWORD dwLastError)
         return FALSE;
     }
 
+    if (hWndOwner && !IsWindowVisible(hWndOwner))
+        hWndOwner = NULL;
     MessageBoxW(hWndOwner, lpMsg, NULL, MB_OK | MB_ICONERROR);
     return TRUE;
 }
@@ -719,7 +725,7 @@ CDownloadManager::PerformDownloadAndInstall(const DownloadInfo &Info)
 
     CStringW str;
     CPathW Path;
-    PCWSTR p, q;
+    PCWSTR p;
 
     ULONG dwContentLen, dwBytesWritten, dwBytesRead, dwStatus, dwStatusLen;
     ULONG dwCurrentBytesRead = 0;
@@ -734,7 +740,7 @@ CDownloadManager::PerformDownloadAndInstall(const DownloadInfo &Info)
     const DWORD dwUrlConnectFlags =
         INTERNET_FLAG_DONT_CACHE | INTERNET_FLAG_PRAGMA_NOCACHE | INTERNET_FLAG_KEEP_CONNECTION;
     URL_COMPONENTSW urlComponents;
-    size_t urlLength, filenameLength;
+    size_t urlLength;
     unsigned char lpBuffer[4096];
 
     // Change caption to show the currently downloaded app
@@ -768,7 +774,6 @@ CDownloadManager::PerformDownloadAndInstall(const DownloadInfo &Info)
 
     // build the path for the download
     p = wcsrchr(Info.szUrl.GetString(), L'/');
-    q = wcsrchr(Info.szUrl.GetString(), L'?');
 
     // do we have a final slash separator?
     if (!p)
@@ -776,14 +781,6 @@ CDownloadManager::PerformDownloadAndInstall(const DownloadInfo &Info)
         MessageBox_LoadString(hMainWnd, IDS_UNABLE_PATH);
         goto end;
     }
-
-    // prepare the tentative length of the filename, maybe we've to remove part of it later on
-    filenameLength = wcslen(p) * sizeof(WCHAR);
-
-    /* do we have query arguments in the target URL after the filename? account for them
-    (e.g. https://example.org/myfile.exe?no_adware_plz) */
-    if (q && q > p && (q - p) > 0)
-        filenameLength -= wcslen(q - 1) * sizeof(WCHAR);
 
     // is the path valid? can we access it?
     if (GetFileAttributesW(Path) == INVALID_FILE_ATTRIBUTES)
@@ -803,9 +800,11 @@ CDownloadManager::PerformDownloadAndInstall(const DownloadInfo &Info)
             break;
         case DLTYPE_APPLICATION:
         {
-            CStringW str = p + 1; // use the filename retrieved from URL
-            UrlUnescapeAndMakeFileNameValid(str);
-            Path += str;
+            CStringW name = Info.szFileName;
+            if (name.IsEmpty())
+                name = p + 1; // use the filename retrieved from URL
+            UrlUnescapeAndMakeFileNameValid(name);
+            Path += name;
             break;
         }
     }
@@ -1059,10 +1058,8 @@ run:
     // run it
     if (Info.DLType == DLTYPE_APPLICATION)
     {
-        CStringW app, params;
-        SHELLEXECUTEINFOW shExInfo = {0};
-        shExInfo.cbSize = sizeof(shExInfo);
-        shExInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+        CStringW app, params, tempdir;
+        SHELLEXECUTEINFOW shExInfo = { sizeof(shExInfo), SEE_MASK_NOCLOSEPROCESS, hDlg };
         shExInfo.lpVerb = L"open";
         shExInfo.lpFile = Path;
         shExInfo.lpParameters = L"";
@@ -1078,6 +1075,16 @@ run:
             GetModuleFileNameW(NULL, const_cast<LPWSTR>(shExInfo.lpFile), MAX_PATH);
             app.ReleaseBuffer();
         }
+        else if (Info.IType == INSTALLER_EXEINZIP)
+        {
+            HRESULT hr = ExtractArchiveForExecution(Path, Info.szPackageName, tempdir, app);
+            if (FAILED(hr))
+            {
+                ShowLastError(hDlg, FALSE, hr);
+                goto end;
+            }
+            shExInfo.lpFile = app;
+        }
 
         /* FIXME: Do we want to log installer status? */
         WriteLogMessage(EVENTLOG_SUCCESS, MSG_SUCCESS_INSTALL, Info.szName);
@@ -1092,12 +1099,21 @@ run:
             SendMessageW(hDlg, WM_SETSTATUS, DLSTATUS_INSTALLING, 0);
 
             // TODO: issue an install operation separately so that the apps could be downloaded in the background
-            WaitForSingleObject(shExInfo.hProcess, INFINITE);
-            CloseHandle(shExInfo.hProcess);
+            if (shExInfo.hProcess)
+            {
+                WaitForSingleObject(shExInfo.hProcess, INFINITE);
+                CloseHandle(shExInfo.hProcess);
+                SendMessageW(hMainWnd, WM_NOTIFY_INSTALLERFINISHED, 0, (LPARAM)(PCWSTR)Info.szPackageName);
+            }
         }
         else
         {
             ShowLastError(hMainWnd, FALSE, GetLastError());
+        }
+
+        if (!tempdir.IsEmpty())
+        {
+            DeleteDirectoryTree(tempdir, hDlg);
         }
     }
 
@@ -1112,7 +1128,14 @@ end:
     if (bTempfile)
     {
         if (bCancelled || (SettingsInfo.bDelInstaller && Info.DLType == DLTYPE_APPLICATION))
-            DeleteFileW(Path);
+        {
+            // Don't delete .zip/.cab files so the user can extract from them
+            if (bCancelled || Info.IType == INSTALLER_GENERATE || Info.IType == INSTALLER_EXEINZIP ||
+                !OpensWithExplorer(Path) || HIBYTE(ClassifyFile(Path)) != PERCEIVED_TYPE_COMPRESSED)
+            {
+                DeleteFileW(Path);
+            }
+        }
     }
 
     SendMessageW(hDlg, WM_SETSTATUS, DLSTATUS_FINISHED, 0);

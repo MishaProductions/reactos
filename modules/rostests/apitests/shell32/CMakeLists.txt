@@ -24,6 +24,8 @@ list(APPEND SOURCE
     OpenAs_RunDLL.cpp
     PathIsEqualOrSubFolder.cpp
     PathIsTemporary.cpp
+    PathMakeUniqueName.cpp
+    PathProcessCommand.cpp
     PathResolve.cpp
     RealShellExecuteEx.cpp
     SHAppBarMessage.cpp
@@ -31,6 +33,7 @@ list(APPEND SOURCE
     SHCreateDataObject.cpp
     SHCreateFileDataObject.cpp
     SHCreateFileExtractIconW.cpp
+    SHGetComputerDisplayNameW.cpp
     SHGetUnreadMailCountW.cpp
     SHIsBadInterfacePtr.cpp
     SHParseDisplayName.cpp

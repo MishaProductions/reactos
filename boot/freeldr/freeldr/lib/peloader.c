@@ -13,7 +13,7 @@
  *              (creating a native EFI loader for Windows).
  *
  *              This article was very handy during development:
- *              http://msdn.microsoft.com/msdnmag/issues/02/03/PE2/
+ *              https://web.archive.org/web/20131202091645/http://msdn.microsoft.com/en-us/magazine/cc301808.aspx
  */
 
 /* INCLUDES ******************************************************************/
@@ -528,10 +528,9 @@ PeLdrInitializeModuleList(VOID)
 
     InitializeListHead(&FrLdrModuleList);
 
-    /* Allocate a data table entry for freeldr.sys.
-       The base name is scsiport.sys for imports from ntbootdd.sys */
+    /* Allocate a data table entry for freeldr.sys */
     if (!PeLdrAllocateDataTableEntry(&FrLdrModuleList,
-                                     "scsiport.sys",
+                                     "freeldr.sys",
                                      "freeldr.sys",
                                      &__ImageBase,
                                      &FreeldrDTE))

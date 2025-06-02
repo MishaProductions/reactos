@@ -77,11 +77,6 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     )
 endif()
 
-# Hack until we support globally defining _DEBUG
-if(DBG)
-    add_compile_definitions(_DEBUG)
-endif()
-
 include(conio/conio.cmake)
 include(convert/convert.cmake)
 include(dll/dll.cmake)
@@ -102,8 +97,8 @@ include(stdio/stdio.cmake)
 include(stdlib/stdlib.cmake)
 include(string/string.cmake)
 include(time/time.cmake)
-include(vcruntime/vcruntime.cmake)
 
+# TODO: build a _DEBUG version
 add_library(ucrt OBJECT
     ${UCRT_CONIO_SOURCES}
     ${UCRT_CONVERT_SOURCES}
@@ -128,5 +123,5 @@ add_library(ucrt OBJECT
     ${UCRT_VCRUNTIME_SOURCES}
 )
 
-#target_link_libraries(ucrt pseh)
+target_link_libraries(ucrt vcruntime)
 add_dependencies(ucrt psdk asm)

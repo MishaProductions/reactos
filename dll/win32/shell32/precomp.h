@@ -23,6 +23,7 @@
 #include <wininet.h>
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <emptyvc.h>
 #include <ndk/rtlfuncs.h>
 #include <fmifs/fmifs.h>
 #include <tchar.h>
@@ -42,8 +43,8 @@
 #include <shlguid_undoc.h>
 #include <shlobj_undoc.h>
 
-#define SHLWAPI_ISHELLFOLDER_HELPERS
 #include <shlwapi_undoc.h>
+#include <ishellfolder_helpers.h>
 
 #include <shellapi.h>
 #undef ShellExecute
@@ -172,6 +173,8 @@ SHELL32_ShowPropertiesDialog(IDataObject *pdtobj);
 HRESULT
 SHELL32_ShowFilesystemItemPropertiesDialogAsync(IDataObject *pDO);
 HRESULT
+SHELL32_ShowFilesystemItemsPropertiesDialogAsync(HWND hOwner, IDataObject *pDO);
+HRESULT
 SHELL32_ShowShellExtensionProperties(const CLSID *pClsid, IDataObject *pDO);
 HRESULT
 SHELL_ShowItemIDListProperties(LPCITEMIDLIST pidl);
@@ -183,14 +186,6 @@ MapVerbToDfmCmd(_In_ LPCSTR verba);
 UINT
 GetDfmCmd(_In_ IContextMenu *pCM, _In_ LPCSTR verba);
 #define SHELL_ExecuteControlPanelCPL(hwnd, cpl) SHRunControlPanel((cpl), (hwnd))
-
-#define CmicFlagsToSeeFlags(flags)  ((flags) & SEE_CMIC_COMMON_FLAGS)
-static inline UINT SeeFlagsToCmicFlags(UINT flags)
-{
-    if (flags & SEE_MASK_CLASSNAME)
-        flags &= ~(SEE_MASK_HASLINKNAME | SEE_MASK_HASTITLE);
-    return flags & SEE_CMIC_COMMON_FLAGS;
-}
 
 
 // CStubWindow32 --- The owner window of file property sheets.
@@ -239,14 +234,6 @@ BOOL Shell_FailForceReturn(_In_ HRESULT hr);
 EXTERN_C INT
 Shell_ParseSpecialFolder(_In_ LPCWSTR pszStart, _Out_ LPWSTR *ppch, _Out_ INT *pcch);
 
-HRESULT
-Shell_DisplayNameOf(
-    _In_ IShellFolder *psf,
-    _In_ LPCITEMIDLIST pidl,
-    _In_ DWORD dwFlags,
-    _Out_ LPWSTR pszBuf,
-    _In_ UINT cchBuf);
-
 EXTERN_C
 HRESULT SHBindToObject(
     _In_opt_ IShellFolder *psf,
@@ -293,8 +280,10 @@ BindCtx_RegisterObjectParam(
 BOOL PathIsDotOrDotDotW(_In_ LPCWSTR pszPath);
 BOOL PathIsValidElement(_In_ LPCWSTR pszPath);
 BOOL PathIsDosDevice(_In_ LPCWSTR pszName);
+HRESULT SHELL32_GetDllFromRundll32CommandLine(LPCWSTR pszCmd, LPWSTR pszOut, SIZE_T cchMax);
 HRESULT SHILAppend(_Inout_ LPITEMIDLIST pidl, _Inout_ LPITEMIDLIST *ppidl);
 
+HRESULT DataObject_GetHIDACount(IDataObject *pdo);
 PIDLIST_ABSOLUTE SHELL_CIDA_ILCloneFull(_In_ const CIDA *pCIDA, _In_ UINT Index);
 PIDLIST_ABSOLUTE SHELL_DataObject_ILCloneFullItem(_In_ IDataObject *pDO, _In_ UINT Index);
 HRESULT SHELL_CloneDataObject(_In_ IDataObject *pDO, _Out_ IDataObject **ppDO);
@@ -320,5 +309,24 @@ InvokeIExecuteCommandWithDataObject(
     _In_ IDataObject *pDO,
     _In_opt_ LPCMINVOKECOMMANDINFOEX pICI,
     _In_opt_ IUnknown *pSite);
+
+typedef enum _FILEOPCALLBACKEVENT {
+    FOCE_STARTOPERATIONS,
+    FOCE_FINISHOPERATIONS,
+    FOCE_PREMOVEITEM,
+    FOCE_POSTMOVEITEM,
+    FOCE_PRECOPYITEM,
+    FOCE_POSTCOPYITEM,
+    FOCE_PREDELETEITEM,
+    FOCE_POSTDELETEITEM,
+    FOCE_PRERENAMEITEM,
+    FOCE_POSTRENAMEITEM,
+    FOCE_PRENEWITEM,
+    FOCE_POSTNEWITEM
+} FILEOPCALLBACKEVENT;
+typedef HRESULT (CALLBACK *FILEOPCALLBACK)(FILEOPCALLBACKEVENT Event, LPCWSTR Source, LPCWSTR Destination,
+                                           UINT Attributes, HRESULT hr, void *CallerData);
+int SHELL32_FileOperation(LPSHFILEOPSTRUCTW lpFileOp, FILEOPCALLBACK Callback, void *CallerData);
+HRESULT SHELL_SingleFileOperation(HWND hWnd, UINT Op, PCWSTR Src, PCWSTR Dest, UINT Flags, PWSTR *ppNewName);
 
 #endif /* _PRECOMP_H__ */

@@ -21,6 +21,7 @@
  */
 
 #include "precomp.h"
+#include <winbase_undoc.h>
 #include <undocshell.h>
 
 WINE_DEFAULT_DEBUG_CHANNEL(exec);
@@ -44,6 +45,19 @@ static BOOL SHELL_InRunDllProcess(VOID)
     s_bInDllProcess = GetModuleFileNameW(NULL, szModule, _countof(szModule)) &&
                       (StrStrIW(PathFindFileNameW(szModule), L"rundll") != NULL);
     return s_bInDllProcess;
+}
+
+static UINT_PTR InvokeOpenWith(HWND hWndOwner, SHELLEXECUTEINFOW &sei)
+{
+    extern HRESULT SH32_InvokeOpenWith(PCWSTR, LPCMINVOKECOMMANDINFO, HANDLE *);
+
+    HANDLE *phProc = (sei.fMask & SEE_MASK_NOCLOSEPROCESS) ? &sei.hProcess : NULL;
+    UINT fCmic = (sei.fMask & SEE_CMIC_COMMON_BASICFLAGS) | CMIC_MASK_FLAG_NO_UI;
+    CMINVOKECOMMANDINFO ici = { sizeof(ici), fCmic, hWndOwner };
+    ici.nShow = SW_SHOW;
+    HRESULT hr = SH32_InvokeOpenWith(sei.lpFile, &ici, phProc);
+    SetLastError(ERROR_NO_ASSOCIATION);
+    return SUCCEEDED(hr) ? 42 : SE_ERR_NOASSOC;
 }
 
 static void ParseNoTildeEffect(PWSTR &res, LPCWSTR &args, DWORD &len, DWORD &used, int argNum)
@@ -512,6 +526,27 @@ static UINT_PTR SHELL_ExecuteW(const WCHAR *lpCmd, WCHAR *env, BOOL shWait,
     if (psei->fMask & SEE_MASK_HASLINKNAME)
         startup.dwFlags |= STARTF_TITLEISLINKNAME;
 
+    if (psei->fMask & SEE_MASK_HOTKEY)
+    {
+        startup.hStdInput = UlongToHandle(psei->dwHotKey);
+        startup.dwFlags |= STARTF_USEHOTKEY;
+    }
+
+    if (psei->fMask & SEE_MASK_ICON) // hIcon has higher precedence than hMonitor
+    {
+        startup.hStdOutput = psei->hIcon;
+        startup.dwFlags |= STARTF_SHELLPRIVATE;
+    }
+    else if ((psei->fMask & SEE_MASK_HMONITOR) || psei->hwnd)
+    {
+        if (psei->fMask & SEE_MASK_HMONITOR)
+            startup.hStdOutput = psei->hMonitor;
+        else if (psei->hwnd)
+            startup.hStdOutput = MonitorFromWindow(psei->hwnd, MONITOR_DEFAULTTONEAREST);
+        if (startup.hStdOutput)
+            startup.dwFlags |= STARTF_SHELLPRIVATE;
+    }
+
     if (CreateProcessW(NULL, (LPWSTR)lpCmd, NULL, NULL, FALSE, dwCreationFlags, env,
                        lpDirectory, &startup, &info))
     {
@@ -675,14 +710,14 @@ static UINT SHELL_FindExecutableByVerb(LPCWSTR lpVerb, LPWSTR key, LPWSTR classn
     HKEY hkeyClass;
     WCHAR verb[MAX_PATH];
 
-    if (RegOpenKeyExW(HKEY_CLASSES_ROOT, classname, 0, 0x02000000, &hkeyClass))
+    if (RegOpenKeyExW(HKEY_CLASSES_ROOT, classname, 0, KEY_READ, &hkeyClass))
         return SE_ERR_NOASSOC;
     if (!HCR_GetDefaultVerbW(hkeyClass, lpVerb, verb, ARRAY_SIZE(verb)))
         return SE_ERR_NOASSOC;
     RegCloseKey(hkeyClass);
 
     /* Looking for ...buffer\shell\<verb>\command */
-    wcscat(classname, L"\\shell\\");
+    wcscat(classname, L"\\shell\\"); // FIXME: Use HCR_GetExecuteCommandW or AssocAPI
     wcscat(classname, verb);
     wcscat(classname, L"\\command");
 
@@ -1339,48 +1374,21 @@ HINSTANCE WINAPI FindExecutableW(LPCWSTR lpFile, LPCWSTR lpDirectory, LPWSTR lpR
 /* FIXME: is this already implemented somewhere else? */
 static HKEY ShellExecute_GetClassKey(const SHELLEXECUTEINFOW *sei)
 {
-    LPCWSTR ext = NULL, lpClass = NULL;
-    CHeapPtr<WCHAR, CLocalAllocator> cls;
-    DWORD type = 0, sz = 0;
-    HKEY hkey = 0;
-    LONG r;
-
-    if (sei->fMask & SEE_MASK_CLASSALL)
+    if ((sei->fMask & SEE_MASK_CLASSALL) == SEE_MASK_CLASSKEY)
         return sei->hkeyClass;
 
+    HKEY hKey = NULL;
     if (sei->fMask & SEE_MASK_CLASSNAME)
-        lpClass = sei->lpClass;
-    else
     {
-        ext = PathFindExtensionW(sei->lpFile);
-        TRACE("ext = %s\n", debugstr_w(ext));
-        if (!ext)
-            return hkey;
-
-        r = RegOpenKeyW(HKEY_CLASSES_ROOT, ext, &hkey);
-        if (r != ERROR_SUCCESS)
-            return hkey;
-
-        r = RegQueryValueExW(hkey, NULL, 0, &type, NULL, &sz);
-        if (r == ERROR_SUCCESS && type == REG_SZ)
-        {
-            sz += sizeof (WCHAR);
-            cls.Allocate(sz / sizeof(WCHAR));
-            cls[0] = 0;
-            RegQueryValueExW(hkey, NULL, 0, &type, (LPBYTE)(LPWSTR)cls, &sz);
-        }
-
-        RegCloseKey( hkey );
-        lpClass = cls;
+        TRACE("class = %s\n", debugstr_w(sei->lpClass));
+        RegOpenKeyExW(HKEY_CLASSES_ROOT, sei->lpClass, 0, KEY_READ, &hKey);
+        return hKey;
     }
-
-    TRACE("class = %s\n", debugstr_w(lpClass));
-
-    hkey = 0;
-    if (lpClass)
-        RegOpenKeyW( HKEY_CLASSES_ROOT, lpClass, &hkey);
-
-    return hkey;
+    PCWSTR ext = PathFindExtensionW(sei->lpFile);
+    TRACE("ext = %s\n", debugstr_w(ext));
+    if (!StrIsNullOrEmpty(ext) && SUCCEEDED(HCR_GetProgIdKeyOfExtension(ext, &hKey, FALSE)))
+        return hKey;
+    return NULL;
 }
 
 static HRESULT shellex_get_dataobj( LPSHELLEXECUTEINFOW sei, CComPtr<IDataObject>& dataObj)
@@ -1388,7 +1396,7 @@ static HRESULT shellex_get_dataobj( LPSHELLEXECUTEINFOW sei, CComPtr<IDataObject
     CComHeapPtr<ITEMIDLIST> allocatedPidl;
     LPITEMIDLIST pidl = NULL;
 
-    if (sei->fMask & SEE_MASK_CLASSALL)
+    if (sei->fMask & SEE_MASK_CLASSALL) // FIXME: This makes no sense? SEE_MASK_IDLIST?
     {
         pidl = (LPITEMIDLIST)sei->lpIDList;
     }
@@ -1461,7 +1469,7 @@ static HRESULT shellex_run_context_menu_default(IShellExtInit *obj,
 
     memset(&ici, 0, sizeof ici);
     ici.cbSize = sizeof ici;
-    ici.fMask = CMIC_MASK_UNICODE | (sei->fMask & (SEE_MASK_NO_CONSOLE | SEE_MASK_NOASYNC | SEE_MASK_ASYNCOK | SEE_MASK_FLAG_NO_UI));
+    ici.fMask = (sei->fMask & SEE_CMIC_COMMON_BASICFLAGS) | CMIC_MASK_UNICODE;
     ici.nShow = sei->nShow;
     ici.lpVerb = MAKEINTRESOURCEA(def);
     ici.hwnd = sei->hwnd;
@@ -1631,6 +1639,7 @@ static LONG ShellExecute_FromContextMenuHandlers( LPSHELLEXECUTEINFOW sei )
     if (!hkey)
         return ERROR_FUNCTION_FAILED;
 
+    // FIXME: Words cannot describe how broken this is, all of it needs to die
     r = RegOpenKeyW(hkey, L"shellex\\ContextMenuHandlers", &hkeycm);
     if (r == ERROR_SUCCESS)
     {
@@ -1658,7 +1667,7 @@ static LONG ShellExecute_FromContextMenuHandlers( LPSHELLEXECUTEINFOW sei )
     return r;
 }
 
-static UINT_PTR SHELL_quote_and_execute(LPCWSTR wcmd, LPCWSTR wszParameters, LPCWSTR lpstrProtocol, LPCWSTR wszApplicationName, LPWSTR env, LPSHELLEXECUTEINFOW psei, LPSHELLEXECUTEINFOW psei_out, SHELL_ExecuteW32 execfunc);
+static UINT_PTR SHELL_quote_and_execute(LPCWSTR wcmd, LPCWSTR wszParameters, LPCWSTR wszKeyname, LPCWSTR wszApplicationName, LPWSTR env, LPSHELLEXECUTEINFOW psei, LPSHELLEXECUTEINFOW psei_out, SHELL_ExecuteW32 execfunc);
 
 static UINT_PTR SHELL_execute_class(LPCWSTR wszApplicationName, LPSHELLEXECUTEINFOW psei, LPSHELLEXECUTEINFOW psei_out, SHELL_ExecuteW32 execfunc)
 {
@@ -1794,7 +1803,7 @@ SHELL_InvokePidl(
 
     // Invoke a command
     CMINVOKECOMMANDINFO ici = { sizeof(ici) };
-    ici.fMask = (sei->fMask & (SEE_MASK_NO_CONSOLE | SEE_MASK_ASYNCOK | SEE_MASK_FLAG_NO_UI));
+    ici.fMask = (sei->fMask & SEE_CMIC_COMMON_BASICFLAGS) & ~CMIC_MASK_UNICODE; // FIXME: Unicode?
     ici.nShow = sei->nShow;
     ici.hwnd = sei->hwnd;
     char szVerb[VERBKEY_CCHMAX];
@@ -1883,7 +1892,7 @@ static UINT_PTR SHELL_execute_url(LPCWSTR lpFile, LPCWSTR wcmd, LPSHELLEXECUTEIN
     if (psei->lpVerb && *psei->lpVerb)
         len += lstrlenW(psei->lpVerb);
     else
-        len += lstrlenW(L"open");
+        len += lstrlenW(L"open"); // FIXME: Use HCR_GetExecuteCommandW or AssocAPI
     lpstrProtocol.Allocate(len);
     memcpy(lpstrProtocol, lpFile, iSize * sizeof(WCHAR));
     lpstrProtocol[iSize] = '\0';
@@ -1897,13 +1906,12 @@ static UINT_PTR SHELL_execute_url(LPCWSTR lpFile, LPCWSTR wcmd, LPSHELLEXECUTEIN
     return retval;
 }
 
-static void do_error_dialog(UINT_PTR retval, HWND hwnd, WCHAR* filename)
+static void do_error_dialog(UINT_PTR retval, HWND hwnd, PCWSTR filename)
 {
     WCHAR msg[2048];
     DWORD_PTR msgArguments[3]  = { (DWORD_PTR)filename, 0, 0 };
-    DWORD error_code;
+    const DWORD error_code = GetLastError();
 
-    error_code = GetLastError();
     if (retval == SE_ERR_NOASSOC)
         LoadStringW(shell32_hInstance, IDS_SHLEXEC_NOASSOC, msg, ARRAY_SIZE(msg));
     else
@@ -1916,6 +1924,7 @@ static void do_error_dialog(UINT_PTR retval, HWND hwnd, WCHAR* filename)
                        (va_list*)msgArguments);
 
     MessageBoxW(hwnd, msg, NULL, MB_ICONERROR);
+    SetLastError(error_code); // Restore
 }
 
 static WCHAR *expand_environment( const WCHAR *str )
@@ -1942,15 +1951,14 @@ static WCHAR *expand_environment( const WCHAR *str )
 static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
 {
     static const DWORD unsupportedFlags =
-        SEE_MASK_ICON         | SEE_MASK_HOTKEY |
-        SEE_MASK_CONNECTNETDRV | SEE_MASK_FLAG_DDEWAIT |
-        SEE_MASK_ASYNCOK      | SEE_MASK_HMONITOR;
+        SEE_MASK_CONNECTNETDRV | SEE_MASK_FLAG_DDEWAIT | SEE_MASK_ASYNCOK;
 
     DWORD len;
     UINT_PTR retval = SE_ERR_NOASSOC;
     BOOL appKnownSingular = FALSE;
 
     /* make a local copy of the LPSHELLEXECUTEINFO structure and work with this from now on */
+    sei->hProcess = NULL;
     SHELLEXECUTEINFOW sei_tmp = *sei;
 
     TRACE("mask=0x%08x hwnd=%p verb=%s file=%s parm=%s dir=%s show=0x%08x class=%s\n",
@@ -1959,8 +1967,6 @@ static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
           debugstr_w(sei_tmp.lpDirectory), sei_tmp.nShow,
           ((sei_tmp.fMask & SEE_MASK_CLASSALL) == SEE_MASK_CLASSNAME) ?
           debugstr_w(sei_tmp.lpClass) : "not used");
-
-    sei->hProcess = NULL;
 
     /* make copies of all path/command strings */
     CHeapPtr<WCHAR, CLocalAllocator> wszApplicationName;
@@ -2076,10 +2082,10 @@ static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
     if (sei_tmp.fMask & SEE_MASK_IDLIST &&
         (sei_tmp.fMask & SEE_MASK_INVOKEIDLIST) != SEE_MASK_INVOKEIDLIST)
     {
+        LPCITEMIDLIST pidl = (LPCITEMIDLIST)sei_tmp.lpIDList;
+
         CComPtr<IShellExecuteHookW> pSEH;
-
-        HRESULT hr = SHBindToParent((LPCITEMIDLIST)sei_tmp.lpIDList, IID_PPV_ARG(IShellExecuteHookW, &pSEH), NULL);
-
+        HRESULT hr = SHBindToParent(pidl, IID_PPV_ARG(IShellExecuteHookW, &pSEH), NULL);
         if (SUCCEEDED(hr))
         {
             hr = pSEH->Execute(&sei_tmp);
@@ -2087,7 +2093,14 @@ static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
                 return TRUE;
         }
 
-        SHGetPathFromIDListW((LPCITEMIDLIST)sei_tmp.lpIDList, wszApplicationName);
+        hr = SHGetNameAndFlagsW(pidl, SHGDN_FORPARSING, wszApplicationName, dwApplicationNameLen, NULL);
+        if (FAILED(hr))
+        {
+            if (dwApplicationNameLen)
+                *wszApplicationName = UNICODE_NULL;
+            if (!_ILIsDesktop(pidl))
+                TRACE("Unable to get PIDL parsing path\n");
+        }
         appKnownSingular = TRUE;
         TRACE("-- idlist=%p (%s)\n", sei_tmp.lpIDList, debugstr_w(wszApplicationName));
     }
@@ -2167,7 +2180,10 @@ static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
         CHeapPtr<WCHAR, CLocalAllocator> buf;
         DWORD size = MAX_PATH;
         if (!buf.Allocate(size) || FAILED(PathCreateFromUrlW(sei_tmp.lpFile, buf, &size, 0)))
-            return SE_ERR_OOM;
+        {
+            SetLastError(ERROR_OUTOFMEMORY);
+            return FALSE;
+        }
 
         wszApplicationName.Attach(buf.Detach());
         sei_tmp.lpFile = wszApplicationName;
@@ -2303,7 +2319,8 @@ static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
         /* if so, prefix lpFile with http:// and call ShellExecute */
         WCHAR lpstrTmpFile[256];
         strcpyW(lpstrTmpFile, L"http://");
-        strcatW(lpstrTmpFile, lpFile);
+        strcatW(lpstrTmpFile, lpFile); // FIXME: Possible buffer overflow
+        // FIXME: This will not correctly return the hProcess to the caller
         retval = (UINT_PTR)ShellExecuteW(sei_tmp.hwnd, sei_tmp.lpVerb, lpstrTmpFile, NULL, NULL, 0);
     }
 
@@ -2311,18 +2328,10 @@ static BOOL SHELL_execute(LPSHELLEXECUTEINFOW sei, SHELL_ExecuteW32 execfunc)
 
     if (retval <= 32 && !(sei_tmp.fMask & SEE_MASK_FLAG_NO_UI))
     {
-        OPENASINFO Info;
-
-        //FIXME
-        // need full path
-
-        Info.pcszFile = wszApplicationName;
-        Info.pcszClass = NULL;
-        Info.oaifInFlags = OAIF_ALLOW_REGISTRATION | OAIF_EXEC;
-
-        //if (SHOpenWithDialog(sei_tmp.hwnd, &Info) != S_OK)
-        DBG_UNREFERENCED_LOCAL_VARIABLE(Info);
-        do_error_dialog(retval, sei_tmp.hwnd, wszApplicationName);
+        if (retval == SE_ERR_NOASSOC && !(sei->fMask & SEE_MASK_CLASSALL))
+            retval = InvokeOpenWith(sei_tmp.hwnd, *sei);
+        if (retval <= 32)
+            do_error_dialog(retval, sei_tmp.hwnd, lpFile);
     }
 
     sei->hInstApp = (HINSTANCE)(retval > 32 ? 33 : retval);
@@ -2366,7 +2375,14 @@ static DWORD
 ShellExecute_Normal(_Inout_ LPSHELLEXECUTEINFOW sei)
 {
     // FIXME
-    return SHELL_execute(sei, SHELL_ExecuteW) ? ERROR_SUCCESS : ERROR_FILE_NOT_FOUND;
+    if (SHELL_execute(sei, SHELL_ExecuteW))
+        return ERROR_SUCCESS;
+    DWORD err = GetLastError();
+#if DBG
+    if (!err)
+        DbgPrint("FIXME: Failed with error 0 on '%ls'\n", sei->lpFile);
+#endif
+    return err ? err : ERROR_FILE_NOT_FOUND;
 }
 
 static VOID
@@ -2565,14 +2581,8 @@ EXTERN_C HINSTANCE WINAPI WOWShellExecute(HWND hWnd, LPCSTR lpVerb, LPCSTR lpFil
 EXTERN_C void WINAPI
 OpenAs_RunDLLW(HWND hwnd, HINSTANCE hinst, LPCWSTR cmdline, int cmdshow)
 {
-    OPENASINFO info;
+    OPENASINFO info = { cmdline, NULL, OAIF_ALLOW_REGISTRATION | OAIF_REGISTER_EXT | OAIF_EXEC };
     TRACE("%p, %p, %s, %d\n", hwnd, hinst, debugstr_w(cmdline), cmdshow);
-
-    ZeroMemory(&info, sizeof(info));
-    info.pcszFile = cmdline;
-    info.pcszClass = NULL;
-    info.oaifInFlags = OAIF_ALLOW_REGISTRATION | OAIF_REGISTER_EXT | OAIF_EXEC;
-
     SHOpenWithDialog(hwnd, &info);
 }
 
@@ -2649,7 +2659,7 @@ HRESULT WINAPI ShellExecCmdLine(
     DWORD dwSeclFlags)
 {
     SHELLEXECUTEINFOW info;
-    DWORD dwSize, dwError, dwType, dwFlags = SEE_MASK_DOENVSUBST | SEE_MASK_NOASYNC;
+    DWORD dwSize, dwType, dwFlags = SEE_MASK_DOENVSUBST | SEE_MASK_NOASYNC;
     LPCWSTR pszVerb = NULL;
     WCHAR szFile[MAX_PATH], szFile2[MAX_PATH];
     HRESULT hr;
@@ -2673,7 +2683,7 @@ HRESULT WINAPI ShellExecCmdLine(
     if (dwSeclFlags & SECL_RUNAS)
     {
         dwSize = 0;
-        hr = AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_COMMAND, lpCommand, L"RunAs", NULL, &dwSize);
+        hr = AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_COMMAND, lpCommand, L"runas", NULL, &dwSize);
         if (SUCCEEDED(hr) && dwSize != 0)
         {
             pszVerb = L"runas";
@@ -2758,21 +2768,9 @@ HRESULT WINAPI ShellExecCmdLine(
     info.lpParameters = (pchParams && *pchParams) ? pchParams : NULL;
     info.lpDirectory = pwszStartDir;
     info.nShow = nShow;
-    if (ShellExecuteExW(&info))
-    {
-        if (info.lpIDList)
-            CoTaskMemFree(info.lpIDList);
-
-        SHFree(lpCommand);
-
-        return S_OK;
-    }
-
-    dwError = GetLastError();
-
+    UINT error = ShellExecuteExW(&info) ? ERROR_SUCCESS : GetLastError();
     SHFree(lpCommand);
-
-    return HRESULT_FROM_WIN32(dwError);
+    return HRESULT_FROM_WIN32(error);
 }
 
 /*************************************************************************
@@ -2969,6 +2967,127 @@ RealShellExecuteW(
                                0);
 }
 
+/*************************************************************************
+ *  PathProcessCommandW [Internal]
+ *
+ * @see https://learn.microsoft.com/en-us/windows/win32/api/shlobj/nf-shlobj-pathprocesscommand
+ * @see ./wine/shellpath.c
+ */
+EXTERN_C LONG
+PathProcessCommandW(
+    _In_ PCWSTR pszSrc,
+    _Out_writes_opt_(dwBuffSize) PWSTR pszDest,
+    _In_ INT cchDest,
+    _In_ DWORD dwFlags)
+{
+    TRACE("%s, %p, %d, 0x%X\n", wine_dbgstr_w(pszSrc), pszDest, cchDest, dwFlags);
+
+    if (!pszSrc)
+        return -1;
+
+    CStringW szPath;
+    PCWSTR pchArg = NULL;
+
+    if (*pszSrc == L'"') // Quoted?
+    {
+        ++pszSrc;
+
+        PCWSTR pch = wcschr(pszSrc, L'"');
+        if (pch)
+        {
+            szPath.SetString(pszSrc, pch - pszSrc);
+            pchArg = pch + 1;
+        }
+        else
+        {
+            szPath = pszSrc;
+        }
+
+        if ((dwFlags & PPCF_FORCEQUALIFY) || PathIsRelativeW(szPath))
+        {
+            BOOL ret = PathResolveW(szPath.GetBuffer(MAX_PATH), NULL, PRF_TRYPROGRAMEXTENSIONS);
+            szPath.ReleaseBuffer();
+            if (!ret)
+                return -1;
+        }
+    }
+    else // Not quoted?
+    {
+        BOOL resolved = FALSE;
+        BOOL resolveRelative = PathIsRelativeW(pszSrc) || (dwFlags & PPCF_FORCEQUALIFY);
+        INT cchPath = 0;
+
+        for (INT ich = 0; ; ++ich)
+        {
+            szPath += pszSrc[ich];
+
+            if (pszSrc[ich] && pszSrc[ich] != L' ')
+                continue;
+
+            szPath = szPath.Left(ich);
+
+            if (resolveRelative &&
+                !PathResolveW(szPath.GetBuffer(MAX_PATH), NULL, PRF_TRYPROGRAMEXTENSIONS))
+            {
+                szPath.ReleaseBuffer();
+                szPath += pszSrc[ich];
+            }
+            else
+            {
+                szPath.ReleaseBuffer();
+
+                DWORD attrs = GetFileAttributesW(szPath);
+                if (attrs != INVALID_FILE_ATTRIBUTES &&
+                    (!(attrs & FILE_ATTRIBUTE_DIRECTORY) || !(dwFlags & PPCF_NODIRECTORIES)))
+                {
+                    resolved = TRUE;
+                    pchArg = pszSrc + ich;
+
+                    if (!(dwFlags & PPCF_LONGESTPOSSIBLE))
+                        break;
+
+                    cchPath = ich;
+                    break;
+                }
+                else if (!resolveRelative)
+                {
+                    szPath += pszSrc[ich];
+                }
+            }
+
+            if (!szPath[ich])
+            {
+                szPath.ReleaseBuffer(); // Remove excessive '\0'
+                break;
+            }
+        }
+
+        if (!resolved)
+            return -1;
+
+        if (cchPath && (dwFlags & PPCF_LONGESTPOSSIBLE))
+        {
+            szPath = szPath.Left(cchPath);
+            pchArg = pszSrc + cchPath;
+        }
+    }
+
+    BOOL needsQuoting = (dwFlags & PPCF_ADDQUOTES) && wcschr(szPath, L' ');
+    CStringW result = needsQuoting ? (L"\"" + szPath + L"\"") : szPath;
+
+    if (pchArg && (dwFlags & PPCF_ADDARGUMENTS))
+        result += pchArg;
+
+    LONG requiredSize = result.GetLength() + 1;
+    if (!pszDest)
+        return requiredSize;
+
+    if (requiredSize > cchDest || StringCchCopyW(pszDest, cchDest, result) != S_OK)
+        return -1;
+
+    return requiredSize;
+}
+
 // The common helper of ShellExec_RunDLLA and ShellExec_RunDLLW
 static VOID
 ShellExec_RunDLL_Helper(
@@ -2996,7 +3115,8 @@ ShellExec_RunDLL_Helper(
     }
 
     WCHAR szPath[2 * MAX_PATH];
-    if (PathProcessCommandAW(pszCmdLine, szPath, _countof(szPath), L'C') == -1)
+    DWORD dwFlags = PPCF_FORCEQUALIFY | PPCF_INCLUDEARGS | PPCF_ADDQUOTES;
+    if (PathProcessCommandW(pszCmdLine, szPath, _countof(szPath), dwFlags) == -1)
         StrCpyNW(szPath, pszCmdLine, _countof(szPath));
 
     // Split arguments from the path

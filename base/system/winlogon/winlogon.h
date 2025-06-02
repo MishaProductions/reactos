@@ -47,8 +47,8 @@
 /* PSEH for SEH Support */
 #include <pseh/pseh2.h>
 
-#include <reactos/undocuser.h>
-#include <reactos/undocmpr.h>
+#include <undocuser.h>
+#include <undocmpr.h>
 
 BOOL
 WINAPI
@@ -135,7 +135,7 @@ typedef struct _GINAINSTANCE
 
 /*
  * The picture Microsoft is trying to paint here
- * (http://msdn.microsoft.com/en-us/library/windows/desktop/aa380547%28v=vs.85%29.aspx)
+ * (https://learn.microsoft.com/en-us/windows/win32/secauthn/winlogon-states)
  * about the Winlogon states is a little too simple.
  *
  * The real picture should look more like this:

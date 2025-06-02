@@ -79,9 +79,9 @@
 
 /*#ifdef _WINE*/
 #if defined(__GNUC__) && ((__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 3)))
-# define __WINE_ALLOC_SIZE(x) __attribute__((__alloc_size__(x)))
+# define __WINE_ALLOC_SIZE(...) __attribute__((__alloc_size__(__VA_ARGS__)))
 #else
-# define __WINE_ALLOC_SIZE(x)
+# define __WINE_ALLOC_SIZE(...)
 #endif
 /*#endif*/
 
@@ -583,7 +583,7 @@
 #define SECTION_MAP_EXECUTE 8
 #define SECTION_ALL_ACCESS 0xf001f
 #define WRITE_WATCH_FLAG_RESET 0x01
-#define MESSAGE_RESOURCE_UNICODE 1
+
 #define RTL_CRITSECT_TYPE 0
 #define RTL_RESOURCE_TYPE 1
 
@@ -952,9 +952,7 @@
 #define DLL_PROCESS_ATTACH    1
 #define DLL_THREAD_ATTACH    2
 #define DLL_THREAD_DETACH    3
-#ifdef __WINESRC__
-#define DLL_WINE_PREATTACH    8 /* Never called, but defined for compatibility with Wine source */
-#endif
+
 #define TAPE_ABSOLUTE_POSITION 0
 #define TAPE_LOGICAL_POSITION 1
 #define TAPE_PSEUDO_LOGICAL_POSITION 2
@@ -1444,6 +1442,9 @@ typedef struct _RUNTIME_FUNCTION {
     DWORD UnwindData;
 } RUNTIME_FUNCTION,*PRUNTIME_FUNCTION;
 
+#ifndef _APISETRTLSUPPORT_
+#define _APISETRTLSUPPORT_
+
 #define UNWIND_HISTORY_TABLE_SIZE 12
 
 typedef struct _UNWIND_HISTORY_TABLE_ENTRY
@@ -1463,6 +1464,8 @@ typedef struct _UNWIND_HISTORY_TABLE
     ULONG64 HighAddress;
     UNWIND_HISTORY_TABLE_ENTRY Entry[UNWIND_HISTORY_TABLE_SIZE];
 } UNWIND_HISTORY_TABLE, *PUNWIND_HISTORY_TABLE;
+
+#endif /* _APISETRTLSUPPORT_ */
 
 typedef
 _Function_class_(GET_RUNTIME_FUNCTION_CALLBACK)
@@ -2650,6 +2653,8 @@ typedef struct _MESSAGE_RESOURCE_ENTRY {
   BYTE Text[1];
 } MESSAGE_RESOURCE_ENTRY, *PMESSAGE_RESOURCE_ENTRY;
 
+#define MESSAGE_RESOURCE_UNICODE 1
+
 typedef struct _MESSAGE_RESOURCE_BLOCK {
   DWORD LowId;
   DWORD HighId;
@@ -2793,9 +2798,17 @@ typedef struct _RTL_CRITICAL_SECTION_DEBUG {
   LIST_ENTRY ProcessLocksList;
   DWORD EntryCount;
   DWORD ContentionCount;
-  DWORD Flags;
-  WORD CreatorBackTraceIndexHigh;
-  WORD SpareWORD;
+  union
+  {
+    DWORD_PTR WineDebugString;
+    DWORD_PTR Spare[1];
+    struct
+    {
+      DWORD Flags;
+      WORD CreatorBackTraceIndexHigh;
+      WORD SpareWORD;
+    };
+  };
 } RTL_CRITICAL_SECTION_DEBUG, *PRTL_CRITICAL_SECTION_DEBUG, RTL_RESOURCE_DEBUG, *PRTL_RESOURCE_DEBUG;
 
 #include "pshpack8.h"

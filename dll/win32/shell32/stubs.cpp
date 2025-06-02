@@ -84,15 +84,6 @@ SHParseDarwinIDFromCacheW(LPCWSTR lpUnknown1, LPWSTR lpUnknown2)
     return E_FAIL;
 }
 
-static HRESULT DataObject_GetHIDACount(IDataObject *pdo)
-{
-    if (!pdo)
-        return E_INVALIDARG;
-    CDataObjectHIDA cida(pdo);
-    HRESULT hr = cida.hr();
-    return SUCCEEDED(hr) ? cida->cidl : hr;
-}
-
 /*
  * Unimplemented
  */
@@ -819,11 +810,4 @@ DWORD WINAPI CheckStagingArea(VOID)
 {
     /* Called by native explorer */
     return 0;
-}
-
-EXTERN_C
-DWORD WINAPI SHGetComputerDisplayNameW(DWORD param1, DWORD param2, DWORD param3, DWORD param4)
-{
-    FIXME("SHGetComputerDisplayNameW() stub\n");
-    return E_FAIL;
 }

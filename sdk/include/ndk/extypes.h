@@ -312,6 +312,8 @@ typedef enum _SYSTEM_INFORMATION_CLASS
     SystemCoverageInformation,
     SystemPrefetchPathInformation,
     SystemVerifierFaultsInformation,
+    SystemSystemPartitionInformation,
+    SystemSystemDiskInformation,
     MaxSystemInfoClass,
 } SYSTEM_INFORMATION_CLASS;
 
@@ -761,7 +763,11 @@ typedef struct _SYSTEM_PROCESSOR_INFORMATION
 #else
     USHORT MaximumProcessors;
 #endif
+#if (NTDDI_VERSION >= NTDDI_WIN10) || ((NTDDI_VERSION >= NTDDI_WINBLUE) && defined(_WIN64))
+    ULONG64 ProcessorFeatureBits;
+#else
     ULONG ProcessorFeatureBits;
+#endif
 } SYSTEM_PROCESSOR_INFORMATION, *PSYSTEM_PROCESSOR_INFORMATION;
 
 // Class 2
@@ -1455,6 +1461,20 @@ typedef struct _SYSTEM_BOOT_ENVIRONMENT_V1
 #endif
 
 // FIXME: Class 91-97
+
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+// Class 98
+typedef struct _SYSTEM_SYSTEM_PARTITION_INFORMATION
+{
+    UNICODE_STRING SystemPartition;
+} SYSTEM_SYSTEM_PARTITION_INFORMATION, *PSYSTEM_SYSTEM_PARTITION_INFORMATION;
+
+// Class 99
+typedef struct _SYSTEM_SYSTEM_DISK_INFORMATION
+{
+    UNICODE_STRING SystemDisk;
+} SYSTEM_SYSTEM_DISK_INFORMATION, *PSYSTEM_SYSTEM_DISK_INFORMATION;
+#endif
 
 //
 // Hotpatch flags

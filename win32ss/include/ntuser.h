@@ -1206,9 +1206,14 @@ typedef struct tagCURSORDATA
 #define CURSORF_LINKED       0x0100
 #define CURSORF_CURRENT      0x0200
 
+/* Flags for dwCompatFlags2 */
+#define COMPAT_FLAG_2_CICERO_DISABLED 2
+
 #define IS_IMM_MODE() (gpsi && (gpsi->dwSRVIFlags & SRVINFO_IMM32))
 #define IS_CICERO_MODE() (gpsi && (gpsi->dwSRVIFlags & SRVINFO_CICERO_ENABLED))
 #define IS_16BIT_MODE() (GetWin32ClientInfo()->dwTIFlags & TIF_16BIT)
+#define IS_CICERO_COMPAT_DISABLED() \
+    (GetWin32ClientInfo()->dwCompatFlags2 & COMPAT_FLAG_2_CICERO_DISABLED)
 
 typedef struct tagIMEUI
 {
@@ -1670,7 +1675,7 @@ enum SimpleCallRoutines
     TWOPARAM_ROUTINE_WOWCLEANUP
 };
 
-DWORD
+DWORD_PTR
 NTAPI
 NtUserCallHwnd(
     HWND hWnd,
@@ -2138,8 +2143,8 @@ NtUserGetAltTabInfo(
 HWND
 NTAPI
 NtUserGetAncestor(
-    HWND hWnd,
-    UINT Flags);
+    _In_ HWND hWnd,
+    _In_ UINT uType);
 
 DWORD
 NTAPI

@@ -116,7 +116,7 @@ RtlpLookupDynamicFunctionEntry(
 
 /*! RtlLookupFunctionEntry
  * \brief Locates the RUNTIME_FUNCTION entry corresponding to a code address.
- * \ref http://msdn.microsoft.com/en-us/library/ms680597(VS.85).aspx
+ * \ref https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtllookupfunctionentry
  * \todo Implement HistoryTable
  */
 PRUNTIME_FUNCTION
@@ -649,6 +649,18 @@ Exit:
     return NULL;
 }
 
+static __inline
+BOOL
+RtlpIsStackPointerValid(
+    _In_ ULONG64 StackPointer,
+    _In_ ULONG64 LowLimit,
+    _In_ ULONG64 HighLimit)
+{
+    return (StackPointer >= LowLimit) &&
+           (StackPointer < HighLimit) &&
+           ((StackPointer & 7) == 0);
+}
+
 /*!
     \remark The implementation is based on the description in this blog: http://www.nynaeve.net/?p=106
 
@@ -699,6 +711,11 @@ RtlpUnwindInternal(
     /* Start looping */
     while (TRUE)
     {
+        if (!RtlpIsStackPointerValid(UnwindContext.Rsp, StackLow, StackHigh))
+        {
+            return FALSE;
+        }
+
         /* Lookup the FunctionEntry for the current RIP */
         FunctionEntry = RtlLookupFunctionEntry(UnwindContext.Rip, &ImageBase, NULL);
         if (FunctionEntry == NULL)

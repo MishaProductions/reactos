@@ -47,9 +47,20 @@ enum {
     UNOP_EMPTYREGKEY = 'k',
 };
 
+BOOL IsZipFile(PCWSTR Path)
+{
+    zlib_filefunc64_def zff;
+    fill_win32_filefunc64W(&zff);
+    unzFile hzf = unzOpen2_64(Path, &zff);
+    if (!hzf)
+        return FALSE;
+    unzClose(hzf);
+    return TRUE;
+}
+
 static int
 ExtractFilesFromZip(LPCWSTR Archive, const CStringW &OutputDir,
-                    EXTRACTCALLBACK Callback, void *Cookie)
+                    EXTRACTCALLBACK Callback, void *Context)
 {
     const UINT pkzefsutf8 = 1 << 11; // APPNOTE; APPENDIX D
     zlib_filefunc64_def zff;
@@ -86,7 +97,7 @@ ExtractFilesFromZip(LPCWSTR Archive, const CStringW &OutputDir,
             fileatt = LOBYTE(fi.external_fa);
 
         if (!NotifyFileExtractCallback(path, fi.uncompressed_size, fileatt,
-                                       Callback, Cookie))
+                                       Callback, Context))
             continue; // Skip file
 
         path = BuildPath(OutputDir, path);
@@ -125,20 +136,29 @@ ExtractFilesFromZip(LPCWSTR Archive, const CStringW &OutputDir,
 
 static UINT
 ExtractZip(LPCWSTR Archive, const CStringW &OutputDir,
-           EXTRACTCALLBACK Callback, void *Cookie)
+           EXTRACTCALLBACK Callback, void *Context)
 {
-    int zerr = ExtractFilesFromZip(Archive, OutputDir, Callback, Cookie);
+    int zerr = ExtractFilesFromZip(Archive, OutputDir, Callback, Context);
     return zerr == UNZ_ERRNO ? GetLastError() : zerr ? ERROR_INTERNAL_ERROR : 0;
 }
 
 static UINT
 ExtractCab(LPCWSTR Archive, const CStringW &OutputDir,
-           EXTRACTCALLBACK Callback, void *Cookie)
+           EXTRACTCALLBACK Callback, void *Context)
 {
-    if (ExtractFilesFromCab(Archive, OutputDir, Callback, Cookie))
+    if (ExtractFilesFromCab(Archive, OutputDir, Callback, Context))
         return ERROR_SUCCESS;
     UINT err = GetLastError();
     return err ? err : ERROR_INTERNAL_ERROR;
+}
+
+
+static UINT
+ExtractArchive(LPCWSTR Archive, const CStringW &OutputDir, EXTRACTCALLBACK Callback, void *Context)
+{
+    BOOL isCab = LOBYTE(ClassifyFile(Archive)) == 'C';
+    return isCab ? ExtractCab(Archive, OutputDir, Callback, Context)
+                 : ExtractZip(Archive, OutputDir, Callback, Context);
 }
 
 enum { IM_STARTPROGRESS = WM_APP, IM_PROGRESS, IM_END };
@@ -173,17 +193,10 @@ struct InstallInfo : CommonInfo
     }
 };
 
-static UINT
+static inline UINT
 ErrorBox(UINT Error = GetLastError())
 {
-    if (!Error)
-        Error = ERROR_INTERNAL_ERROR;
-    WCHAR buf[400];
-    UINT fmf = FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM;
-    FormatMessageW(fmf, NULL, Error, 0, buf, _countof(buf), NULL);
-    MessageBoxW(g_pInfo->GetGuiOwner(), buf, 0, MB_OK | MB_ICONSTOP);
-    g_pInfo->Error = Error;
-    return Error;
+    return g_pInfo->Error = ErrorBox(g_pInfo->GetGuiOwner(), Error);
 }
 
 static LPCWSTR
@@ -271,15 +284,15 @@ GetLocalizedSMFolderName(LPCWSTR WinVal, LPCWSTR RosInf, LPCWSTR RosVal, CString
     return ReadIniValue(path, L"Strings", RosVal, Output) > 0;
 }
 
-static BOOL
-CreateShortcut(const CStringW &Target)
+static CStringW
+CreateMainShortcut(const CStringW &Target)
 {
     InstallInfo &Info = *static_cast<InstallInfo *>(g_pInfo);
     UINT csidl = Info.PerUser ? CSIDL_PROGRAMS : CSIDL_COMMON_PROGRAMS;
     CStringW rel = Info.ShortcutFile, path, dir, tmp;
 
     if (FAILED(GetSpecialPath(csidl, path, Info.GetGuiOwner())))
-        return TRUE; // Pretend everything is OK
+        return L""; // Pretend everything is OK
 
     int cat;
     if (Info.Parser.GetInt(DB_CATEGORY, cat) && cat == ENUM_CAT_GAMES)
@@ -300,7 +313,7 @@ CreateShortcut(const CStringW &Target)
     if ((Info.Error = ErrorFromHResult(hr)) != 0)
     {
         ErrorBox(Info.Error);
-        return FALSE;
+        return L"";
     }
 
     CComPtr<IShellLinkW> link;
@@ -309,6 +322,9 @@ CreateShortcut(const CStringW &Target)
     {
         if (SUCCEEDED(hr = link->SetPath(Target)))
         {
+            SplitFileAndDirectory(Target, &tmp);
+            link->SetWorkingDirectory(tmp);
+
             if (SUCCEEDED(GetCustomIconPath(Info, tmp)))
             {
                 LPWSTR p = tmp.GetBuffer();
@@ -334,7 +350,7 @@ CreateShortcut(const CStringW &Target)
     {
         ErrorBox(ErrorFromHResult(hr));
     }
-    return !Info.Error;
+    return Info.Error ? L"" : path;
 }
 
 static BOOL
@@ -423,9 +439,9 @@ AddUninstallOperationsFromDB(LPCWSTR Name, WCHAR UnOp, CStringW PathPrefix = CSt
 }
 
 static BOOL CALLBACK
-ExtractCallback(const EXTRACTCALLBACKINFO &, void *Cookie)
+ExtractCallback(const EXTRACTCALLBACKINFO &, void *Context)
 {
-    InstallInfo &Info = *(InstallInfo *) Cookie;
+    InstallInfo &Info = *(InstallInfo *)Context;
     Info.Count += 1;
     return TRUE;
 }
@@ -494,11 +510,7 @@ ExtractAndInstallThread(LPVOID Parameter)
         ErrorBox(Info.Error);
 
     if (!Info.Error)
-    {
-        BOOL isCab = SplitFileAndDirectory(Archive).Right(4).CompareNoCase(L".cab") == 0;
-        Info.Error = isCab ? ExtractCab(Archive, tempdir, ExtractCallback, &Info)
-                           : ExtractZip(Archive, tempdir, ExtractCallback, &Info);
-    }
+        Info.Error = ExtractArchive(Archive, tempdir, ExtractCallback, &Info);
 
     if (!Info.Error)
     {
@@ -560,7 +572,20 @@ ExtractAndInstallThread(LPVOID Parameter)
 
         if (!Info.Error && Info.ShortcutFile)
         {
-            CreateShortcut(Info.MainApp);
+            tmp = CreateMainShortcut(Info.MainApp);
+            if (!tmp.IsEmpty() && !Info.Silent)
+            {
+                CStringW message, format;
+                format.LoadString(IDS_INSTGEN_CONFIRMINSTRUNAPP);
+                message.Format(format, const_cast<PCWSTR>(AppName));
+                if (MessageBoxW(Info.GetGuiOwner(), message, AppName, MB_YESNO | MB_ICONQUESTION) == IDYES)
+                {
+                    SHELLEXECUTEINFOW sei = { sizeof(sei), SEE_MASK_NOASYNC, Info.GetGuiOwner() };
+                    sei.lpFile = tmp;
+                    sei.nShow = SW_SHOW;
+                    ShellExecuteExW(&sei);
+                }
+            }
         }
     }
 
@@ -606,7 +631,7 @@ UIDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ErrorBox();
                 SendMessageW(hDlg, IM_END, 0, 0);
             }
-            break;
+            return TRUE;
         }
         case WM_CLOSE:
             return TRUE;
@@ -814,4 +839,47 @@ UninstallGenerated(CInstalledApplicationInfo &AppInfo, UninstallCommandFlags Fla
     UninstallInfo Info(AppInfo, Flags & UCF_SILENT);
     g_pInfo = &Info;
     return CreateUI(Info.Silent, UninstallThread) ? !Info.Error : FALSE;
+}
+
+HRESULT
+ExtractArchiveForExecution(PCWSTR pszArchive, const CStringW &PackageName, CStringW &TempDir, CStringW &App)
+{
+    WCHAR TempDirBuf[MAX_PATH], UniqueDir[MAX_PATH];
+    CAppDB db(CAppDB::GetDefaultPath());
+    db.UpdateAvailable();
+    CAvailableApplicationInfo *pAppInfo = db.FindAvailableByPackageName(PackageName);
+    if (!pAppInfo)
+        return HResultFromWin32(ERROR_NOT_FOUND);
+    CConfigParser *pCfg = pAppInfo->GetConfigParser();
+
+    if (!GetTempPathW(_countof(TempDirBuf), TempDirBuf))
+        return E_FAIL;
+    wsprintfW(UniqueDir, L"~%s-%u", RAPPS_NAME, GetCurrentProcessId());
+    TempDir = BuildPath(TempDirBuf, UniqueDir);
+    HRESULT hr = HResultFromWin32(CreateDirectoryTree(TempDir));
+    if (FAILED(hr))
+        return hr;
+
+    hr = HResultFromWin32(ExtractArchive(pszArchive, TempDir, NULL, NULL));
+    if (SUCCEEDED(hr))
+    {
+        CStringW Exe;
+        if (pCfg->GetSectionString(DB_EXEINZIPSECTION, DB_EXEINZIP_EXE, Exe) <= 0)
+        {
+            WIN32_FIND_DATAW wfd;
+            HANDLE hFind = FindFirstFileW(Exe = BuildPath(TempDir, L"*.exe"), &wfd);
+            if (hFind != INVALID_HANDLE_VALUE)
+            {
+                FindClose(hFind);
+                Exe = wfd.cFileName;
+            }
+        }
+        App = BuildPath(TempDir, Exe);
+        if (GetFileAttributesW(App) & FILE_ATTRIBUTE_DIRECTORY)
+            hr = HResultFromWin32(ERROR_FILE_NOT_FOUND);
+    }
+
+    if (FAILED(hr) && !TempDir.IsEmpty())
+        DeleteDirectoryTree(TempDir, hMainWnd);
+    return hr;
 }

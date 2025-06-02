@@ -336,11 +336,9 @@ InstallStartMenuItems(
                                        INF_STYLE_WIN4,
                                        NULL);
 
-//    Steps = SetupGetLineCountW(hShortcutsInf1, L"ShortcutFolders");
     Steps = CountShortcuts(hShortcutsInf1, L"ShortcutFolders");
     if (hShortcutsInf2 != INVALID_HANDLE_VALUE)
         Steps += CountShortcuts(hShortcutsInf2, L"ShortcutFolders");
-//        Steps += SetupGetLineCountW(hShortcutsInf2, L"ShortcutFolders");
 
     SendMessage(pItemsData->hwndDlg, PM_ITEM_START, 1, (LPARAM)Steps);
 
@@ -538,7 +536,11 @@ InstallSysSetupInfComponents(VOID)
 
 
 BOOL
-RegisterTypeLibraries(HINF hinf, LPCWSTR szSection)
+RegisterTypeLibraries(
+    _In_ PITEMSDATA pItemsData,
+    _In_ PREGISTRATIONNOTIFY pNotify,
+    _In_ HINF hinf,
+    _In_ LPCWSTR szSection)
 {
     INFCONTEXT InfContext;
     BOOL res;
@@ -575,6 +577,15 @@ RegisterTypeLibraries(HINF hinf, LPCWSTR szSection)
         p = PathAddBackslash(szPath);
         wcscpy(p, szName);
 
+        if (pItemsData && pNotify)
+        {
+            pNotify->Progress++;
+            pNotify->CurrentItem = szName;
+
+            DPRINT("RegisterTypeLibraries: Start step %ld\n", pNotify->Progress);
+            SendMessage(pItemsData->hwndDlg, PM_STEP_START, 0, (LPARAM)pNotify);
+        }
+
         hmod = LoadLibraryW(szPath);
         if (hmod == NULL)
         {
@@ -583,6 +594,12 @@ RegisterTypeLibraries(HINF hinf, LPCWSTR szSection)
         }
 
         __wine_register_resources(hmod);
+
+        if (pItemsData && pNotify)
+        {
+            DPRINT("RegisterTypeLibraries: End step %ld\n", pNotify->Progress);
+            SendMessage(pItemsData->hwndDlg, PM_STEP_END, 0, (LPARAM)pNotify);
+        }
 
     } while (SetupFindNextLine(&InfContext, &InfContext));
 
@@ -968,6 +985,61 @@ cleanup:
     return bConsoleBoot;
 }
 
+extern VOID
+EnableVisualTheme(
+    _In_opt_ HWND hwndParent,
+    _In_opt_ PCWSTR ThemeFile);
+
+/**
+ * @brief
+ * Pre-process unattended file to apply early settings.
+ *
+ * @param[in]   IsInstall
+ * TRUE if this is ReactOS installation, invoked from InstallReactOS(),
+ * FALSE if this is run as part of LiveCD, invoked form InstallLiveCD().
+ **/
+static VOID
+PreprocessUnattend(
+    _In_ BOOL IsInstall)
+{
+    WCHAR szPath[MAX_PATH];
+    WCHAR szValue[MAX_PATH];
+    BOOL bDefaultThemesOff;
+
+    if (IsInstall)
+    {
+        /* See also wizard.c!ProcessSetupInf()
+         * Retrieve the path of the setup INF */
+        GetSystemDirectoryW(szPath, _countof(szPath));
+        wcscat(szPath, L"\\$winnt$.inf");
+    }
+    else
+    {
+        /* See also userinit/livecd.c!RunLiveCD() */
+        GetWindowsDirectoryW(szPath, _countof(szPath));
+        wcscat(szPath, L"\\unattend.inf");
+    }
+
+    /*
+     * Apply initial default theming
+     */
+
+    /* Check whether to use the classic theme (TRUE) instead of the default theme */
+    bDefaultThemesOff = FALSE;
+    if (GetPrivateProfileStringW(L"Shell", L"DefaultThemesOff", L"no", szValue, _countof(szValue), szPath) && *szValue)
+        bDefaultThemesOff = (_wcsicmp(szValue, L"yes") == 0);
+
+    if (!bDefaultThemesOff)
+    {
+        /* Retrieve the complete path to a .theme (or for ReactOS, a .msstyles) file */
+        if (!GetPrivateProfileStringW(L"Shell", L"CustomDefaultThemeFile", NULL, szValue, _countof(szValue), szPath) || !*szValue)
+            bDefaultThemesOff = TRUE; // None specified, fall back to the classic theme.
+    }
+
+    /* Enable the chosen theme, or use the classic theme */
+    EnableVisualTheme(NULL, bDefaultThemesOff ? NULL : szValue);
+}
+
 static BOOL
 CommonInstall(VOID)
 {
@@ -990,7 +1062,7 @@ CommonInstall(VOID)
         goto Exit;
     }
 
-    if(!InstallSysSetupInfComponents())
+    if (!InstallSysSetupInfComponents())
     {
         FatalError("InstallSysSetupInfComponents() failed!\n");
         goto Exit;
@@ -1021,7 +1093,6 @@ CommonInstall(VOID)
     bResult = TRUE;
 
 Exit:
-
     if (bResult == FALSE)
     {
         SetupCloseInfFile(hSysSetupInf);
@@ -1045,6 +1116,7 @@ InstallLiveCD(VOID)
     PROCESS_INFORMATION ProcessInformation;
     BOOL bRes;
 
+    PreprocessUnattend(FALSE);
     if (!CommonInstall())
         goto error;
 
@@ -1073,7 +1145,7 @@ InstallLiveCD(VOID)
             DPRINT1("SetupInstallFromInfSectionW failed!\n");
         }
 
-        RegisterTypeLibraries(hSysSetupInf, L"TypeLibraries");
+        RegisterTypeLibraries(NULL, NULL, hSysSetupInf, L"TypeLibraries");
     }
     _SEH2_EXCEPT(EXCEPTION_EXECUTE_HANDLER)
     {
@@ -1497,7 +1569,6 @@ InstallReactOS(VOID)
     TOKEN_PRIVILEGES privs;
     HKEY hKey;
     HANDLE hHotkeyThread;
-    BOOL ret;
 
     InitializeSetupActionLog(FALSE);
     LogItem(NULL, L"Installing ReactOS");
@@ -1563,22 +1634,9 @@ InstallReactOS(VOID)
 
     hHotkeyThread = CreateThread(NULL, 0, HotkeyThread, NULL, 0, NULL);
 
+    PreprocessUnattend(TRUE);
     if (!CommonInstall())
         return 0;
-
-    /* Install the TCP/IP protocol driver */
-    ret = InstallNetworkComponent(L"MS_TCPIP");
-    if (!ret && GetLastError() != ERROR_FILE_NOT_FOUND)
-    {
-        DPRINT("InstallNetworkComponent() failed with error 0x%lx\n", GetLastError());
-    }
-    else
-    {
-        /* Start the TCP/IP protocol driver */
-        SetupStartService(L"Tcpip", FALSE);
-        SetupStartService(L"Dhcp", FALSE);
-        SetupStartService(L"Dnscache", FALSE);
-    }
 
     InstallWizard();
 

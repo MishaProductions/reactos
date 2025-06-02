@@ -42,6 +42,7 @@
 #include <shlwapi_undoc.h>
 #include <shlobj_undoc.h>
 #include <shlguid_undoc.h>
+#include <shdocvw_undoc.h>
 #include <undocshell.h>
 
 #include <ui/rosctrls.h>
@@ -119,7 +120,7 @@ VOID InitRSHELL(VOID);
 HRESULT WINAPI _CStartMenu_CreateInstance(REFIID riid, void **ppv);
 HANDLE WINAPI _SHCreateDesktop(IShellDesktopTray *ShellDesk);
 BOOL WINAPI _SHDesktopMessageLoop(HANDLE hDesktop);
-DWORD WINAPI _WinList_Init(void);
+BOOL WINAPI _WinList_Init(void);
 void WINAPI _ShellDDEInit(BOOL bInit);
 HRESULT WINAPI _CBandSiteMenu_CreateInstance(REFIID riid, void **ppv);
 HRESULT WINAPI _CBandSite_CreateInstance(LPUNKNOWN pUnkOuter, REFIID riid, void **ppv);
@@ -352,6 +353,8 @@ UpdateStartMenu(IN OUT IMenuPopup *pMenuPopup,
  */
 VOID
 ShowCustomizeClassic(HINSTANCE, HWND);
+VOID
+ClearRecentAndMru();
 
 /*
 * startmnusite.cpp
@@ -365,6 +368,11 @@ CStartMenuSite_CreateInstance(IN OUT ITrayWindow *Tray, const IID & riid, PVOID 
 
 /* TrayClockWnd */
 HRESULT CTrayClockWnd_CreateInstance(HWND hwndParent, REFIID riid, void **ppv);
+
+static inline BOOL GetHideClock()
+{
+    return g_TaskbarSettings.sr.HideClock || SHRestricted(REST_HIDECLOCK);
+}
 
 /* TrayNotifyWnd */
 #define TNWM_GETMINIMUMSIZE (WM_USER + 0x100)
