@@ -1,0 +1,7 @@
+#ifdef __REACTOS__
+1 WINE_REGISTRY "uia_classes_client_t.rgs"
+
+2 WINE_REGISTRY "uia_classes_core_t.rgs"
+
+3 WINE_REGISTRY "uia_classes_t.rgs"
+#endif
