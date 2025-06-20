@@ -15,6 +15,11 @@ if(MSVC)
     endif()
 endif()
 
+if(NOT MSVC)
+# assignment discards 'const' qualifier from pointer target type
+add_compile_options(-Wno-discarded-qualifiers)
+endif()
+
 add_subdirectory(advapi32)
 add_subdirectory(advpack)
 add_subdirectory(amstream)

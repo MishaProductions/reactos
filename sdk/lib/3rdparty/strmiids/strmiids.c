@@ -1,7 +1,8 @@
 /*
- * Implementation of IEnumMediaTypes Interface
+ * GUID definitions
  *
- * Copyright 2003 Robert Shearman
+ * Copyright 2000 Alexandre Julliard
+ * Copyright 2000 Francois Gouget
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,25 +21,22 @@
 
 #include <stdarg.h>
 
-#define COBJMACROS
-
 #include "windef.h"
 #include "winbase.h"
-#include "wtypes.h"
 #include "wingdi.h"
 #include "winuser.h"
-#include "dshow.h"
 
-#include "qcap_main.h"
+#include "objbase.h"
+#include "oleauto.h"
+#include "olectl.h"
+#include "d3d9.h"
 
-#include "wine/debug.h"
+#include "initguid.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(qcap);
-
-void dump_AM_MEDIA_TYPE(const AM_MEDIA_TYPE * pmt)
-{
-    if (!pmt)
-        return;
-    TRACE("\t%s\n\t%s\n\t...\n\t%s\n", debugstr_guid(&pmt->majortype),
-          debugstr_guid(&pmt->subtype), debugstr_guid(&pmt->formattype));
-}
+#include "uuids.h"
+#include "strmif.h"
+#include "control.h"
+#include "amstream.h"
+#include "qedit.h"
+#include "vmr9.h"
+#include "videoacc.h"

@@ -1156,7 +1156,7 @@
 @ stdcall TransactNamedPipe(long ptr long ptr long ptr ptr)
 @ stdcall TransmitCommChar(long long)
 @ stdcall TryEnterCriticalSection(ptr) ntdll.RtlTryEnterCriticalSection
-@ stub -version=0x600+ TrySubmitThreadpoolCallback
+@ stub -version=0x600+ TrySubmitThreadpoolCallback(ptr ptr ptr)
 @ stdcall TzSpecificLocalTimeToSystemTime(ptr ptr ptr)
 @ stdcall UTRegister(long str str str ptr ptr ptr)
 @ stdcall UTUnRegister(long)

@@ -46,9 +46,11 @@ list(APPEND SOURCE
     downloadmgr.idl
     drmexternals.idl
     dxgiformat.idl
+    dxva2api.idl
 #   dyngraph.idl
     emptyvc.idl
     endpointvolume.idl
+    evr.idl
     exdisp.idl
     fusion.idl
     hlink.idl
@@ -140,6 +142,7 @@ list(APPEND SOURCE
     wincodec.idl
     wincodecsdk.idl
     winsxs.idl
+    wmcodecdsp.idl
     wmdrmsdk.idl
     wmiutils.idl
     wmsbuffer.idl
