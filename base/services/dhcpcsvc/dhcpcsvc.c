@@ -74,24 +74,22 @@ DhcpCApiCleanup(VOID)
     PipeHandle = INVALID_HANDLE_VALUE;
 }
 
-
-/* FIXME: The adapter name should be a unicode string */
 DWORD
 APIENTRY
 DhcpAcquireParameters(
-    _In_ PSTR AdapterName)
+    _In_ PWSTR AdapterName)
 {
     COMM_DHCP_REQ Req;
     COMM_DHCP_REPLY Reply;
     DWORD BytesRead;
     BOOL Result;
 
-    DPRINT1("DhcpAcquireParameters(%s)\n", AdapterName);
+    DPRINT1("DhcpAcquireParameters(%S)\n", AdapterName);
 
     ASSERT(PipeHandle != INVALID_HANDLE_VALUE);
 
     Req.Type = DhcpReqAcquireParams;
-    strcpy(Req.Body.AcquireParams.AdapterName, AdapterName);
+    wcscpy(Req.Body.AcquireParams.AdapterName, AdapterName);
 
     Result = TransactNamedPipe(PipeHandle,
                                &Req, sizeof(Req),
@@ -106,23 +104,22 @@ DhcpAcquireParameters(
     return Reply.Reply;
 }
 
-/* FIXME: The adapter name should be a unicode string */
 DWORD
 APIENTRY
 DhcpReleaseParameters(
-    _In_ PSTR AdapterName)
+    _In_ PWSTR AdapterName)
 {
     COMM_DHCP_REQ Req;
     COMM_DHCP_REPLY Reply;
     DWORD BytesRead;
     BOOL Result;
 
-    DPRINT1("DhcpReleaseParameters(%s)\n", AdapterName);
+    DPRINT1("DhcpReleaseParameters(%S)\n", AdapterName);
 
     ASSERT(PipeHandle != INVALID_HANDLE_VALUE);
 
     Req.Type = DhcpReqReleaseParams;
-    strcpy(Req.Body.AcquireParams.AdapterName, AdapterName);
+    wcscpy(Req.Body.AcquireParams.AdapterName, AdapterName);
 
     Result = TransactNamedPipe(PipeHandle,
                                &Req, sizeof(Req),
@@ -135,6 +132,33 @@ DhcpReleaseParameters(
     }
 
     return Reply.Reply;
+}
+
+DWORD
+APIENTRY
+DhcpEnumClasses(
+    _In_ DWORD Unknown1,
+    _In_ PWSTR AdapterName,
+    _In_ DWORD Unknown3,
+    _In_ DWORD Unknown4)
+{
+    DPRINT1("DhcpEnumClasses(%lx %S %lx %lx)\n",
+            Unknown1, AdapterName, Unknown3, Unknown4);
+    return 0;
+}
+
+DWORD
+APIENTRY
+DhcpHandlePnPEvent(
+    _In_ DWORD Unknown1,
+    _In_ DWORD Unknown2,
+    _In_ PWSTR AdapterName,
+    _In_ DWORD Unknown4,
+    _In_ DWORD Unknown5)
+{
+    DPRINT1("DhcpHandlePnPEvent(%lx %lx %S %lx %lx)\n",
+            Unknown1, Unknown2, AdapterName, Unknown4, Unknown5);
+    return 0;
 }
 
 DWORD APIENTRY

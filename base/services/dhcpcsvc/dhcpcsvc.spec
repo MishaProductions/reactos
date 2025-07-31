@@ -5,16 +5,16 @@
 # PURPOSE:     dhcpcsvc exports
 # COPYRIGHT:   Copyright 2006 Ge van Geldorp <gvg@reactos.org>
 #
-@ stdcall DhcpAcquireParameters(str)
+@ stdcall DhcpAcquireParameters(wstr)
 @ stub DhcpAcquireParametersByBroadcast
 @ stdcall DhcpCApiCleanup()
 @ stdcall DhcpCApiInitialize(ptr)
 @ stub DhcpDelPersistentRequestParams
 @ stub DhcpDeRegisterOptions
 @ stub DhcpDeRegisterParamChange
-@ stub DhcpEnumClasses
+@ stdcall DhcpEnumClasses(long wstr long long)
 @ stub DhcpFallbackRefreshParams
-@ stub DhcpHandlePnPEvent
+@ stdcall DhcpHandlePnPEvent(long long wstr long long)
 @ stdcall DhcpLeaseIpAddress(long)
 @ stub DhcpLeaseIpAddressEx
 @ stdcall DhcpNotifyConfigChange(ptr ptr long long long long long)
@@ -27,7 +27,7 @@
 @ stub DhcpRegisterParamChange
 @ stdcall DhcpReleaseIpAddressLease(long)
 @ stub DhcpReleaseIpAddressLeaseEx
-@ stdcall DhcpReleaseParameters(str)
+@ stdcall DhcpReleaseParameters(wstr)
 @ stub DhcpRemoveDNSRegistrations
 @ stdcall DhcpRenewIpAddressLease(long)
 @ stub DhcpRenewIpAddressLeaseEx
