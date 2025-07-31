@@ -3,7 +3,8 @@ remove_definitions(-D_WIN32_WINNT=0x502)
 add_definitions(-D_WIN32_WINNT=0x600)
 
 add_definitions(
-    -D_WINE)
+    -D_WINE
+    -D_WINHTTP_INTERNAL_)
 
 spec2def(winhttp.dll winhttp.spec ADD_IMPORTLIB)
 
