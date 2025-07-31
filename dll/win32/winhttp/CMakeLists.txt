@@ -1,5 +1,5 @@
 
-remove_definitions(-D_WIN32_WINNT=0x502)
+remove_definitions(-D_WIN32_WINNT=0x502 -D_CRT_NON_CONFORMING_SWPRINTFS)
 add_definitions(-D_WIN32_WINNT=0x600)
 
 add_definitions(
@@ -25,8 +25,6 @@ add_library(winhttp MODULE
     ${SOURCE}
     rsrc.rc
     ${CMAKE_CURRENT_BINARY_DIR}/winhttp.def)
-
-remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS)
 
 set_module_type(winhttp win32dll)
 target_link_libraries(winhttp uuid wine wine_dll_register)
