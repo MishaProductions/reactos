@@ -59,3 +59,5 @@
 
 @ stdcall GetNamedPipeClientProcessId(ptr ptr)
 @ stdcall SetThreadDescription(ptr wstr) # Win 10
+@ stdcall TrySubmitThreadpoolCallback(ptr ptr ptr)
+@ stdcall FreeLibraryWhenCallbackReturns(ptr ptr) ntdll.TpCallbackUnloadDllOnCompletion
