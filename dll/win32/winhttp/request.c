@@ -6174,13 +6174,3 @@ HRESULT WinHttpRequest_create( void **obj )
     TRACE("returning iface %p\n", *obj);
     return S_OK;
 }
-
-#ifdef __REACTOS__
-/******************************************************************
- *              DllCanUnloadNow (winhttp.@)
- */
-HRESULT WINAPI DllCanUnloadNow(void)
-{
-    return S_FALSE;
-}
-#endif

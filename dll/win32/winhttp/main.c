@@ -155,3 +155,13 @@ HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
     if (!cf) return CLASS_E_CLASSNOTAVAILABLE;
     return IClassFactory_QueryInterface( cf, riid, ppv );
 }
+
+#ifdef __REACTOS__
+/******************************************************************
+ *              DllCanUnloadNow (winhttp.@)
+ */
+HRESULT WINAPI DllCanUnloadNow(void)
+{
+    return S_FALSE;
+}
+#endif
