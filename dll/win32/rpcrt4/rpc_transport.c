@@ -91,7 +91,7 @@ typedef struct _RpcConnection_np
 
 static RpcConnection *rpcrt4_conn_np_alloc(void)
 {
-  RpcConnection_np *npc = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(RpcConnection_np));
+  RpcConnection_np *npc = calloc(1, sizeof(RpcConnection_np));
   return &npc->common;
 }
 
@@ -625,7 +625,7 @@ static RPC_STATUS rpcrt4_ncacn_np_handoff(RpcConnection *old_conn, RpcConnection
 
   /* Store the local computer name as the NetworkAddr for ncacn_np as long as
    * we don't support named pipes over the network. */
-  new_conn->NetworkAddr = HeapAlloc(GetProcessHeap(), 0, len);
+  new_conn->NetworkAddr = malloc(len);
   if (!GetComputerNameA(new_conn->NetworkAddr, &len))
   {
     ERR("Failed to retrieve the computer name, error %lu\n", GetLastError());
@@ -677,7 +677,7 @@ static RPC_STATUS rpcrt4_ncalrpc_handoff(RpcConnection *old_conn, RpcConnection 
   status = rpcrt4_conn_create_pipe(old_conn);
 
   /* Store the local computer name as the NetworkAddr for ncalrpc. */
-  new_conn->NetworkAddr = HeapAlloc(GetProcessHeap(), 0, len);
+  new_conn->NetworkAddr = malloc(len);
   if (!GetComputerNameA(new_conn->NetworkAddr, &len))
   {
     ERR("Failed to retrieve the computer name, error %lu\n", GetLastError());
@@ -954,7 +954,7 @@ typedef struct _RpcServerProtseq_np
 
 static RpcServerProtseq *rpcrt4_protseq_np_alloc(void)
 {
-    RpcServerProtseq_np *ps = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*ps));
+    RpcServerProtseq_np *ps = calloc(1, sizeof(*ps));
     if (ps)
         ps->mgr_event = CreateEventW(NULL, FALSE, FALSE, NULL);
     return &ps->common;
@@ -1010,10 +1010,7 @@ static void *rpcrt4_protseq_np_get_wait_array(RpcServerProtseq *protseq, void *p
     }
     
     /* make array of connections */
-    if (objs)
-        objs = HeapReAlloc(GetProcessHeap(), 0, objs, *count*sizeof(HANDLE));
-    else
-        objs = HeapAlloc(GetProcessHeap(), 0, *count*sizeof(HANDLE));
+    objs = realloc(objs, *count * sizeof(HANDLE));
     if (!objs)
     {
         ERR("couldn't allocate objs\n");
@@ -1034,7 +1031,7 @@ static void *rpcrt4_protseq_np_get_wait_array(RpcServerProtseq *protseq, void *p
 
 static void rpcrt4_protseq_np_free_wait_array(RpcServerProtseq *protseq, void *array)
 {
-    HeapFree(GetProcessHeap(), 0, array);
+    free(array);
 }
 
 static int rpcrt4_protseq_np_wait_for_new_connection(RpcServerProtseq *protseq, unsigned int count, void *wait_array)
@@ -1451,13 +1448,13 @@ static BOOL rpcrt4_sock_wait_for_send(RpcConnection_tcp *tcpc)
 static RpcConnection *rpcrt4_conn_tcp_alloc(void)
 {
   RpcConnection_tcp *tcpc;
-  tcpc = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(RpcConnection_tcp));
+  tcpc = calloc(1, sizeof(RpcConnection_tcp));
   if (tcpc == NULL)
     return NULL;
   tcpc->sock = -1;
   if (!rpcrt4_sock_wait_init(tcpc))
   {
-    HeapFree(GetProcessHeap(), 0, tcpc);
+    free(tcpc);
     return NULL;
   }
   return &tcpc->common;
@@ -1712,7 +1709,7 @@ static RPC_STATUS rpcrt4_conn_tcp_handoff(RpcConnection *old_conn, RpcConnection
   ioctlsocket(ret, FIONBIO, &nonblocking);
   client->sock = ret;
 
-  client->common.NetworkAddr = HeapAlloc(GetProcessHeap(), 0, INET6_ADDRSTRLEN);
+  client->common.NetworkAddr = malloc(INET6_ADDRSTRLEN);
   ret = getnameinfo((struct sockaddr*)&address, addrsize, client->common.NetworkAddr, INET6_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST);
   if (ret != 0)
   {
@@ -1839,7 +1836,7 @@ typedef struct _RpcServerProtseq_sock
 
 static RpcServerProtseq *rpcrt4_protseq_sock_alloc(void)
 {
-    RpcServerProtseq_sock *ps = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*ps));
+    RpcServerProtseq_sock *ps = calloc(1, sizeof(*ps));
     if (ps)
     {
         static BOOL wsa_inited;
@@ -1879,10 +1876,7 @@ static void *rpcrt4_protseq_sock_get_wait_array(RpcServerProtseq *protseq, void 
     }
 
     /* make array of connections */
-    if (objs)
-        objs = HeapReAlloc(GetProcessHeap(), 0, objs, *count*sizeof(HANDLE));
-    else
-        objs = HeapAlloc(GetProcessHeap(), 0, *count*sizeof(HANDLE));
+    objs = realloc(objs, *count * sizeof(HANDLE));
     if (!objs)
     {
         ERR("couldn't allocate objs\n");
@@ -1912,7 +1906,7 @@ static void *rpcrt4_protseq_sock_get_wait_array(RpcServerProtseq *protseq, void 
 
 static void rpcrt4_protseq_sock_free_wait_array(RpcServerProtseq *protseq, void *array)
 {
-    HeapFree(GetProcessHeap(), 0, array);
+    free(array);
 }
 
 static int rpcrt4_protseq_sock_wait_for_new_connection(RpcServerProtseq *protseq, unsigned int count, void *wait_array)
@@ -2005,10 +1999,10 @@ static ULONG RpcHttpAsyncData_Release(RpcHttpAsyncData *data)
     {
         TRACE("destroying async data %p\n", data);
         CloseHandle(data->completion_event);
-        HeapFree(GetProcessHeap(), 0, data->inet_buffers.lpvBuffer);
+        free(data->inet_buffers.lpvBuffer);
         data->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&data->cs);
-        HeapFree(GetProcessHeap(), 0, data);
+        free(data);
     }
     return refs;
 }
@@ -2085,12 +2079,12 @@ typedef struct _RpcConnection_http
 static RpcConnection *rpcrt4_ncacn_http_alloc(void)
 {
     RpcConnection_http *httpc;
-    httpc = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*httpc));
+    httpc = calloc(1, sizeof(*httpc));
     if (!httpc) return NULL;
-    httpc->async_data = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(RpcHttpAsyncData));
+    httpc->async_data = calloc(1, sizeof(RpcHttpAsyncData));
     if (!httpc->async_data)
     {
-        HeapFree(GetProcessHeap(), 0, httpc);
+        free(httpc);
         return NULL;
     }
     TRACE("async data = %p\n", httpc->async_data);
@@ -2120,7 +2114,7 @@ static VOID rpcrt4_http_keep_connection_active_timer_proc(PVOID param, BOOLEAN d
     {
         DWORD bytes_written;
         InternetWriteFile(in_request, idle_pkt, idle_pkt->common.frag_len, &bytes_written);
-        RPCRT4_FreeHeader(idle_pkt);
+        free(idle_pkt);
     }
 }
 
@@ -2140,7 +2134,7 @@ static DWORD CALLBACK rpcrt4_http_timer_thread(PVOID param)
     SetThreadDescription(GetCurrentThread(), L"wine_rpcrt4_http_timer");
 
     data = *data_in;
-    HeapFree(GetProcessHeap(), 0, data_in);
+    free(data_in);
 
     for (timeout = HTTP_IDLE_TIME;
          WaitForSingleObject(data.timer_cancelled, timeout) == WAIT_TIMEOUT;
@@ -2203,12 +2197,12 @@ static RPC_STATUS rpcrt4_http_check_response(HINTERNET hor)
     ret = HttpQueryInfoW(hor, HTTP_QUERY_STATUS_TEXT, status_text, &size, &index);
     if (!ret && GetLastError() == ERROR_INSUFFICIENT_BUFFER)
     {
-        status_text = HeapAlloc(GetProcessHeap(), 0, size);
+        status_text = malloc(size);
         ret = HttpQueryInfoW(hor, HTTP_QUERY_STATUS_TEXT, status_text, &size, &index);
     }
 
     ERR("server returned: %ld %s\n", status_code, ret ? debugstr_w(status_text) : "<status text unavailable>");
-    if(status_text != buf) HeapFree(GetProcessHeap(), 0, status_text);
+    if(status_text != buf) free(status_text);
 
     if (status_code == HTTP_STATUS_DENIED)
         return ERROR_ACCESS_DENIED;
@@ -2233,7 +2227,7 @@ static RPC_STATUS rpcrt4_http_internet_connect(RpcConnection_http *httpc)
             WCHAR *p;
             const SEC_WINNT_AUTH_IDENTITY_W *cred = http_cred->TransportCredentials;
             ULONG len = cred->DomainLength + 1 + cred->UserLength;
-            user = HeapAlloc(GetProcessHeap(), 0, (len + 1) * sizeof(WCHAR));
+            user = malloc((len + 1) * sizeof(WCHAR));
             if (!user)
                 return RPC_S_OUT_OF_RESOURCES;
             p = user;
@@ -2292,10 +2286,10 @@ static RPC_STATUS rpcrt4_http_internet_connect(RpcConnection_http *httpc)
                                     NULL, NULL, INTERNET_FLAG_ASYNC);
     if (!httpc->app_info)
     {
-        HeapFree(GetProcessHeap(), 0, password);
-        HeapFree(GetProcessHeap(), 0, user);
-        HeapFree(GetProcessHeap(), 0, proxy);
-        HeapFree(GetProcessHeap(), 0, servername);
+        free(password);
+        free(user);
+        free(proxy);
+        free(servername);
         ERR("InternetOpenW failed with error %ld\n", GetLastError());
         return RPC_S_SERVER_UNAVAILABLE;
     }
@@ -2305,12 +2299,12 @@ static RPC_STATUS rpcrt4_http_internet_connect(RpcConnection_http *httpc)
      * RPC server address */
     if (!servername)
     {
-        servername = HeapAlloc(GetProcessHeap(), 0, (strlen(httpc->common.NetworkAddr) + 1)*sizeof(WCHAR));
+        servername = malloc((strlen(httpc->common.NetworkAddr) + 1) * sizeof(WCHAR));
         if (!servername)
         {
-            HeapFree(GetProcessHeap(), 0, password);
-            HeapFree(GetProcessHeap(), 0, user);
-            HeapFree(GetProcessHeap(), 0, proxy);
+            free(password);
+            free(user);
+            free(proxy);
             return RPC_S_OUT_OF_RESOURCES;
         }
         MultiByteToWideChar(CP_ACP, 0, httpc->common.NetworkAddr, -1, servername, strlen(httpc->common.NetworkAddr) + 1);
@@ -2324,14 +2318,14 @@ static RPC_STATUS rpcrt4_http_internet_connect(RpcConnection_http *httpc)
     httpc->session = InternetConnectW(httpc->app_info, servername, port, user, password,
                                       INTERNET_SERVICE_HTTP, 0, 0);
 
-    HeapFree(GetProcessHeap(), 0, password);
-    HeapFree(GetProcessHeap(), 0, user);
-    HeapFree(GetProcessHeap(), 0, proxy);
+    free(password);
+    free(user);
+    free(proxy);
 
     if (!httpc->session)
     {
         ERR("InternetConnectW failed with error %ld\n", GetLastError());
-        HeapFree(GetProcessHeap(), 0, servername);
+        free(servername);
         return RPC_S_SERVER_UNAVAILABLE;
     }
     httpc->servername = servername;
@@ -2346,7 +2340,7 @@ static int rpcrt4_http_async_read(HINTERNET req, RpcHttpAsyncData *async_data, H
     unsigned int bytes_left = count;
     RPC_STATUS status = RPC_S_OK;
 
-    async_data->inet_buffers.lpvBuffer = HeapAlloc(GetProcessHeap(), 0, count);
+    async_data->inet_buffers.lpvBuffer = malloc(count);
 
     while (bytes_left)
     {
@@ -2370,7 +2364,7 @@ static int rpcrt4_http_async_read(HINTERNET req, RpcHttpAsyncData *async_data, H
         buf += async_data->inet_buffers.dwBufferLength;
     }
 
-    HeapFree(GetProcessHeap(), 0, async_data->inet_buffers.lpvBuffer);
+    free(async_data->inet_buffers.lpvBuffer);
     async_data->inet_buffers.lpvBuffer = NULL;
 
     TRACE("%p %p %u -> %lu\n", req, buffer, count, status);
@@ -2441,7 +2435,7 @@ static RPC_STATUS rpcrt4_http_prepare_in_pipe(HINTERNET in_request, RpcHttpAsync
     hdr = RPCRT4_BuildHttpConnectHeader(FALSE, connection_uuid, in_pipe_uuid, association_uuid);
     if (!hdr) return RPC_S_OUT_OF_RESOURCES;
     ret = InternetWriteFile(in_request, hdr, hdr->common.frag_len, &bytes_written);
-    RPCRT4_FreeHeader(hdr);
+    free(hdr);
     if (!ret)
     {
         ERR("InternetWriteFile failed with error %ld\n", GetLastError());
@@ -2473,12 +2467,12 @@ static RPC_STATUS rpcrt4_http_read_http_packet(HINTERNET request, RpcHttpAsyncDa
     data_len = hdr->common.frag_len - sizeof(hdr->http);
     if (data_len)
     {
-        *data = HeapAlloc(GetProcessHeap(), 0, data_len);
+        *data = malloc(data_len);
         if (!*data)
             return RPC_S_OUT_OF_RESOURCES;
         if (rpcrt4_http_async_read(request, async_data, cancel_event, *data, data_len) < 0)
         {
-            HeapFree(GetProcessHeap(), 0, *data);
+            free(*data);
             return RPC_S_SERVER_UNAVAILABLE;
         }
     }
@@ -2488,7 +2482,7 @@ static RPC_STATUS rpcrt4_http_read_http_packet(HINTERNET request, RpcHttpAsyncDa
     if (!RPCRT4_IsValidHttpPacket(hdr, *data, data_len))
     {
         ERR("invalid http packet\n");
-        HeapFree(GetProcessHeap(), 0, *data);
+        free(*data);
         return RPC_S_PROTOCOL_ERROR;
     }
 
@@ -2524,7 +2518,7 @@ static RPC_STATUS rpcrt4_http_prepare_out_pipe(HINTERNET out_request, RpcHttpAsy
     status = insert_content_length_header(out_request, hdr->common.frag_len);
     if (status != RPC_S_OK)
     {
-        RPCRT4_FreeHeader(hdr);
+        free(hdr);
         return status;
     }
 
@@ -2532,7 +2526,7 @@ static RPC_STATUS rpcrt4_http_prepare_out_pipe(HINTERNET out_request, RpcHttpAsy
     prepare_async_request(async_data);
     ret = HttpSendRequestW(out_request, NULL, 0, hdr, hdr->common.frag_len);
     status = wait_async_request(async_data, ret, cancel_event);
-    RPCRT4_FreeHeader(hdr);
+    free(hdr);
     if (status != RPC_S_OK) return status;
 
     status = rpcrt4_http_check_response(out_request);
@@ -2543,7 +2537,7 @@ static RPC_STATUS rpcrt4_http_prepare_out_pipe(HINTERNET out_request, RpcHttpAsy
     if (status != RPC_S_OK) return status;
     status = RPCRT4_ParseHttpPrepareHeader1(&pkt_from_server, data_from_server,
                                             &field1);
-    HeapFree(GetProcessHeap(), 0, data_from_server);
+    free(data_from_server);
     if (status != RPC_S_OK) return status;
     TRACE("received (%ld) from first prepare header\n", field1);
 
@@ -2555,7 +2549,7 @@ static RPC_STATUS rpcrt4_http_prepare_out_pipe(HINTERNET out_request, RpcHttpAsy
         if (pkt_from_server.http.flags != 0x0001) break;
 
         TRACE("http idle packet, waiting for real packet\n");
-        HeapFree(GetProcessHeap(), 0, data_from_server);
+        free(data_from_server);
         if (pkt_from_server.http.num_data_items != 0)
         {
             ERR("HTTP idle packet should have no data items instead of %d\n",
@@ -2566,7 +2560,7 @@ static RPC_STATUS rpcrt4_http_prepare_out_pipe(HINTERNET out_request, RpcHttpAsy
     status = RPCRT4_ParseHttpPrepareHeader2(&pkt_from_server, data_from_server,
                                             &field1, flow_control_increment,
                                             &field3);
-    HeapFree(GetProcessHeap(), 0, data_from_server);
+    free(data_from_server);
     if (status != RPC_S_OK) return status;
     TRACE("received (0x%08lx 0x%08lx %ld) from second prepare header\n", field1, *flow_control_increment, field3);
 
@@ -2689,7 +2683,7 @@ static struct authinfo *alloc_authinfo(void)
 {
     struct authinfo *ret;
 
-    if (!(ret = HeapAlloc(GetProcessHeap(), 0, sizeof(*ret) ))) return NULL;
+    if (!(ret = malloc(sizeof(*ret)))) return NULL;
 
     SecInvalidateHandle(&ret->cred);
     SecInvalidateHandle(&ret->ctx);
@@ -2712,8 +2706,8 @@ static void destroy_authinfo(struct authinfo *info)
     if (SecIsValidHandle(&info->cred))
         FreeCredentialsHandle(&info->cred);
 
-    HeapFree(GetProcessHeap(), 0, info->data);
-    HeapFree(GetProcessHeap(), 0, info);
+    free(info->data);
+    free(info);
 }
 
 static const struct
@@ -2771,7 +2765,7 @@ static RPC_STATUS do_authorization(HINTERNET request, SEC_WCHAR *servername,
         int passlen = WideCharToMultiByte(CP_UTF8, 0, id->Password, id->PasswordLength, NULL, 0, NULL, NULL);
 
         info->data_len = userlen + passlen + 1;
-        if (!(info->data = HeapAlloc(GetProcessHeap(), 0, info->data_len)))
+        if (!(info->data = malloc(info->data_len)))
         {
             status = RPC_S_OUT_OF_MEMORY;
             break;
@@ -2842,14 +2836,14 @@ static RPC_STATUS do_authorization(HINTERNET request, SEC_WCHAR *servername,
         {
             int len = lstrlenW(++p);
             in.cbBuffer = decode_base64(p, len, NULL);
-            if (!(in.pvBuffer = HeapAlloc(GetProcessHeap(), 0, in.cbBuffer))) break;
+            if (!(in.pvBuffer = malloc(in.cbBuffer))) break;
             decode_base64(p, len, in.pvBuffer);
         }
         out.BufferType = SECBUFFER_TOKEN;
         out.cbBuffer   = info->max_token;
-        if (!(out.pvBuffer = HeapAlloc(GetProcessHeap(), 0, out.cbBuffer)))
+        if (!(out.pvBuffer = malloc(out.cbBuffer)))
         {
-            HeapFree(GetProcessHeap(), 0, in.pvBuffer);
+            free(in.pvBuffer);
             break;
         }
         out_desc.ulVersion = 0;
@@ -2860,10 +2854,10 @@ static RPC_STATUS do_authorization(HINTERNET request, SEC_WCHAR *servername,
                                          first ? servername : NULL, flags, 0, SECURITY_NETWORK_DREP,
                                          in.pvBuffer ? &in_desc : NULL, 0, &info->ctx, &out_desc,
                                          &info->attr, &info->exp);
-        HeapFree(GetProcessHeap(), 0, in.pvBuffer);
+        free(in.pvBuffer);
         if (ret == SEC_E_OK)
         {
-            HeapFree(GetProcessHeap(), 0, info->data);
+            free(info->data);
             info->data     = out.pvBuffer;
             info->data_len = out.cbBuffer;
             info->finished = TRUE;
@@ -2872,7 +2866,7 @@ static RPC_STATUS do_authorization(HINTERNET request, SEC_WCHAR *servername,
         }
         else if (ret == SEC_I_CONTINUE_NEEDED)
         {
-            HeapFree(GetProcessHeap(), 0, info->data);
+            free(info->data);
             info->data     = out.pvBuffer;
             info->data_len = out.cbBuffer;
             TRACE("sending next auth packet\n");
@@ -2881,7 +2875,7 @@ static RPC_STATUS do_authorization(HINTERNET request, SEC_WCHAR *servername,
         else
         {
             ERR("InitializeSecurityContextW failed with error 0x%08lx\n", ret);
-            HeapFree(GetProcessHeap(), 0, out.pvBuffer);
+            free(out.pvBuffer);
             break;
         }
         info->scheme = creds->AuthnSchemes[0];
@@ -2931,7 +2925,7 @@ static RPC_STATUS insert_authorization_header(HINTERNET request, ULONG scheme, c
         ERR("unknown scheme %lu\n", scheme);
         return RPC_S_SERVER_UNAVAILABLE;
     }
-    if ((header = HeapAlloc(GetProcessHeap(), 0, (auth_len + scheme_len + len + 2) * sizeof(WCHAR))))
+    if ((header = malloc((auth_len + scheme_len + len + 2) * sizeof(WCHAR))))
     {
         memcpy(header, authW, auth_len * sizeof(WCHAR));
         ptr = header + auth_len;
@@ -2943,7 +2937,7 @@ static RPC_STATUS insert_authorization_header(HINTERNET request, ULONG scheme, c
         ptr[len] = 0;
         if (HttpAddRequestHeadersW(request, header, -1, HTTP_ADDREQ_FLAG_ADD|HTTP_ADDREQ_FLAG_REPLACE))
             status = RPC_S_OK;
-        HeapFree(GetProcessHeap(), 0, header);
+        free(header);
     }
     return status;
 }
@@ -3048,17 +3042,17 @@ static RPC_STATUS set_auth_cookie(RpcConnection_http *httpc, const WCHAR *value)
     if (!InternetCreateUrlW(&uc, 0, NULL, &len) && (GetLastError() != ERROR_INSUFFICIENT_BUFFER))
         return RPC_S_SERVER_UNAVAILABLE;
 
-    if (!(url = HeapAlloc(GetProcessHeap(), 0, len))) return RPC_S_OUT_OF_MEMORY;
+    if (!(url = malloc(len))) return RPC_S_OUT_OF_MEMORY;
 
     len = len / sizeof(WCHAR) - 1;
     if (!InternetCreateUrlW(&uc, 0, url, &len))
     {
-        HeapFree(GetProcessHeap(), 0, url);
+        free(url);
         return RPC_S_SERVER_UNAVAILABLE;
     }
 
     ret = InternetSetCookieW(url, NULL, value);
-    HeapFree(GetProcessHeap(), 0, url);
+    free(url);
     if (!ret) return RPC_S_SERVER_UNAVAILABLE;
 
     return RPC_S_OK;
@@ -3097,7 +3091,8 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
     if (status != RPC_S_OK)
         return status;
 
-    url = HeapAlloc(GetProcessHeap(), 0, sizeof(wszRpcProxyPrefix) + (strlen(Connection->NetworkAddr) + 1 + strlen(Connection->Endpoint))*sizeof(WCHAR));
+    url = malloc(sizeof(wszRpcProxyPrefix) +
+                 (strlen(Connection->NetworkAddr) + 1 + strlen(Connection->Endpoint)) * sizeof(WCHAR));
     if (!url)
         return RPC_S_OUT_OF_MEMORY;
     memcpy(url, wszRpcProxyPrefix, sizeof(wszRpcProxyPrefix));
@@ -3117,7 +3112,7 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
     status = set_auth_cookie(httpc, Connection->CookieAuth);
     if (status != RPC_S_OK)
     {
-        HeapFree(GetProcessHeap(), 0, url);
+        free(url);
         return status;
     }
     httpc->in_request = HttpOpenRequestW(httpc->session, L"RPC_IN_DATA", url, NULL, NULL, wszAcceptTypes,
@@ -3125,7 +3120,7 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
     if (!httpc->in_request)
     {
         ERR("HttpOpenRequestW failed with error %ld\n", GetLastError());
-        HeapFree(GetProcessHeap(), 0, url);
+        free(url);
         return RPC_S_SERVER_UNAVAILABLE;
     }
 
@@ -3134,13 +3129,13 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
         status = authorize_request(httpc, httpc->in_request);
         if (status != RPC_S_OK)
         {
-            HeapFree(GetProcessHeap(), 0, url);
+            free(url);
             return status;
         }
         status = rpcrt4_http_check_response(httpc->in_request);
         if (status != RPC_S_OK)
         {
-            HeapFree(GetProcessHeap(), 0, url);
+            free(url);
             return status;
         }
         drain_content(httpc->in_request, httpc->async_data, httpc->cancel_event);
@@ -3148,7 +3143,7 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
 
     httpc->out_request = HttpOpenRequestW(httpc->session, L"RPC_OUT_DATA", url, NULL, NULL, wszAcceptTypes,
                                           flags, (DWORD_PTR)httpc->async_data);
-    HeapFree(GetProcessHeap(), 0, url);
+    free(url);
     if (!httpc->out_request)
     {
         ERR("HttpOpenRequestW failed with error %ld\n", GetLastError());
@@ -3178,7 +3173,7 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
     httpc->last_sent_time = GetTickCount();
     httpc->timer_cancelled = CreateEventW(NULL, FALSE, FALSE, NULL);
 
-    timer_data = HeapAlloc(GetProcessHeap(), 0, sizeof(*timer_data));
+    timer_data = malloc(sizeof(*timer_data));
     if (!timer_data)
         return ERROR_OUTOFMEMORY;
     timer_data->timer_param = httpc->in_request;
@@ -3188,7 +3183,7 @@ static RPC_STATUS rpcrt4_ncacn_http_open(RpcConnection* Connection)
     thread = CreateThread(NULL, 0, rpcrt4_http_timer_thread, timer_data, 0, NULL);
     if (!thread)
     {
-        HeapFree(GetProcessHeap(), 0, timer_data);
+        free(timer_data);
         return GetLastError();
     }
     CloseHandle(thread);
@@ -3247,7 +3242,7 @@ again:
     goto fail;
   }
 
-  *Header = HeapAlloc(GetProcessHeap(), 0, hdr_length);
+  *Header = malloc(hdr_length);
   if (!*Header)
   {
     status = RPC_S_OUT_OF_RESOURCES;
@@ -3265,7 +3260,7 @@ again:
 
   if (common_hdr.frag_len - hdr_length)
   {
-    *Payload = HeapAlloc(GetProcessHeap(), 0, common_hdr.frag_len - hdr_length);
+    *Payload = malloc(common_hdr.frag_len - hdr_length);
     if (!*Payload)
     {
       status = RPC_S_OUT_OF_RESOURCES;
@@ -3323,9 +3318,9 @@ again:
       status = RPC_S_PROTOCOL_ERROR;
       goto fail;
     }
-    RPCRT4_FreeHeader(*Header);
+    free(*Header);
     *Header = NULL;
-    HeapFree(GetProcessHeap(), 0, *Payload);
+    free(*Payload);
     *Payload = NULL;
     goto again;
   }
@@ -3349,7 +3344,7 @@ again:
       BOOL ret2;
       TRACE("sending flow control packet at 0x%lx\n", httpc->bytes_received);
       ret2 = InternetWriteFile(httpc->in_request, hdr, hdr->common.frag_len, &bytes_written);
-      RPCRT4_FreeHeader(hdr);
+      free(hdr);
       if (ret2)
         httpc->flow_control_mark = httpc->bytes_received + httpc->flow_control_increment / 2;
     }
@@ -3357,9 +3352,9 @@ again:
 
 fail:
   if (status != RPC_S_OK) {
-    RPCRT4_FreeHeader(*Header);
+    free(*Header);
     *Header = NULL;
-    HeapFree(GetProcessHeap(), 0, *Payload);
+    free(*Payload);
     *Payload = NULL;
   }
   return status;
@@ -3401,7 +3396,7 @@ static int rpcrt4_ncacn_http_close(RpcConnection *Connection)
   RpcHttpAsyncData_Release(httpc->async_data);
   if (httpc->cancel_event)
     CloseHandle(httpc->cancel_event);
-  HeapFree(GetProcessHeap(), 0, httpc->servername);
+  free(httpc->servername);
   httpc->servername = NULL;
 
   return 0;
@@ -3642,10 +3637,10 @@ RPC_STATUS RPCRT4_CreateConnection(RpcConnection** Connection, BOOL server,
   NewConnection->ref = 1;
   NewConnection->server = server;
   NewConnection->ops = ops;
-  NewConnection->NetworkAddr = RPCRT4_strdupA(NetworkAddr);
-  NewConnection->Endpoint = RPCRT4_strdupA(Endpoint);
-  NewConnection->NetworkOptions = RPCRT4_strdupW(NetworkOptions);
-  NewConnection->CookieAuth = RPCRT4_strdupW(CookieAuth);
+  NewConnection->NetworkAddr = strdup(NetworkAddr);
+  NewConnection->Endpoint = strdup(Endpoint);
+  NewConnection->NetworkOptions = wcsdup(NetworkOptions);
+  NewConnection->CookieAuth = wcsdup(CookieAuth);
   NewConnection->MaxTransmissionSize = RPC_MAX_PACKET_SIZE;
   NewConnection->NextCallId = 1;
 
@@ -3736,10 +3731,10 @@ void RPCRT4_ReleaseConnection(RpcConnection *connection)
     if (!ref)
     {
         RPCRT4_CloseConnection(connection);
-        RPCRT4_strfree(connection->Endpoint);
-        RPCRT4_strfree(connection->NetworkAddr);
-        HeapFree(GetProcessHeap(), 0, connection->NetworkOptions);
-        HeapFree(GetProcessHeap(), 0, connection->CookieAuth);
+        free(connection->Endpoint);
+        free(connection->NetworkAddr);
+        free(connection->NetworkOptions);
+        free(connection->CookieAuth);
         if (connection->AuthInfo) RpcAuthInfo_Release(connection->AuthInfo);
         if (connection->QOS) RpcQualityOfService_Release(connection->QOS);
 
@@ -3749,7 +3744,7 @@ void RPCRT4_ReleaseConnection(RpcConnection *connection)
 
         if (connection->wait_release) SetEvent(connection->wait_release);
 
-        HeapFree(GetProcessHeap(), 0, connection);
+        free(connection);
     }
 }
 
@@ -3903,8 +3898,8 @@ RPC_STATUS WINAPI RpcProtseqVectorFreeA(RPC_PROTSEQ_VECTORA **protseqs)
   {
     unsigned int i;
     for (i = 0; i < (*protseqs)->Count; i++)
-      HeapFree(GetProcessHeap(), 0, (*protseqs)->Protseq[i]);
-    HeapFree(GetProcessHeap(), 0, *protseqs);
+      free((*protseqs)->Protseq[i]);
+    free(*protseqs);
     *protseqs = NULL;
   }
   return RPC_S_OK;
@@ -3921,8 +3916,8 @@ RPC_STATUS WINAPI RpcProtseqVectorFreeW(RPC_PROTSEQ_VECTORW **protseqs)
   {
     unsigned int i;
     for (i = 0; i < (*protseqs)->Count; i++)
-      HeapFree(GetProcessHeap(), 0, (*protseqs)->Protseq[i]);
-    HeapFree(GetProcessHeap(), 0, *protseqs);
+      free((*protseqs)->Protseq[i]);
+    free(*protseqs);
     *protseqs = NULL;
   }
   return RPC_S_OK;
@@ -3939,14 +3934,14 @@ RPC_STATUS WINAPI RpcNetworkInqProtseqsW( RPC_PROTSEQ_VECTORW** protseqs )
 
   TRACE("(%p)\n", protseqs);
 
-  *protseqs = HeapAlloc(GetProcessHeap(), 0, sizeof(RPC_PROTSEQ_VECTORW)+(sizeof(unsigned short*)*ARRAY_SIZE(protseq_list)));
+  *protseqs = malloc(sizeof(RPC_PROTSEQ_VECTORW) + sizeof(unsigned short*) * ARRAY_SIZE(protseq_list));
   if (!*protseqs)
     goto end;
   pvector = *protseqs;
   pvector->Count = 0;
   for (i = 0; i < ARRAY_SIZE(protseq_list); i++)
   {
-    pvector->Protseq[i] = HeapAlloc(GetProcessHeap(), 0, (strlen(protseq_list[i].name)+1)*sizeof(unsigned short));
+    pvector->Protseq[i] = malloc((strlen(protseq_list[i].name) + 1) * sizeof(unsigned short));
     if (pvector->Protseq[i] == NULL)
       goto end;
     MultiByteToWideChar(CP_ACP, 0, (CHAR*)protseq_list[i].name, -1,
@@ -3972,14 +3967,14 @@ RPC_STATUS WINAPI RpcNetworkInqProtseqsA(RPC_PROTSEQ_VECTORA** protseqs)
 
   TRACE("(%p)\n", protseqs);
 
-  *protseqs = HeapAlloc(GetProcessHeap(), 0, sizeof(RPC_PROTSEQ_VECTORW)+(sizeof(unsigned char*)*ARRAY_SIZE(protseq_list)));
+  *protseqs = malloc(sizeof(RPC_PROTSEQ_VECTORW) + sizeof(unsigned char*) * ARRAY_SIZE(protseq_list));
   if (!*protseqs)
     goto end;
   pvector = *protseqs;
   pvector->Count = 0;
   for (i = 0; i < ARRAY_SIZE(protseq_list); i++)
   {
-    pvector->Protseq[i] = HeapAlloc(GetProcessHeap(), 0, strlen(protseq_list[i].name)+1);
+    pvector->Protseq[i] = malloc(strlen(protseq_list[i].name) + 1);
     if (pvector->Protseq[i] == NULL)
       goto end;
     strcpy((char*)pvector->Protseq[i], protseq_list[i].name);

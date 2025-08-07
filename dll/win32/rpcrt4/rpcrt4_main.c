@@ -136,7 +136,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
                 ERR("tdata->connection should be NULL but is still set to %p\n", tdata->connection);
             if (tdata->server_binding)
                 ERR("tdata->server_binding should be NULL but is still set to %p\n", tdata->server_binding);
-            HeapFree(GetProcessHeap(), 0, tdata);
+            free(tdata);
         }
         break;
 
@@ -372,11 +372,11 @@ static RPC_STATUS RPC_UuidGetNodeAddress(BYTE *address)
     DWORD status = RPC_S_OK;
 
     ULONG buflen = sizeof(IP_ADAPTER_INFO);
-    PIP_ADAPTER_INFO adapter = HeapAlloc(GetProcessHeap(), 0, buflen);
+    PIP_ADAPTER_INFO adapter = malloc(buflen);
 
     if (GetAdaptersInfo(adapter, &buflen) == ERROR_BUFFER_OVERFLOW) {
-        HeapFree(GetProcessHeap(), 0, adapter);
-        adapter = HeapAlloc(GetProcessHeap(), 0, buflen);
+        free(adapter);
+        adapter = malloc(buflen);
     }
 
     if (GetAdaptersInfo(adapter, &buflen) == NO_ERROR) {
@@ -392,7 +392,7 @@ static RPC_STATUS RPC_UuidGetNodeAddress(BYTE *address)
         status = RPC_S_UUID_LOCAL_ONLY;
     }
 
-    HeapFree(GetProcessHeap(), 0, adapter);
+    free(adapter);
     return status;
 }
 
@@ -538,7 +538,7 @@ unsigned short WINAPI UuidHash(UUID *uuid, RPC_STATUS *Status)
  */
 RPC_STATUS WINAPI UuidToStringA(UUID *Uuid, RPC_CSTR* StringUuid)
 {
-  *StringUuid = HeapAlloc( GetProcessHeap(), 0, sizeof(char) * 37);
+  *StringUuid = malloc(37);
 
   if(!(*StringUuid))
     return RPC_S_OUT_OF_MEMORY;
@@ -730,7 +730,7 @@ RPC_STATUS RPC_ENTRY DceErrorInqTextA (RPC_STATUS e, RPC_CSTR buffer)
  */
 void * WINAPI I_RpcAllocate(unsigned int Size)
 {
-    return HeapAlloc(GetProcessHeap(), 0, Size);
+    return malloc(Size);
 }
 
 /******************************************************************************
@@ -738,7 +738,7 @@ void * WINAPI I_RpcAllocate(unsigned int Size)
  */
 void WINAPI I_RpcFree(void *Object)
 {
-    HeapFree(GetProcessHeap(), 0, Object);
+    free(Object);
 }
 
 /******************************************************************************
@@ -949,7 +949,7 @@ static struct threaddata *get_or_create_threaddata(void)
     struct threaddata *tdata = NtCurrentTeb()->ReservedForNtRpc;
     if (!tdata)
     {
-        tdata = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*tdata));
+        tdata = calloc(1, sizeof(*tdata));
         if (!tdata) return NULL;
 
         InitializeCriticalSection(&tdata->cs);
@@ -999,7 +999,7 @@ void RPCRT4_PushThreadContextHandle(NDR_SCONTEXT SContext)
 
     if (!tdata) return;
 
-    context_handle_list = HeapAlloc(GetProcessHeap(), 0, sizeof(*context_handle_list));
+    context_handle_list = malloc(sizeof(*context_handle_list));
     if (!context_handle_list) return;
 
     context_handle_list->context_handle = SContext;
@@ -1022,7 +1022,7 @@ void RPCRT4_RemoveThreadContextHandle(NDR_SCONTEXT SContext)
                 prev->next = current->next;
             else
                 tdata->context_handle_list = current->next;
-            HeapFree(GetProcessHeap(), 0, current);
+            free(current);
             return;
         }
     }
@@ -1041,7 +1041,7 @@ NDR_SCONTEXT RPCRT4_PopThreadContextHandle(void)
     tdata->context_handle_list = context_handle_list->next;
 
     context_handle = context_handle_list->context_handle;
-    HeapFree(GetProcessHeap(), 0, context_handle_list);
+    free(context_handle_list);
     return context_handle;
 }
 
