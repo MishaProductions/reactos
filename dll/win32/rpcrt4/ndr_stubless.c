@@ -704,9 +704,9 @@ static void CALLBACK ndr_client_call_finally(BOOL normal, void *arg)
     }
 }
 
-/* Helper for ndr_client_call, to factor out the part that may or may not be
+/* Helper for NdrpClientCall2, to factor out the part that may or may not be
  * guarded by a try/except block. */
-static LONG_PTR do_ndr_client_call( const MIDL_STUB_DESC *stub_desc, const PFORMAT_STRING format,
+static LONG_PTR ndr_client_call( const MIDL_STUB_DESC *stub_desc, const PFORMAT_STRING format,
         const PFORMAT_STRING handle_format, void **stack_top, void **fpu_stack, MIDL_STUB_MESSAGE *stub_msg,
         unsigned short procedure_number, unsigned short stack_size, unsigned int number_of_params,
         INTERPRETER_OPT_FLAGS Oif_flags, INTERPRETER_OPT_FLAGS2 ext_flags, const NDR_PROC_HEADER *proc_header )
@@ -850,8 +850,8 @@ static LONG_PTR do_ndr_client_call( const MIDL_STUB_DESC *stub_desc, const PFORM
     return retval;
 }
 
-LONG_PTR CDECL ndr_client_call( PMIDL_STUB_DESC pStubDesc, PFORMAT_STRING pFormat,
-                                void **stack_top, void **fpu_stack )
+LONG_PTR WINAPI NdrpClientCall2( PMIDL_STUB_DESC pStubDesc, PFORMAT_STRING pFormat,
+                                 void **stack_top, void **fpu_stack )
 {
     /* pointer to start of stack where arguments start */
     MIDL_STUB_MESSAGE stubMsg;
@@ -943,9 +943,9 @@ LONG_PTR CDECL ndr_client_call( PMIDL_STUB_DESC pStubDesc, PFORMAT_STRING pForma
     {
         __TRY
         {
-            RetVal = do_ndr_client_call(pStubDesc, pFormat, pHandleFormat,
-                    stack_top, fpu_stack, &stubMsg, procedure_number, stack_size,
-                    number_of_params, Oif_flags, ext_flags, pProcHeader);
+            RetVal = ndr_client_call(pStubDesc, pFormat, pHandleFormat,
+                                     stack_top, fpu_stack, &stubMsg, procedure_number, stack_size,
+                                     number_of_params, Oif_flags, ext_flags, pProcHeader);
         }
         __EXCEPT_ALL
         {
@@ -962,9 +962,9 @@ LONG_PTR CDECL ndr_client_call( PMIDL_STUB_DESC pStubDesc, PFORMAT_STRING pForma
     {
         __TRY
         {
-            RetVal = do_ndr_client_call(pStubDesc, pFormat, pHandleFormat,
-                    stack_top, fpu_stack, &stubMsg, procedure_number, stack_size,
-                    number_of_params, Oif_flags, ext_flags, pProcHeader);
+            RetVal = ndr_client_call(pStubDesc, pFormat, pHandleFormat,
+                                     stack_top, fpu_stack, &stubMsg, procedure_number, stack_size,
+                                     number_of_params, Oif_flags, ext_flags, pProcHeader);
         }
         __EXCEPT_ALL
         {
@@ -995,9 +995,9 @@ LONG_PTR CDECL ndr_client_call( PMIDL_STUB_DESC pStubDesc, PFORMAT_STRING pForma
     }
     else
     {
-        RetVal = do_ndr_client_call(pStubDesc, pFormat, pHandleFormat,
-                stack_top, fpu_stack, &stubMsg, procedure_number, stack_size,
-                number_of_params, Oif_flags, ext_flags, pProcHeader);
+        RetVal = ndr_client_call(pStubDesc, pFormat, pHandleFormat,
+                                 stack_top, fpu_stack, &stubMsg, procedure_number, stack_size,
+                                 number_of_params, Oif_flags, ext_flags, pProcHeader);
     }
 
     TRACE("RetVal = 0x%Ix\n", RetVal);
@@ -1015,7 +1015,7 @@ __ASM_GLOBAL_FUNC( NdrClientCall2,
                    "movq %r9,0x48(%rsp)\n\t"
                    "leaq 0x40(%rsp),%r8\n\t"
                    "xorq %r9,%r9\n\t"
-                   "call " __ASM_NAME("ndr_client_call") "\n\t"
+                   "call " __ASM_NAME("NdrpClientCall2") "\n\t"
                    "addq $0x28,%rsp\n\t"
                    __ASM_CFI(".cfi_adjust_cfa_offset -0x28\n\t")
                    "ret" );
@@ -1031,7 +1031,7 @@ CLIENT_CALL_RETURN WINAPIV NdrClientCall2( PMIDL_STUB_DESC desc, PFORMAT_STRING 
     LONG_PTR ret;
 
     va_start( args, format );
-    ret = ndr_client_call( desc, format, va_arg( args, void ** ), NULL );
+    ret = NdrpClientCall2( desc, format, va_arg( args, void ** ), NULL );
     va_end( args );
     return *(CLIENT_CALL_RETURN *)&ret;
 }
@@ -2247,7 +2247,7 @@ LONG_PTR CDECL ndr64_client_call( MIDL_STUBLESS_PROXY_INFO *info,
             if (retval)
                 FIXME("Complex return types are not supported.\n");
 
-            return ndr_client_call( info->pStubDesc,
+            return NdrpClientCall2( info->pStubDesc,
                     syntax_info->ProcString + syntax_info->FmtStringOffset[proc], stack_top, fpu_stack );
         }
     }
