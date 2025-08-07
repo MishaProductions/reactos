@@ -2310,13 +2310,9 @@ static HANDLE create_server_process(void)
     startup.cb = sizeof startup;
 
     ready_event = CreateEventW(&sec_attr, TRUE, FALSE, NULL);
-    ok(ready_event != NULL, "CreateEvent failed: %u\n", GetLastError());
+    ok(ready_event != NULL, "CreateEvent failed: %lu\n", GetLastError());
 
-#ifdef __REACTOS__
     sprintf(cmdline, "%s server run %Ix", progname, (UINT_PTR)ready_event);
-#else
-    sprintf(cmdline, "%s server run %lx", progname, (UINT_PTR)ready_event);
-#endif
     trace("running server process...\n");
     ok(CreateProcessA(NULL, cmdline, NULL, NULL, TRUE, 0L, NULL, NULL, &startup, &info), "CreateProcess\n");
     ret = WaitForSingleObject(ready_event, 10000);
