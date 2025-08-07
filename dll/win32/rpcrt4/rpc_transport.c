@@ -1215,9 +1215,14 @@ static RPC_STATUS rpcrt4_ncalrpc_inquire_auth_client(
 
 static RPC_STATUS rpcrt4_ncalrpc_inquire_client_pid(RpcConnection *conn, ULONG *pid)
 {
+#ifdef __REACTOS__
+    FIXME("rpcrt4_ncalrpc_inquire_client_pid not implemented\n");
+    return RPC_S_INVALID_BINDING;
+#else
     RpcConnection_np *connection = (RpcConnection_np *)conn;
-
+    
     return GetNamedPipeClientProcessId(connection->pipe, pid) ? RPC_S_OK : RPC_S_INVALID_BINDING;
+#endif
 }
 
 /**** ncacn_ip_tcp support ****/
@@ -2131,7 +2136,9 @@ static DWORD CALLBACK rpcrt4_http_timer_thread(PVOID param)
     HttpTimerThreadData data;
     DWORD timeout;
 
+#ifndef __REACTOS__
     SetThreadDescription(GetCurrentThread(), L"wine_rpcrt4_http_timer");
+#endif
 
     data = *data_in;
     free(data_in);

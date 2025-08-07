@@ -551,7 +551,9 @@ static DWORD CALLBACK RPCRT4_io_thread(LPVOID the_arg)
   ULONG auth_length;
 
   TRACE("(%p)\n", conn);
+#ifndef __REACTOS__
   SetThreadDescription(GetCurrentThread(), L"wine_rpcrt4_io");
+#endif
 
   for (;;) {
     msg = calloc(1, sizeof(RPC_MESSAGE));
@@ -649,7 +651,9 @@ static DWORD CALLBACK RPCRT4_server_thread(LPVOID the_arg)
   BOOL set_ready_event = FALSE;
 
   TRACE("(the_arg == ^%p)\n", the_arg);
+#ifndef __REACTOS__
   SetThreadDescription(GetCurrentThread(), L"wine_rpcrt4_server");
+#endif
 
   for (;;) {
     objs = cps->ops->get_wait_array(cps, objs, &count);
