@@ -117,6 +117,14 @@ typedef void (__RPC_USER *NDR_RUNDOWN)(void *context);
 typedef void (__RPC_USER *NDR_NOTIFY_ROUTINE)(void);
 typedef void (__RPC_USER *NDR_NOTIFY2_ROUTINE)(boolean flag);
 
+#ifdef __REACTOS__
+# if defined(_MSC_VER)
+#  define __has_declspec_attribute(x) 1
+# else
+#  define __has_declspec_attribute(x) 0
+# endif
+#endif
+
 #ifndef DECLSPEC_NOVTABLE
 # if __has_declspec_attribute(novtable) && defined(__cplusplus)
 #  define DECLSPEC_NOVTABLE __declspec(novtable)
