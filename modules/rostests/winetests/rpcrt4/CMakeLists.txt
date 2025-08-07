@@ -54,7 +54,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(rpcrt4_winetest PRIVATE "-Wno-cast-calling-convention")
 endif()
 
-target_link_libraries(rpcrt4_winetest uuid wine ${PSEH_LIB})
+target_link_libraries(rpcrt4_winetest uuid wine oldnames ${PSEH_LIB})
 set_module_type(rpcrt4_winetest win32cui)
 add_importlibs(rpcrt4_winetest oleaut32 ole32 rpcrt4 secur32 advapi32 msvcrt kernel32 ntdll)
 add_rostests_file(TARGET rpcrt4_winetest)

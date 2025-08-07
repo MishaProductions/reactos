@@ -1696,11 +1696,9 @@ pointer_tests(void)
       }
   }
 
-  if (!is_interp) { /* broken in widl */
   pa2 = a;
   ros_skip_flaky
   ok(sum_pcarr2(4, &pa2) == 10, "RPC sum_pcarr2\n");
-  }
 
   s123 = get_s123();
   ok(s123->f1 == 1 && s123->f2 == 2 && s123->f3 == 3, "RPC get_s123\n");
