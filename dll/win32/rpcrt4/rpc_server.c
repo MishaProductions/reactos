@@ -1575,7 +1575,7 @@ RPC_STATUS WINAPI RpcMgmtWaitServerListen( void )
       if (!wait_thread)
           break;
 
-      TRACE("waiting for thread %u\n", GetThreadId(wait_thread));
+      TRACE("waiting for thread %lu\n", GetThreadId(wait_thread));
       LeaveCriticalSection(&listen_cs);
       WaitForSingleObject(wait_thread, INFINITE);
       CloseHandle(wait_thread);

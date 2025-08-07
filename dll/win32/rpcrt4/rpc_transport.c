@@ -356,7 +356,7 @@ static RPC_STATUS rpcrt4_conn_create_pipe(RpcConnection *conn)
 #endif
     if (connection->pipe == INVALID_HANDLE_VALUE)
     {
-        WARN("CreateNamedPipe failed with error %d\n", GetLastError());
+        WARN("CreateNamedPipe failed with error %ld\n", GetLastError());
         if (GetLastError() == ERROR_FILE_EXISTS)
         {
             return RPC_S_DUPLICATE_ENDPOINT;
@@ -413,17 +413,17 @@ static RPC_STATUS rpcrt4_conn_open_pipe(RpcConnection *Connection, LPCSTR pname,
         TRACE("retrying busy server\n");
         continue;
       }
-      TRACE("connection failed, error=%x\n", err);
+      TRACE("connection failed, error=%lx\n", err);
       return RPC_S_SERVER_TOO_BUSY;
 #ifdef __REACTOS__
     } else if (err == ERROR_BAD_NETPATH) {
-      TRACE("connection failed, error=%x\n", err);
+      TRACE("connection failed, error=%lx\n", err);
       return RPC_S_SERVER_UNAVAILABLE;
 #endif
     }
     if (!wait || !WaitNamedPipeA(pname, NMPWAIT_WAIT_FOREVER)) {
       err = GetLastError();
-      WARN("connection failed, error=%x\n", err);
+      WARN("connection failed, error=%lx\n", err);
       return RPC_S_SERVER_UNAVAILABLE;
     }
   }
@@ -1078,7 +1078,7 @@ static int rpcrt4_protseq_np_wait_for_new_connection(RpcServerProtseq *protseq, 
                 if (conn->io_status.u.Status == STATUS_SUCCESS || conn->io_status.u.Status == STATUS_PIPE_CONNECTED)
                     cconn = rpcrt4_spawn_connection(&conn->common);
                 else
-                    ERR("listen failed %x\n", conn->io_status.u.Status);
+                    ERR("listen failed %lx\n", conn->io_status.u.Status);
                 break;
             }
         }
