@@ -30,6 +30,7 @@
 #define SKIP_TYPE_DECLS
 #include "server_interp_s.h"
 #include "server_defines.h"
+#include "explicit_handle_s.h"
 
 #include <stddef.h>
 #include <stdio.h>
