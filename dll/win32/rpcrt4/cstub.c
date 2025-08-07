@@ -47,9 +47,14 @@ static LONG WINAPI stub_filter(EXCEPTION_POINTERS *eptr)
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
+static CStdStubBuffer *impl_from_IRpcStubBuffer(IRpcStubBuffer *iface)
+{
+    return CONTAINING_RECORD(&iface->lpVtbl, CStdStubBuffer, lpVtbl);
+}
+
 static inline cstdstubbuffer_delegating_t *impl_from_delegating( IRpcStubBuffer *iface )
 {
-    return CONTAINING_RECORD((void *)iface, cstdstubbuffer_delegating_t, stub_buffer);
+    return CONTAINING_RECORD(impl_from_IRpcStubBuffer(iface), cstdstubbuffer_delegating_t, stub_buffer);
 }
 
 HRESULT CStdStubBuffer_Construct(REFIID riid,
