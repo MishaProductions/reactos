@@ -1216,6 +1216,13 @@ static RPC_STATUS rpcrt4_ncalrpc_inquire_auth_client(
     return RPC_S_OK;
 }
 
+static RPC_STATUS rpcrt4_ncalrpc_inquire_client_pid(RpcConnection *conn, ULONG *pid)
+{
+    RpcConnection_np *connection = (RpcConnection_np *)conn;
+
+    return GetNamedPipeClientProcessId(connection->pipe, pid) ? RPC_S_OK : RPC_S_INVALID_BINDING;
+}
+
 /**** ncacn_ip_tcp support ****/
 
 static size_t rpcrt4_ip_tcp_get_top_of_tower(unsigned char *tower_data,
@@ -3469,6 +3476,7 @@ static const struct connection_ops conn_protseq_list[] = {
     rpcrt4_conn_np_impersonate_client,
     rpcrt4_conn_np_revert_to_self,
     RPCRT4_default_inquire_auth_client,
+    NULL
   },
   { "ncalrpc",
     { EPM_PROTOCOL_NCALRPC, EPM_PROTOCOL_PIPE },
@@ -3491,6 +3499,7 @@ static const struct connection_ops conn_protseq_list[] = {
     rpcrt4_conn_np_impersonate_client,
     rpcrt4_conn_np_revert_to_self,
     rpcrt4_ncalrpc_inquire_auth_client,
+    rpcrt4_ncalrpc_inquire_client_pid
   },
   { "ncacn_ip_tcp",
     { EPM_PROTOCOL_NCACN, EPM_PROTOCOL_TCP },
@@ -3513,6 +3522,7 @@ static const struct connection_ops conn_protseq_list[] = {
     RPCRT4_default_impersonate_client,
     RPCRT4_default_revert_to_self,
     RPCRT4_default_inquire_auth_client,
+    NULL
   },
   { "ncacn_http",
     { EPM_PROTOCOL_NCACN, EPM_PROTOCOL_HTTP },
@@ -3535,6 +3545,7 @@ static const struct connection_ops conn_protseq_list[] = {
     RPCRT4_default_impersonate_client,
     RPCRT4_default_revert_to_self,
     RPCRT4_default_inquire_auth_client,
+    NULL
   },
 };
 
