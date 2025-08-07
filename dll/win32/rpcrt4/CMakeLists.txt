@@ -37,6 +37,7 @@ list(APPEND SOURCE
     rpcrt4_main.c
     rpc_server.c
     rpc_transport.c
+    thunks.c
     unix_func.c
     ${CMAKE_CURRENT_BINARY_DIR}/epm_c.c)
 
