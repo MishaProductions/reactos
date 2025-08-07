@@ -916,7 +916,7 @@ void __cdecl s_context_handle_test(void)
     /* marshal a context handle with NULL userContext */
     memset(buf, 0xcc, sizeof(buf));
     pNDRSContextMarshall2(binding, h, buf, NULL, NULL, 0);
-    ok(*(ULONG *)buf == 0, "attributes should have been set to 0 instead of 0x%x\n", *(ULONG *)buf);
+    ok(*(ULONG *)buf == 0, "attributes should have been set to 0 instead of 0x%lx\n", *(ULONG *)buf);
     ok(UuidIsNil((UUID *)&buf[4], &status), "uuid should have been nil\n");
 
     h = pNDRSContextUnmarshall2(binding, NULL, NDR_LOCAL_DATA_REPRESENTATION, NULL, 0);
@@ -926,7 +926,7 @@ void __cdecl s_context_handle_test(void)
     memset(buf, 0xcc, sizeof(buf));
     h->userContext = (void *)0xdeadbeef;
     pNDRSContextMarshall2(binding, h, buf, NULL, NULL, 0);
-    ok(*(ULONG *)buf == 0, "attributes should have been set to 0 instead of 0x%x\n", *(ULONG *)buf);
+    ok(*(ULONG *)buf == 0, "attributes should have been set to 0 instead of 0x%lx\n", *(ULONG *)buf);
     ok(!UuidIsNil((UUID *)&buf[4], &status), "uuid should not have been nil\n");
 
     /* raises ERROR_INVALID_HANDLE exception on Vista upwards */
@@ -943,7 +943,7 @@ void __cdecl s_context_handle_test(void)
     memset(buf, 0xcc, sizeof(buf));
     h->userContext = (void *)0xcafebabe;
     pNDRSContextMarshall2(binding, h, buf, NULL, &server_if.InterfaceId, 0);
-    ok(*(ULONG *)buf == 0, "attributes should have been set to 0 instead of 0x%x\n", *(ULONG *)buf);
+    ok(*(ULONG *)buf == 0, "attributes should have been set to 0 instead of 0x%lx\n", *(ULONG *)buf);
     ok(!UuidIsNil((UUID *)&buf[4], &status), "uuid should not have been nil\n");
 
     h = pNDRSContextUnmarshall2(binding, buf, NDR_LOCAL_DATA_REPRESENTATION, &server_if.InterfaceId, 0);
@@ -984,7 +984,7 @@ void __cdecl s_context_handle_test(void)
     binding = NULL;
     status = RpcBindingServerFromClient(NULL, &binding);
 
-    ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+    ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
     ok(binding != NULL, "binding is NULL\n");
 
     if (status == RPC_S_OK && binding != NULL)
@@ -997,11 +997,11 @@ void __cdecl s_context_handle_test(void)
         unsigned char* network_options = NULL;
 
         status = RpcBindingToStringBindingA(binding, &string_binding);
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
         ok(string_binding != NULL, "string_binding is NULL\n");
 
         status = RpcStringBindingParseA(string_binding, &object_uuid, &protseq, &network_address, &endpoint, &network_options);
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
         ok(protseq != NULL && *protseq != '\0', "protseq is %s\n", protseq);
         ok(network_address != NULL && *network_address != '\0', "network_address is %s\n", network_address);
 
@@ -1085,7 +1085,7 @@ void __cdecl s_stop_autolisten(void)
     RPC_STATUS status;
     status = RpcServerUnregisterIf(NULL, NULL, FALSE);
     todo_wine
-    ok(status == RPC_S_UNKNOWN_MGR_TYPE, "got %u\n", status);
+    ok(status == RPC_S_UNKNOWN_MGR_TYPE, "got %lu\n", status);
 }
 
 void __cdecl s_ip_test(ipu_t *a)
@@ -1094,7 +1094,7 @@ void __cdecl s_ip_test(ipu_t *a)
     HRESULT hr;
 
     hr = IStream_Stat(a->tagged_union.stream, &st, STATFLAG_NONAME);
-    ok(hr == S_OK, "got %#x\n", hr);
+    ok(hr == S_OK, "got %#lx\n", hr);
 }
 
 int __cdecl s_sum_ptr_array(int *a[2])
@@ -1377,7 +1377,7 @@ union_tests(void)
   CreateStreamOnHGlobal(NULL, TRUE, &ipu.tagged_union.stream);
   ip_test(&ipu);
   ref = IStream_Release(ipu.tagged_union.stream);
-  ok(!ref, "got %u refs\n", ref);
+  ok(!ref, "got %lu refs\n", ref);
 
   CoUninitialize();
 }
@@ -1842,7 +1842,7 @@ void __cdecl s_authinfo_test(unsigned int protseq, int secure)
             win_skip("RpcBindingInqAuthClientA not supported\n");
             return;
         }
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
         ok(privs != (RPC_AUTHZ_HANDLE)0xdeadbeef, "privs unchanged\n");
         ok(principal != (unsigned char *)0xdeadbeef, "principal unchanged\n");
         if (protseq != RPC_PROTSEQ_LRPC)
@@ -1867,27 +1867,27 @@ void __cdecl s_authinfo_test(unsigned int protseq, int secure)
         RpcStringFreeA(&principal);
 
         status = RpcBindingInqAuthClientA(NULL, &privs, &principal, &level, &authnsvc, NULL);
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
         RpcStringFreeA(&principal);
 
         status = RpcBindingInqAuthClientExA(NULL, &privs, &principal, &level, &authnsvc, NULL, 0);
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
         RpcStringFreeA(&principal);
 
         status = RpcImpersonateClient(NULL);
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
         status = RpcRevertToSelf();
-        ok(status == RPC_S_OK, "expected RPC_S_OK got %u\n", status);
+        ok(status == RPC_S_OK, "expected RPC_S_OK got %lu\n", status);
 
     }
     else
     {
         status = RpcBindingInqAuthClientA(binding, &privs, &principal, &level, &authnsvc, NULL);
-        ok(status == RPC_S_BINDING_HAS_NO_AUTH, "expected RPC_S_BINDING_HAS_NO_AUTH got %u\n", status);
+        ok(status == RPC_S_BINDING_HAS_NO_AUTH, "expected RPC_S_BINDING_HAS_NO_AUTH got %lu\n", status);
         ok(privs == (RPC_AUTHZ_HANDLE)0xdeadbeef, "got %p\n", privs);
         ok(principal == (unsigned char *)0xdeadbeef, "got %s\n", principal);
-        ok(level == 0xdeadbeef, "got %u\n", level);
-        ok(authnsvc == 0xdeadbeef, "got %u\n", authnsvc);
+        ok(level == 0xdeadbeef, "got %lu\n", level);
+        ok(authnsvc == 0xdeadbeef, "got %lu\n", authnsvc);
     }
 }
 
@@ -1925,7 +1925,7 @@ set_auth_info(RPC_BINDING_HANDLE handle)
 
     status = pRpcBindingSetAuthInfoExA(handle, (RPC_CSTR)domain_and_user, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
                                        RPC_C_AUTHN_WINNT, NULL, 0, &qos);
-    ok(status == RPC_S_OK, "RpcBindingSetAuthInfoExA failed %d\n", status);
+    ok(status == RPC_S_OK, "RpcBindingSetAuthInfoExA failed %ld\n", status);
 }
 
 #define test_is_server_listening(a,b) _test_is_server_listening(__LINE__,a,b)
@@ -1933,7 +1933,7 @@ static void _test_is_server_listening(unsigned line, RPC_BINDING_HANDLE binding,
 {
     RPC_STATUS status;
     status = RpcMgmtIsServerListening(binding);
-    ok_(__FILE__,line)(status == expected_status, "RpcMgmtIsServerListening returned %u, expected %u\n",
+    ok_(__FILE__,line)(status == expected_status, "RpcMgmtIsServerListening returned %lu, expected %lu\n",
                        status, expected_status);
 }
 
@@ -1944,7 +1944,7 @@ static void _test_is_server_listening2(unsigned line, RPC_BINDING_HANDLE binding
     RPC_STATUS status;
     status = RpcMgmtIsServerListening(binding);
     ok_(__FILE__,line)(status == expected_status || status == expected_status2,
-                       "RpcMgmtIsServerListening returned %u, expected %u or %u\n",
+                       "RpcMgmtIsServerListening returned %lu, expected %lu or %lu\n",
                        status, expected_status, expected_status2);
 }
 
@@ -2074,16 +2074,16 @@ server(void)
   CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
   iptcp_status = RpcServerUseProtseqEpA(iptcp, 20, port, NULL);
-  ok(iptcp_status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_ip_tcp) failed with status %d\n", iptcp_status);
+  ok(iptcp_status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_ip_tcp) failed with status %ld\n", iptcp_status);
 
   ncalrpc_status = RpcServerUseProtseqEpA(ncalrpc, 0, guid, NULL);
-  ok(ncalrpc_status == RPC_S_OK, "RpcServerUseProtseqEp(ncalrpc) failed with status %d\n", ncalrpc_status);
+  ok(ncalrpc_status == RPC_S_OK, "RpcServerUseProtseqEp(ncalrpc) failed with status %ld\n", ncalrpc_status);
 
   np_status = RpcServerUseProtseqEpA(np, 0, pipe, NULL);
   if (np_status == RPC_S_PROTSEQ_NOT_SUPPORTED)
     skip("Protocol sequence ncacn_np is not supported\n");
   else
-    ok(np_status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_np) failed with status %d\n", np_status);
+    ok(np_status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_np) failed with status %ld\n", np_status);
 
   if (pRpcServerRegisterIfEx)
   {
@@ -2091,25 +2091,25 @@ server(void)
     status = pRpcServerRegisterIfEx(s_IMixedServer_v0_0_s_ifspec, NULL, NULL,
                                     RPC_IF_ALLOW_CALLBACKS_WITH_NO_AUTH,
                                     RPC_C_LISTEN_MAX_CALLS_DEFAULT, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIfEx failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIfEx failed with status %ld\n", status);
     status = pRpcServerRegisterIfEx(s_IInterpServer_v0_0_s_ifspec, NULL, NULL,
                                     RPC_IF_ALLOW_CALLBACKS_WITH_NO_AUTH,
                                     RPC_C_LISTEN_MAX_CALLS_DEFAULT, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIfEx failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIfEx failed with status %ld\n", status);
   }
   else
   {
     status = RpcServerRegisterIf(s_IMixedServer_v0_0_s_ifspec, NULL, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %ld\n", status);
     status = RpcServerRegisterIf(s_IInterpServer_v0_0_s_ifspec, NULL, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %ld\n", status);
   }
   test_is_server_listening(NULL, RPC_S_NOT_LISTENING);
   status = RpcServerListen(1, RPC_C_LISTEN_MAX_CALLS_DEFAULT, TRUE);
-  ok(status == RPC_S_OK, "RpcServerListen failed with status %d\n", status);
+  ok(status == RPC_S_OK, "RpcServerListen failed with status %ld\n", status);
   test_is_server_listening(NULL, RPC_S_OK);
   stop_event = CreateEventW(NULL, FALSE, FALSE, NULL);
-  ok(stop_event != NULL, "CreateEvent failed with error %d\n", GetLastError());
+  ok(stop_event != NULL, "CreateEvent failed with error %ld\n", GetLastError());
 
   if (iptcp_status == RPC_S_OK)
     run_client("tcp_basic");
@@ -2146,7 +2146,7 @@ server(void)
   if (ret == WAIT_OBJECT_0)
   {
     status = RpcMgmtWaitServerListen();
-    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %ld\n", status);
   }
 
   CloseHandle(stop_event);
@@ -2157,12 +2157,12 @@ server(void)
     status = pRpcServerRegisterIfEx(s_IMixedServer_v0_0_s_ifspec, NULL, NULL,
         RPC_IF_ALLOW_CALLBACKS_WITH_NO_AUTH | RPC_IF_AUTOLISTEN,
         RPC_C_LISTEN_MAX_CALLS_DEFAULT, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIf() failed: %u\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIf() failed: %lu\n", status);
 
     run_client("ncalrpc_autolisten");
 
     status = RpcServerUnregisterIf(s_IMixedServer_v0_0_s_ifspec, NULL, TRUE);
-    ok(status == RPC_S_OK, "RpcServerUnregisterIf() failed: %u\n", status);
+    ok(status == RPC_S_OK, "RpcServerUnregisterIf() failed: %lu\n", status);
   }
 
   CoUninitialize();
@@ -2190,7 +2190,7 @@ static DWORD WINAPI wait_listen_proc(void *arg)
 
     trace("waiting\n");
     status = RpcMgmtWaitServerListen();
-    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %ld\n", status);
     trace("done\n");
 
     return 0;
@@ -2203,13 +2203,13 @@ static void test_stop_wait_for_call(unsigned char *binding)
     DWORD ret;
 
     status = RpcServerListen(1, RPC_C_LISTEN_MAX_CALLS_DEFAULT, TRUE);
-    ok(status == RPC_S_OK, "RpcServerListen failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerListen failed with status %ld\n", status);
     test_is_server_listening(NULL, RPC_S_OK);
 
     stop_wait_event = CreateEventW(NULL, FALSE, FALSE, NULL);
-    ok(stop_wait_event != NULL, "CreateEvent failed with error %d\n", GetLastError());
+    ok(stop_wait_event != NULL, "CreateEvent failed with error %ld\n", GetLastError());
     stop_event = CreateEventW(NULL, FALSE, FALSE, NULL);
-    ok(stop_event != NULL, "CreateEvent failed with error %d\n", GetLastError());
+    ok(stop_event != NULL, "CreateEvent failed with error %ld\n", GetLastError());
 
     wait_listen_thread = CreateThread(NULL, 0, wait_listen_proc, 0, 0, NULL);
     ok(wait_listen_thread != NULL, "CreateThread failed\n");
@@ -2231,7 +2231,7 @@ static void test_stop_wait_for_call(unsigned char *binding)
     SetEvent(stop_wait_event);
 
     ret = WaitForSingleObject(wait_listen_thread, 10000);
-    ok(WAIT_OBJECT_0 == ret, "WaitForSingleObject returned %u\n", ret);
+    ok(WAIT_OBJECT_0 == ret, "WaitForSingleObject returned %lu\n", ret);
 
     CloseHandle(wait_listen_thread);
 
@@ -2252,28 +2252,28 @@ static void test_server_listening(void)
     RPC_STATUS status;
 
     status = RpcServerUseProtseqEpA(np, 0, pipe, NULL);
-    ok(status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_np) failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_np) failed with status %ld\n", status);
 
     status = RpcServerRegisterIf(s_IMixedServer_v0_0_s_ifspec, NULL, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %ld\n", status);
 
     test_is_server_listening(NULL, RPC_S_NOT_LISTENING);
     status = RpcServerListen(1, RPC_C_LISTEN_MAX_CALLS_DEFAULT, TRUE);
-    ok(status == RPC_S_OK, "RpcServerListen failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerListen failed with status %ld\n", status);
     test_is_server_listening(NULL, RPC_S_OK);
 
     status = RpcServerListen(1, RPC_C_LISTEN_MAX_CALLS_DEFAULT, TRUE);
-    ok(status == RPC_S_ALREADY_LISTENING, "RpcServerListen failed with status %d\n", status);
+    ok(status == RPC_S_ALREADY_LISTENING, "RpcServerListen failed with status %ld\n", status);
 
     status = RpcMgmtStopServerListening(NULL);
     ok(status == RPC_S_OK, "RpcMgmtStopServerListening\n");
     test_is_server_listening(NULL, RPC_S_NOT_LISTENING);
 
     status = RpcMgmtWaitServerListen();
-    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %ld\n", status);
 
     status = RpcMgmtWaitServerListen();
-    ok(status == RPC_S_NOT_LISTENING, "RpcMgmtWaitServerListening failed with status %d\n", status);
+    ok(status == RPC_S_NOT_LISTENING, "RpcMgmtWaitServerListening failed with status %ld\n", status);
 
     /* test that server stop waits for a call in progress */
     status = RpcStringBindingComposeA(NULL, np, address_np, pipe, NULL, &binding);
@@ -2286,7 +2286,7 @@ static void test_server_listening(void)
 
     /* repeat the test using ncalrpc */
     status = RpcServerUseProtseqEpA(ncalrpc, 0, guid, NULL);
-    ok(status == RPC_S_OK, "RpcServerUseProtseqEp(ncalrpc) failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerUseProtseqEp(ncalrpc) failed with status %ld\n", status);
 
     status = RpcStringBindingComposeA(NULL, ncalrpc, NULL, guid, NULL, &binding);
     ok(status == RPC_S_OK, "RpcStringBindingCompose\n");
@@ -2335,26 +2335,26 @@ static void run_server(HANDLE ready_event)
     BOOL ret;
 
     status = RpcServerUseProtseqEpA(np, 0, pipe, NULL);
-    ok(status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_np) failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerUseProtseqEp(ncacn_np) failed with status %ld\n", status);
 
     status = RpcServerRegisterIf(s_IMixedServer_v0_0_s_ifspec, NULL, NULL);
-    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerRegisterIf failed with status %ld\n", status);
 
     test_is_server_listening(NULL, RPC_S_NOT_LISTENING);
     status = RpcServerListen(1, RPC_C_LISTEN_MAX_CALLS_DEFAULT, TRUE);
-    ok(status == RPC_S_OK, "RpcServerListen failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcServerListen failed with status %ld\n", status);
 
     stop_event = CreateEventW(NULL, FALSE, FALSE, NULL);
-    ok(stop_event != NULL, "CreateEvent failed with error %d\n", GetLastError());
+    ok(stop_event != NULL, "CreateEvent failed with error %ld\n", GetLastError());
 
     ret = SetEvent(ready_event);
-    ok(ret, "SetEvent failed: %u\n", GetLastError());
+    ok(ret, "SetEvent failed: %lu\n", GetLastError());
 
     ret = WaitForSingleObject(stop_event, 5000);
     ok(WAIT_OBJECT_0 == ret, "WaitForSingleObject\n");
 
     status = RpcMgmtWaitServerListen();
-    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %d\n", status);
+    ok(status == RPC_S_OK, "RpcMgmtWaitServerListening failed with status %ld\n", status);
 
     CloseHandle(stop_event);
     stop_event = NULL;
@@ -2385,7 +2385,7 @@ static void test_reconnect(void)
     for (i = 0; i < ARRAY_SIZE(threads); i++)
     {
         threads[i] = CreateThread(NULL, 0, basic_tests_thread, 0, 0, NULL);
-        ok(threads[i] != NULL, "CreateThread failed: %u\n", GetLastError());
+        ok(threads[i] != NULL, "CreateThread failed: %lu\n", GetLastError());
     }
 
     for (i = 0; i < ARRAY_SIZE(threads); i++)
@@ -2441,18 +2441,18 @@ static BOOL is_firewall_enabled(void)
 
     hr = CoCreateInstance( &CLSID_NetFwMgr, NULL, CLSCTX_INPROC_SERVER, &IID_INetFwMgr,
                            (void **)&mgr );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = INetFwMgr_get_LocalPolicy( mgr, &policy );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = INetFwPolicy_get_CurrentProfile( policy, &profile );
     if (hr != S_OK) goto done;
 
     hr = INetFwProfile_get_FirewallEnabled( profile, &enabled );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
 
 done:
     if (policy) INetFwPolicy_Release( policy );
@@ -2487,23 +2487,23 @@ static HRESULT set_firewall( enum firewall_op op )
 
     hr = CoCreateInstance( &CLSID_NetFwMgr, NULL, CLSCTX_INPROC_SERVER, &IID_INetFwMgr,
                            (void **)&mgr );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = INetFwMgr_get_LocalPolicy( mgr, &policy );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = INetFwPolicy_get_CurrentProfile( policy, &profile );
     if (hr != S_OK) goto done;
 
     hr = INetFwProfile_get_AuthorizedApplications( profile, &apps );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = CoCreateInstance( &CLSID_NetFwAuthorizedApplication, NULL, CLSCTX_INPROC_SERVER,
                            &IID_INetFwAuthorizedApplication, (void **)&app );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     hr = INetFwAuthorizedApplication_put_ProcessImageFileName( app, image );
@@ -2512,7 +2512,7 @@ static HRESULT set_firewall( enum firewall_op op )
     name = SysAllocString( L"rpcrt4_test" );
     hr = INetFwAuthorizedApplication_put_Name( app, name );
     SysFreeString( name );
-    ok( hr == S_OK, "got %08x\n", hr );
+    ok( hr == S_OK, "got %08lx\n", hr );
     if (hr != S_OK) goto done;
 
     if (op == APP_ADD)
@@ -2571,7 +2571,7 @@ START_TEST(server)
     else if(!strcmp(argv[2], "run"))
     {
       ULONG event;
-      sscanf(argv[3], "%x", &event);
+      sscanf(argv[3], "%lx", &event);
       run_server(ULongToHandle(event));
     }
   }
@@ -2589,7 +2589,7 @@ START_TEST(server)
         }
         else
         {
-          skip("can't authorize app in firewall %08x\n", hr);
+          skip("can't authorize app in firewall %08lx\n", hr);
         }
       }
       else
