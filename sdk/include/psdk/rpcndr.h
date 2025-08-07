@@ -76,6 +76,11 @@ typedef INT64 hyper;
 typedef UINT64 MIDL_uhyper;
 typedef unsigned char boolean;
 
+#ifndef _ERROR_STATUS_T_DEFINED
+typedef ULONG error_status_t;
+#define _ERROR_STATUS_T_DEFINED
+#endif
+
 #define __RPC_CALLEE WINAPI
 #define RPC_VAR_ENTRY __cdecl
 #define NDR_SHAREABLE static
