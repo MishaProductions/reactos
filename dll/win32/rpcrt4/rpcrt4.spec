@@ -181,7 +181,6 @@
 179 stdcall NdrCorrelationFree(ptr)
 180 stdcall NdrCorrelationInitialize(ptr ptr long long)
 181 stdcall NdrCorrelationPass(ptr)
-182 stub NdrCreateServerInterfaceFromStub
 183 stub NdrDcomAsyncClientCall
 184 stub NdrDcomAsyncStubCall
 185 stdcall NdrDllCanUnloadNow(ptr)
