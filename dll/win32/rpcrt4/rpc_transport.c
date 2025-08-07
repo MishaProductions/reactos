@@ -25,9 +25,6 @@
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
-#ifdef __REACTOS__
-#define NONAMELESSUNION
-#endif
 #include "ws2tcpip.h"
 
 #include <stdarg.h>
@@ -40,7 +37,7 @@
 #include "winnls.h"
 #include "winerror.h"
 #include "wininet.h"
-#include "wine/winternl.h"
+#include "winternl.h"
 #include "winioctl.h"
 
 #include "rpc.h"
@@ -64,9 +61,9 @@ static BOOL WINAPI CancelIoEx_(HANDLE handle, LPOVERLAPPED lpOverlapped)
      IO_STATUS_BLOCK    io_status;
 
     NtCancelIoFile(handle, &io_status);
-    if (io_status.u.Status)
+    if (io_status.Status)
     {
-        SetLastError( RtlNtStatusToDosError( io_status.u.Status ) );
+        SetLastError( RtlNtStatusToDosError( io_status.Status ) );
         return FALSE;
     }
     return TRUE;
@@ -358,13 +355,9 @@ static RPC_STATUS rpcrt4_conn_create_pipe(RpcConnection *conn)
     {
         WARN("CreateNamedPipe failed with error %ld\n", GetLastError());
         if (GetLastError() == ERROR_FILE_EXISTS)
-        {
             return RPC_S_DUPLICATE_ENDPOINT;
-        }
         else
-        {
             return RPC_S_CANT_CREATE_ENDPOINT;
-        }
     }
 
     return RPC_S_OK;
@@ -714,7 +707,7 @@ static int rpcrt4_conn_np_read(RpcConnection *conn, void *buffer, unsigned int c
 #endif
         }
         WaitForSingleObject(event, INFINITE);
-        status = connection->io_status.u.Status;
+        status = connection->io_status.Status;
     }
     release_np_event(connection, event);
     return status && status != STATUS_BUFFER_OVERFLOW ? -1 : connection->io_status.Information;
@@ -735,7 +728,7 @@ static int rpcrt4_conn_np_write(RpcConnection *conn, const void *buffer, unsigne
     if (status == STATUS_PENDING)
     {
         WaitForSingleObject(event, INFINITE);
-        status = io_status.u.Status;
+        status = io_status.Status;
     }
     release_np_event(connection, event);
     if (status)
@@ -994,7 +987,7 @@ static void *rpcrt4_protseq_np_get_wait_array(RpcServerProtseq *protseq, void *p
             {
             case STATUS_SUCCESS:
             case STATUS_PIPE_CONNECTED:
-                conn->io_status.u.Status = status;
+                conn->io_status.Status = status;
                 SetEvent(event);
                 break;
             case STATUS_PENDING:
@@ -1072,10 +1065,10 @@ static int rpcrt4_protseq_np_wait_for_new_connection(RpcServerProtseq *protseq, 
             {
                 release_np_event(conn, conn->listen_event);
                 conn->listen_event = NULL;
-                if (conn->io_status.u.Status == STATUS_SUCCESS || conn->io_status.u.Status == STATUS_PIPE_CONNECTED)
+                if (conn->io_status.Status == STATUS_SUCCESS || conn->io_status.Status == STATUS_PIPE_CONNECTED)
                     cconn = rpcrt4_spawn_connection(&conn->common);
                 else
-                    ERR("listen failed %lx\n", conn->io_status.u.Status);
+                    ERR("listen failed %lx\n", conn->io_status.Status);
                 break;
             }
         }
@@ -2737,7 +2730,7 @@ static DWORD auth_scheme_from_header( const WCHAR *header )
     unsigned int i;
     for (i = 0; i < ARRAY_SIZE(auth_schemes); i++)
     {
-        if (!_wcsnicmp( header, auth_schemes[i].str, auth_schemes[i].len ) &&
+        if (!wcsnicmp( header, auth_schemes[i].str, auth_schemes[i].len ) &&
             (header[auth_schemes[i].len] == ' ' || !header[auth_schemes[i].len])) return auth_schemes[i].scheme;
     }
     return 0;
