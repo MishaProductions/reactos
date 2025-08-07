@@ -24,7 +24,6 @@
 
 #include "rpc.h"
 #include "rpcndr.h"
-#include "wine/winternl.h"
 
 #include "wine/debug.h"
 
