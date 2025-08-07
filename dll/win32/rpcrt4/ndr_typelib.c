@@ -1321,7 +1321,7 @@ static ULONG WINAPI typelib_proxy_Release(IRpcProxyBuffer *iface)
     struct typelib_proxy *proxy = CONTAINING_RECORD(iface, struct typelib_proxy, proxy.IRpcProxyBuffer_iface);
     ULONG refcount = InterlockedDecrement(&proxy->proxy.RefCount);
 
-    TRACE("(%p) decreasing refs to %d\n", proxy, refcount);
+    TRACE("(%p) decreasing refs to %ld\n", proxy, refcount);
 
     if (!refcount)
     {
@@ -1458,7 +1458,7 @@ static ULONG WINAPI typelib_stub_Release(IRpcStubBuffer *iface)
     struct typelib_stub *stub = CONTAINING_RECORD(iface, struct typelib_stub, stub.stub_buffer);
     ULONG refcount = InterlockedDecrement(&stub->stub.stub_buffer.RefCount);
 
-    TRACE("(%p) decreasing refs to %d\n", stub, refcount);
+    TRACE("(%p) decreasing refs to %ld\n", stub, refcount);
 
     if (!refcount)
     {
@@ -1491,7 +1491,7 @@ static HRESULT typelib_stub_init(struct typelib_stub *stub, IUnknown *server,
             (void **)&stub->stub.stub_buffer.pvServerObject);
     if (FAILED(hr))
     {
-        WARN("Failed to get interface %s, hr %#x.\n",
+        WARN("Failed to get interface %s, hr %#lx.\n",
                 debugstr_guid(stub->stub_vtbl.header.piid), hr);
         stub->stub.stub_buffer.pvServerObject = server;
         IUnknown_AddRef(server);
