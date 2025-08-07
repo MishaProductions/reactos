@@ -315,7 +315,7 @@
 313 stdcall NdrXmitOrRepAsMarshall(ptr ptr ptr)
 314 stdcall NdrXmitOrRepAsMemorySize(ptr ptr)
 315 stdcall NdrXmitOrRepAsUnmarshall(ptr ptr ptr long)
-@ stdcall -arch=!i386 NdrpClientCall2(ptr ptr ptr ptr)
+@ stdcall -arch=!i386 NdrpClientCall2(ptr ptr ptr long)
 316 stub NdrpCreateProxy
 317 stub NdrpCreateStub
 318 stub NdrpGetProcFormatString
