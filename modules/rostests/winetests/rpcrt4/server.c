@@ -1599,9 +1599,9 @@ pointer_tests(void)
       get_namesw(&n, &namesw);
       ok(n == 2, "expected 2, got %d\n", n);
       ros_skip_flaky
-      ok(!lstrcmpW(namesw[0], helloW), "expected Hello, got %s\n", wine_dbgstr_w(namesw[0]));
+      ok(!lstrcmpW(namesw[0], L"Hello"), "expected Hello, got %s\n", wine_dbgstr_w(namesw[0]));
       ros_skip_flaky
-      ok(!lstrcmpW(namesw[1], worldW), "expected World!, got %s\n", wine_dbgstr_w(namesw[1]));
+      ok(!lstrcmpW(namesw[1], L"World!"), "expected World!, got %s\n", wine_dbgstr_w(namesw[1]));
       MIDL_user_free(namesw[0]);
       MIDL_user_free(namesw[1]);
       MIDL_user_free(namesw);

@@ -2246,12 +2246,9 @@ static RPC_STATUS rpcrt4_http_internet_connect(RpcConnection_http *httpc)
     for (option = httpc->common.NetworkOptions; option;
          option = (wcschr(option, ',') ? wcschr(option, ',')+1 : NULL))
     {
-        static const WCHAR wszRpcProxy[] = {'R','p','c','P','r','o','x','y','=',0};
-        static const WCHAR wszHttpProxy[] = {'H','t','t','p','P','r','o','x','y','=',0};
-
-        if (!_wcsnicmp(option, wszRpcProxy, ARRAY_SIZE(wszRpcProxy)-1))
+        if (!wcsnicmp(option, L"RpcProxy=", ARRAY_SIZE(L"RpcProxy=")-1))
         {
-            const WCHAR *value_start = option + ARRAY_SIZE(wszRpcProxy)-1;
+            const WCHAR *value_start = option + ARRAY_SIZE(L"RpcProxy=")-1;
             const WCHAR *value_end;
             const WCHAR *p;
 
@@ -2268,9 +2265,9 @@ static RPC_STATUS rpcrt4_http_internet_connect(RpcConnection_http *httpc)
             TRACE("RpcProxy value is %s\n", debugstr_wn(value_start, value_end-value_start));
             servername = RPCRT4_strndupW(value_start, value_end-value_start);
         }
-        else if (!_wcsnicmp(option, wszHttpProxy, ARRAY_SIZE(wszHttpProxy)-1))
+        else if (!wcsnicmp(option, L"HttpProxy=", ARRAY_SIZE(L"HttpProxy=")-1))
         {
-            const WCHAR *value_start = option + ARRAY_SIZE(wszHttpProxy)-1;
+            const WCHAR *value_start = option + ARRAY_SIZE(L"HttpProxy=")-1;
             const WCHAR *value_end;
 
             value_end = wcschr(option, ',');
@@ -2396,11 +2393,9 @@ static RPC_STATUS send_echo_request(HINTERNET req, RpcHttpAsyncData *async_data,
 
 static RPC_STATUS insert_content_length_header(HINTERNET request, DWORD len)
 {
-    static const WCHAR fmtW[] =
-        {'C','o','n','t','e','n','t','-','L','e','n','g','t','h',':',' ','%','u','\r','\n',0};
-    WCHAR header[ARRAY_SIZE(fmtW) + 10];
+    WCHAR header[ARRAY_SIZE(L"Content-Length: %u\r\n") + 10];
 
-    swprintf(header, fmtW, len);
+    swprintf(header, ARRAY_SIZE(header), L"Content-Length: %u\r\n", len);
     if ((HttpAddRequestHeadersW(request, header, -1, HTTP_ADDREQ_FLAG_REPLACE | HTTP_ADDREQ_FLAG_ADD))) return RPC_S_OK;
     return RPC_S_SERVER_UNAVAILABLE;
 }

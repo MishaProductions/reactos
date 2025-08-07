@@ -41,11 +41,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(ole);
 
 static void format_clsid( WCHAR *buffer, const CLSID *clsid )
 {
-    static const WCHAR clsid_formatW[] = {'{','%','0','8','X','-','%','0','4','X','-','%','0','4','X','-',
-                                    '%','0','2','X','%','0','2','X','-','%','0','2','X','%','0','2','X',
-                                    '%','0','2','X','%','0','2','X','%','0','2','X','%','0','2','X','}',0};
-
-    swprintf( buffer, clsid_formatW, clsid->Data1, clsid->Data2, clsid->Data3,
+    swprintf( buffer, 39, L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+              clsid->Data1, clsid->Data2, clsid->Data3, clsid->Data1, clsid->Data2, clsid->Data3,
               clsid->Data4[0], clsid->Data4[1], clsid->Data4[2], clsid->Data4[3],
               clsid->Data4[4], clsid->Data4[5], clsid->Data4[6], clsid->Data4[7] );
 
@@ -248,15 +245,15 @@ HRESULT WINAPI NdrDllRegisterProxy(HMODULE hDll,
       TRACE("registering %s %s => %s\n",
             debugstr_a(name), debugstr_guid(proxy->header.piid), debugstr_w(clsid));
 
-      lstrcpyW( keyname, interfaceW );
+      lstrcpyW( keyname, L"Interface\\" );
       format_clsid( keyname + lstrlenW(keyname), proxy->header.piid );
       if (RegCreateKeyW(HKEY_CLASSES_ROOT, keyname, &key) == ERROR_SUCCESS) {
         WCHAR num[10];
         if (name)
           RegSetValueExA(key, NULL, 0, REG_SZ, (const BYTE *)name, strlen(name)+1);
-        RegSetValueW( key, clsid32W, REG_SZ, clsid, 0 );
-        swprintf(num, numformatW, proxy->header.DispatchTableCount);
-        RegSetValueW( key, nummethodsW, REG_SZ, num, 0 );
+        RegSetValueW( key, L"ProxyStubClsid32", REG_SZ, clsid, 0 );
+        swprintf(num, ARRAY_SIZE(num), L"%u", proxy->header.DispatchTableCount);
+        RegSetValueW( key, L"NumMethods", REG_SZ, num, 0 );
         RegCloseKey(key);
       }
     }

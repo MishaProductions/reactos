@@ -1,5 +1,6 @@
 
-remove_definitions(-D_WIN32_WINNT=0x502)
+remove_definitions(-D_WIN32_WINNT=0x502
+    -D_CRT_NON_CONFORMING_SWPRINTFS)
 add_definitions(-D_WIN32_WINNT=0x600)
 
 add_definitions(
