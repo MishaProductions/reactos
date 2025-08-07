@@ -1693,7 +1693,6 @@ pointer_tests(void)
       MIDL_user_free(namesw[0]);
       MIDL_user_free(namesw[1]);
       MIDL_user_free(namesw);
-      }
   }
 
   pa2 = a;
