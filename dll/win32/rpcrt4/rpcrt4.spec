@@ -382,7 +382,7 @@
 380 stdcall RpcGetAsyncCallStatus(ptr) RpcAsyncGetCallStatus
 381 stdcall RpcGetAuthorizationContextForClient(ptr long ptr ptr int64 long ptr ptr)
 382 stub RpcIfIdVectorFree
-383 stub RpcIfInqId
+383 stdcall RpcIfInqId(ptr ptr)
 384 stdcall RpcImpersonateClient(ptr)
 385 stdcall RpcInitializeAsyncHandle(ptr long) RpcAsyncInitializeHandle
 386 stdcall RpcMgmtEnableIdleCleanup()
