@@ -68,7 +68,7 @@ typedef int RPC_STATUS;
             #define DECLSPEC_IMPORT
     #endif
 
-    #if !defined(_RPCRT4_)
+    #if !defined(_RPCRT4_) && !defined(_KRPCENV_)
         #define RPCRTAPI DECLSPEC_IMPORT
     #else
         #define RPCRTAPI
