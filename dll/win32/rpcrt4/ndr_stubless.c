@@ -1370,6 +1370,32 @@ LONG WINAPI NdrStubCall2(
 
     TRACE("Oi_flags = 0x%02x\n", pProcHeader->Oi_flags);
 
+    if (pProcHeader->Oi_flags & Oi_OBJECT_PROC)
+        NdrStubInitialize(pRpcMsg, &stubMsg, pStubDesc, pChannel);
+    else
+        NdrServerInitializeNew(pRpcMsg, &stubMsg, pStubDesc);
+
+    /* create the full pointer translation tables, if requested */
+    if (pProcHeader->Oi_flags & Oi_FULL_PTR_USED)
+        stubMsg.FullPtrXlatTables = NdrFullPointerXlatInit(0,XLAT_SERVER);
+
+    /* store the RPC flags away */
+    if (pProcHeader->Oi_flags & Oi_HAS_RPCFLAGS)
+        pRpcMsg->RpcFlags = ((const NDR_PROC_HEADER_RPC *)pProcHeader)->rpc_flags;
+
+    /* use alternate memory allocation routines */
+    if (pProcHeader->Oi_flags & Oi_RPCSS_ALLOC_USED)
+#if 0
+          NdrRpcSsEnableAllocate(&stubMsg);
+#else
+          FIXME("Set RPCSS memory allocation routines\n");
+#endif
+
+    TRACE("allocating memory for stack of size %x\n", stack_size);
+
+    args = calloc(1, stack_size);
+    stubMsg.StackTop = args; /* used by conformance of top-level objects */
+
     /* binding */
     switch (pProcHeader->handle_type)
     {
@@ -1403,32 +1429,6 @@ LONG WINAPI NdrStubCall2(
         ERR("bad implicit binding handle type (0x%02x)\n", pProcHeader->handle_type);
         RpcRaiseException(RPC_X_BAD_STUB_DATA);
     }
-
-    if (pProcHeader->Oi_flags & Oi_OBJECT_PROC)
-        NdrStubInitialize(pRpcMsg, &stubMsg, pStubDesc, pChannel);
-    else
-        NdrServerInitializeNew(pRpcMsg, &stubMsg, pStubDesc);
-
-    /* create the full pointer translation tables, if requested */
-    if (pProcHeader->Oi_flags & Oi_FULL_PTR_USED)
-        stubMsg.FullPtrXlatTables = NdrFullPointerXlatInit(0,XLAT_SERVER);
-
-    /* store the RPC flags away */
-    if (pProcHeader->Oi_flags & Oi_HAS_RPCFLAGS)
-        pRpcMsg->RpcFlags = ((const NDR_PROC_HEADER_RPC *)pProcHeader)->rpc_flags;
-
-    /* use alternate memory allocation routines */
-    if (pProcHeader->Oi_flags & Oi_RPCSS_ALLOC_USED)
-#if 0
-          NdrRpcSsEnableAllocate(&stubMsg);
-#else
-          FIXME("Set RPCSS memory allocation routines\n");
-#endif
-
-    TRACE("allocating memory for stack of size %x\n", stack_size);
-
-    args = calloc(1, stack_size);
-    stubMsg.StackTop = args; /* used by conformance of top-level objects */
 
     /* add the implicit This pointer as the first arg to the function if we
      * are calling an object method */
@@ -2010,8 +2010,15 @@ void RPC_ENTRY NdrAsyncServerCall(PRPC_MESSAGE pRpcMsg)
         switch (*pFormat) /* handle_type */
         {
         case FC_BIND_PRIMITIVE: /* explicit primitive */
-            pFormat += sizeof(NDR_EHD_PRIMITIVE);
-            break;
+            {
+                const NDR_EHD_PRIMITIVE *pDesc = (const NDR_EHD_PRIMITIVE *)pFormat;
+                if (pDesc->flag)
+                    **(handle_t **)ARG_FROM_OFFSET(stubMsg.StackTop, pDesc->offset) = pRpcMsg->Handle;
+                else
+                    *(handle_t *)ARG_FROM_OFFSET(stubMsg.StackTop, pDesc->offset) = pRpcMsg->Handle;
+                pFormat += sizeof(NDR_EHD_PRIMITIVE);
+                break;
+            }
         case FC_BIND_GENERIC: /* explicit generic */
             pFormat += sizeof(NDR_EHD_GENERIC);
             break;
