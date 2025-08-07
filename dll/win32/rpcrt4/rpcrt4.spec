@@ -378,6 +378,7 @@
 376 stub RpcErrorResetEnumeration
 377 stdcall RpcErrorSaveErrorInfo(ptr ptr ptr)
 378 stdcall RpcErrorStartEnumeration(ptr)
+@ stdcall RpcExceptionFilter(long)
 379 stub RpcFreeAuthorizationContext
 380 stdcall RpcGetAsyncCallStatus(ptr) RpcAsyncGetCallStatus
 381 stdcall RpcGetAuthorizationContextForClient(ptr long ptr ptr int64 long ptr ptr)
