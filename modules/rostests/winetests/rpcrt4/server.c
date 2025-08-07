@@ -2570,13 +2570,9 @@ START_TEST(server)
     }
     else if(!strcmp(argv[2], "run"))
     {
-      UINT_PTR event;
-#ifdef __REACTOS__
-      sscanf(argv[3], "%Ix", &event);
-#else
-      sscanf(argv[3], "%lx", &event);
-#endif
-      run_server((HANDLE)event);
+      ULONG event;
+      sscanf(argv[3], "%x", &event);
+      run_server(ULongToHandle(event));
     }
   }
   else
