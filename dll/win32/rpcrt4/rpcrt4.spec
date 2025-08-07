@@ -487,7 +487,7 @@
 484 stub SimpleTypeAlignment
 485 stub SimpleTypeBufferSize
 486 stub SimpleTypeMemorySize
-487 stdcall TowerConstruct(ptr ptr ptr ptr ptr ptr)
+487 stdcall TowerConstruct(ptr ptr str str str ptr)
 488 stdcall TowerExplode(ptr ptr ptr ptr ptr ptr)
 489 stdcall UuidCompare(ptr ptr ptr)
 490 stdcall UuidCreate(ptr)
