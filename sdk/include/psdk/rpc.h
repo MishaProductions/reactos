@@ -17,17 +17,11 @@
 extern "C" {
 #endif
 
-#if defined( MAC ) || defined( _MAC ) || defined(__powerpc__) && !defined(__REACTOS__)
-    #define __RPC_MAC__
-    #define __RPC_WIN32__
-    #include <pshpack2.h>
 
+#ifdef _WIN64
+# define __RPC_WIN64__
 #else
-    #if defined(_M_IA64) || defined(_M_AMD64) || defined(_WIN64)
-        #define __RPC_WIN64__
-    #else
-        #define __RPC_WIN32__
-    #endif
+# define __RPC_WIN32__
 #endif
 
 #include <basetsd.h>
