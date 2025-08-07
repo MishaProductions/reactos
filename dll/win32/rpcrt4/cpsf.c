@@ -222,15 +222,6 @@ HRESULT WINAPI NdrDllRegisterProxy(HMODULE hDll,
                                   const ProxyFileInfo **pProxyFileList,
                                   const CLSID *pclsid)
 {
-  static const WCHAR bothW[] = {'B','o','t','h',0};
-  static const WCHAR clsidW[] = {'C','L','S','I','D','\\',0};
-  static const WCHAR clsid32W[] = {'P','r','o','x','y','S','t','u','b','C','l','s','i','d','3','2',0};
-  static const WCHAR interfaceW[] = {'I','n','t','e','r','f','a','c','e','\\',0};
-  static const WCHAR psfactoryW[] = {'P','S','F','a','c','t','o','r','y','B','u','f','f','e','r',0};
-  static const WCHAR numformatW[] = {'%','u',0};
-  static const WCHAR nummethodsW[] = {'N','u','m','M','e','t','h','o','d','s',0};
-  static const WCHAR inprocserverW[] = {'I','n','P','r','o','c','S','e','r','v','e','r','3','2',0};
-  static const WCHAR threadingmodelW[] = {'T','h','r','e','a','d','i','n','g','M','o','d','e','l',0};
   WCHAR clsid[39], keyname[50], module[MAX_PATH];
   HKEY key, subkey;
   DWORD len;
@@ -273,16 +264,16 @@ HRESULT WINAPI NdrDllRegisterProxy(HMODULE hDll,
   }
 
   /* register clsid to point to module */
-  lstrcpyW( keyname, clsidW );
+  lstrcpyW( keyname, L"CLSID\\" );
   lstrcatW( keyname, clsid );
   len = GetModuleFileNameW(hDll, module, ARRAY_SIZE(module));
   if (len && len < sizeof(module)) {
       TRACE("registering CLSID %s => %s\n", debugstr_w(clsid), debugstr_w(module));
       if (RegCreateKeyW(HKEY_CLASSES_ROOT, keyname, &key) == ERROR_SUCCESS) {
-          RegSetValueExW(key, NULL, 0, REG_SZ, (const BYTE *)psfactoryW, sizeof(psfactoryW));
-          if (RegCreateKeyW(key, inprocserverW, &subkey) == ERROR_SUCCESS) {
+          RegSetValueExW(key, NULL, 0, REG_SZ, (const BYTE *)L"PSFactoryBuffer", sizeof(L"PSFactoryBuffer"));
+          if (RegCreateKeyW(key, L"InProcServer32", &subkey) == ERROR_SUCCESS) {
               RegSetValueExW(subkey, NULL, 0, REG_SZ, (LPBYTE)module, (lstrlenW(module)+1)*sizeof(WCHAR));
-              RegSetValueExW(subkey, threadingmodelW, 0, REG_SZ, (const BYTE *)bothW, sizeof(bothW));
+              RegSetValueExW(subkey, L"ThreadingModel", 0, REG_SZ, (const BYTE *)L"Both", sizeof(L"Both"));
               RegCloseKey(subkey);
           }
           RegCloseKey(key);
@@ -299,8 +290,6 @@ HRESULT WINAPI NdrDllUnregisterProxy(HMODULE hDll,
                                     const ProxyFileInfo **pProxyFileList,
                                     const CLSID *pclsid)
 {
-  static const WCHAR clsidW[] = {'C','L','S','I','D','\\',0};
-  static const WCHAR interfaceW[] = {'I','n','t','e','r','f','a','c','e','\\',0};
   WCHAR keyname[50];
   WCHAR clsid[39];
 
@@ -321,7 +310,7 @@ HRESULT WINAPI NdrDllUnregisterProxy(HMODULE hDll,
 
       TRACE("unregistering %s %s\n", debugstr_a(name), debugstr_guid(proxy->header.piid));
 
-      lstrcpyW( keyname, interfaceW );
+      lstrcpyW( keyname, L"Interface\\" );
       format_clsid( keyname + lstrlenW(keyname), proxy->header.piid );
       RegDeleteTreeW(HKEY_CLASSES_ROOT, keyname);
     }
@@ -329,7 +318,7 @@ HRESULT WINAPI NdrDllUnregisterProxy(HMODULE hDll,
   }
 
   /* unregister clsid */
-  lstrcpyW( keyname, clsidW );
+  lstrcpyW( keyname, L"CLSID\\" );
   lstrcatW( keyname, clsid );
   RegDeleteTreeW(HKEY_CLASSES_ROOT, keyname);
 
