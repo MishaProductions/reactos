@@ -232,7 +232,7 @@ RpcPktHdr *RPCRT4_BuildBindNackHeader(ULONG DataRepresentation,
                                       unsigned short RejectReason)
 {
   RpcPktBindNAckHdr *header;
-#ifndef _MSC_VER && defined __REACTOS__
+#if !defined(_MSC_VER) && defined(__REACTOS__)
   C_ASSERT(sizeof(*header) >= FIELD_OFFSET(RpcPktBindNAckHdr, protocols[1]));
 #endif
 
