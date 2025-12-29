@@ -41,10 +41,10 @@ public:
 
     inline
     WmpStateEngineProxyItem(
-        __in    UINT            uiID,
-        __in    CWmpStateEngine *pCWmpStateEngine,
-        __in    Class           *pClass,
-        __in    Method          method,
+        _In_    UINT            uiID,
+        _In_    CWmpStateEngine *pCWmpStateEngine,
+        _In_    Class           *pClass,
+        _In_    Method          method,
                 Datatype        data
         );
 
@@ -56,7 +56,7 @@ public:
     inline
     HRESULT
     CallMethod(
-        __in    bool            waitForCompletion
+        _In_    bool            waitForCompletion
         );
 
 protected:
@@ -65,26 +65,26 @@ protected:
     // CMILCOMBase
     //
     STDMETHOD(HrFindInterface)(
-        __in REFIID riid,
+        _In_ REFIID riid,
         __deref_out void **ppv
         );
 
-    __override
+    /* override */
     void
     Run(
         void
        );
 
-    __override
+    /* override */
     void
     Cancel(
         void
         );
 
-    __override
+    /* override */
     bool
     IsAnOwner(
-        __in    IUnknown    *pIUnknown
+        _In_    IUnknown    *pIUnknown
         );
 
 private:
@@ -105,20 +105,20 @@ template <typename Class, typename Method, typename Datatype>
 inline
 HRESULT
 CallMethod(
-    __in        UINT                uiID,
-    __in        CWmpStateEngine     *pCWmpStateEngine,
-    __in        Class               *pClass,
-    __in        Method              method,
+    _In_        UINT                uiID,
+    _In_        CWmpStateEngine     *pCWmpStateEngine,
+    _In_        Class               *pClass,
+    _In_        Method              method,
                 Datatype            data
     );
 
 template <typename Class, typename Method, typename Datatype>
 HRESULT
 AsyncCallMethod(
-    __in        UINT                uiID,
-    __in        CWmpStateEngine     *pCWmpStateEngine,
-    __in        Class               *pClass,
-    __in        Method              method,
+    _In_        UINT                uiID,
+    _In_        CWmpStateEngine     *pCWmpStateEngine,
+    _In_        Class               *pClass,
+    _In_        Method              method,
                 Datatype            data
     );
 };
