@@ -3,16 +3,18 @@ spec2def(activeds.dll activeds.spec)
 
 list(APPEND SOURCE
     activeds_main.c
-    stubs.c
-    precomp.h)
+    pathname.c
+    precomp.h
+    ${CMAKE_CURRENT_BINARY_DIR}/activeds_stubs.c)
 
 add_library(activeds MODULE
     ${SOURCE}
     ${CMAKE_CURRENT_BINARY_DIR}/activeds.def)
 
 set_module_type(activeds win32dll)
-target_link_libraries(activeds wine)
-add_importlibs(activeds msvcrt kernel32 ntdll)
+add_idl_reg_scripts(activeds registry activeds.idl)
+target_link_libraries(activeds wine wine_dll_register wine_dll_canunload uuid oldnames)
+add_importlibs(activeds ole32 oleaut32 advapi32 msvcrt kernel32 ntdll)
 add_pch(activeds precomp.h SOURCE)
 add_cd_file(TARGET activeds DESTINATION reactos/system32 FOR all)
-set_wine_module(activeds)
+set_wine_module_FIXME(activeds) # CORE-5743: No ARRAY_SIZE macro

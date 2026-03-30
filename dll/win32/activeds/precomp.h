@@ -11,8 +11,6 @@
 #define COBJMACROS
 #define NONAMELESSUNION
 
-#include <windef.h>
-#include <winbase.h>
-#include <objbase.h>
+#include <windows.h>
 
 #endif /* !_ACTIVEDS_PCH_ */
