@@ -4,6 +4,8 @@
  * PURPOSE:     Implement auto-completion for comdlg32
  * COPYRIGHT:   Copyright 2021 Katayama Hirofumi MZ <katayama.hirofumi.mz@gmail.com>
  */
+/* TODO: Fix sdk\include\crt\stdio.h(977): error C2733: 'vswprintf': you cannot overload a function with 'extern "C"' linkage */
+#define _CRT_NON_CONFORMING_SWPRINTFS 1
 #include "precomp.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(commdlg);
