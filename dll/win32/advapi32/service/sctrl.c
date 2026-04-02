@@ -264,7 +264,7 @@ ScConnectControlPipe(HANDLE *hPipe)
         dwServiceCurrent = 0;
     }
 
-    swprintf(NtControlPipeName, L"\\\\.\\pipe\\net\\NtControlPipe%u", dwServiceCurrent);
+    swprintf(NtControlPipeName, _countof(NtControlPipeName), L"\\\\.\\pipe\\net\\NtControlPipe%u", dwServiceCurrent);
     TRACE("PipeName: %S\n", NtControlPipeName);
 
     if (!WaitNamedPipeW(NtControlPipeName, 30000))

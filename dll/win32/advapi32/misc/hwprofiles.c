@@ -122,6 +122,7 @@ GetCurrentHwProfileW(LPHW_PROFILE_INFOW lpHwProfileInfo)
     }
 
     swprintf(szKeyName,
+             _countof(szKeyName),
              L"Hardware Profile\\%04lu",
              dwConfigId);
 
@@ -160,6 +161,7 @@ GetCurrentHwProfileW(LPHW_PROFILE_INFOW lpHwProfileInfo)
         UuidCreate(&uuid);
         swprintf(
             lpHwProfileInfo->szHwProfileGuid,
+            HW_PROFILE_GUIDLEN,
             L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
             uuid.Data1,
             uuid.Data2,

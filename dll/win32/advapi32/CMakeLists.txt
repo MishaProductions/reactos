@@ -1,5 +1,6 @@
 
 spec2def(advapi32.dll advapi32.spec ADD_IMPORTLIB)
+remove_definitions(-D_CRT_NON_CONFORMING_SWPRINTFS)
 add_definitions(-D_ADVAPI32_)
 
 include_directories(
