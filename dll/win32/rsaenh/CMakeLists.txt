@@ -21,8 +21,8 @@ add_library(rsaenh MODULE
     ${CMAKE_CURRENT_BINARY_DIR}/rsaenh.def)
 
 set_module_type(rsaenh win32dll)
-target_link_libraries(rsaenh wine)
+target_link_libraries(rsaenh wine wine_dll_register wine_dll_canunload)
 add_importlibs(rsaenh msvcrt crypt32 advapi32 kernel32 ntdll)
 add_pch(rsaenh tomcrypt.h SOURCE)
 add_cd_file(TARGET rsaenh DESTINATION reactos/system32 FOR all)
-set_wine_module(rsaenh)
+set_wine_module_FIXME(rsaenh)
