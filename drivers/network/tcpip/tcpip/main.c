@@ -847,6 +847,7 @@ DriverEntry(
 {
     NTSTATUS Status;
     UNICODE_STRING strIpDeviceName = RTL_CONSTANT_STRING(DD_IP_DEVICE_NAME);
+    UNICODE_STRING strIp6DeviceName = RTL_CONSTANT_STRING(DD_IP6_DEVICE_NAME);
     UNICODE_STRING strRawDeviceName = RTL_CONSTANT_STRING(DD_RAWIP_DEVICE_NAME);
     UNICODE_STRING strUdpDeviceName = RTL_CONSTANT_STRING(DD_UDP_DEVICE_NAME);
     UNICODE_STRING strTcpDeviceName = RTL_CONSTANT_STRING(DD_TCP_DEVICE_NAME);
@@ -870,6 +871,15 @@ DriverEntry(
         FILE_DEVICE_NETWORK, 0, FALSE, &IPDeviceObject);
     if (!NT_SUCCESS(Status)) {
         TI_DbgPrint(MIN_TRACE, ("Failed to create IP device object. Status (0x%X).\n", Status));
+        TiUnload(DriverObject);
+        return Status;
+    }
+
+    /* Create IP v6 device object */
+    Status = IoCreateDevice(DriverObject, 0, &strIp6DeviceName,
+        FILE_DEVICE_NETWORK, 0, FALSE, &IPDeviceObject);
+    if (!NT_SUCCESS(Status)) {
+        TI_DbgPrint(MIN_TRACE, ("Failed to create IP6 device object. Status (0x%X).\n", Status));
         TiUnload(DriverObject);
         return Status;
     }

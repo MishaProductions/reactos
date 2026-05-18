@@ -36,7 +36,7 @@ void
 LibTCPDumpPcb(PVOID SocketContext)
 {
     struct tcp_pcb *pcb = (struct tcp_pcb*)SocketContext;
-    unsigned int addr = lwip_ntohl(pcb->remote_ip.addr);
+    unsigned int addr = lwip_ntohl(pcb->remote_ip.u_addr.ip4.addr);
 
     DbgPrint("\tState: %s\n", tcp_state_str[pcb->state]);
     DbgPrint("\tRemote: (%d.%d.%d.%d, %d)\n",
@@ -412,7 +412,7 @@ done:
 }
 
 err_t
-LibTCPBind(PCONNECTION_ENDPOINT Connection, ip4_addr_t *const ipaddr, const u16_t port)
+LibTCPBind(PCONNECTION_ENDPOINT Connection, ip_addr_t *const ipaddr, const u16_t port)
 {
     struct lwip_callback_msg *msg;
     err_t ret;

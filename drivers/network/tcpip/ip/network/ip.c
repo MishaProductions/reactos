@@ -161,9 +161,9 @@ VOID IPDispatchProtocol(
         AddrInitIPv4(&SrcAddress, ((PIPv4_HEADER)(IPPacket->Header))->SrcAddr);
         break;
     case IP_ADDRESS_V6:
-        /* FIXME: IPv6 addresses not supported */
-        TI_DbgPrint(MIN_TRACE, ("IPv6 datagram discarded.\n"));
-        return;
+        Protocol = ((PIPv6_HEADER)(IPPacket->Header))->NextHeader;
+        AddrInitIPv6(&SrcAddress, ((PIPv6_HEADER)(IPPacket->Header))->SrcAddr);
+        break;
     default:
         TI_DbgPrint(MIN_TRACE, ("Unrecognized datagram discarded.\n"));
         return;

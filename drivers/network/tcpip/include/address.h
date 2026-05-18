@@ -19,6 +19,20 @@
     (IPAddress)->Address.IPv4Address = (RawAddress);  \
 }
 
+/*
+ * Initialize an IPv6 style address
+ * VOID AddrInitIPv6(
+ *     PIP_ADDRESS IPAddress,
+ *     IPv6_RAW_ADDRESS RawAddress)
+ */
+#define AddrInitIPv6(IPAddress, RawAddress)                  \
+    do {                                                     \
+        (IPAddress)->Type = IP_ADDRESS_V6;                   \
+        memcpy(&(IPAddress)->Address.IPv6Address,            \
+               &(RawAddress),                                \
+               sizeof(IPv6_RAW_ADDRESS));                    \
+    } while (0)
+
 #if DBG
 
 PCHAR A2S(

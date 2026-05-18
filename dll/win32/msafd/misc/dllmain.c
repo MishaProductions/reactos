@@ -3386,7 +3386,7 @@ WSPAddressToString(IN LPSOCKADDR lpsaAddress,
                    OUT LPINT lpErrno)
 {
     SIZE_T size;
-    WCHAR buffer[54]; /* 32 digits + 7':' + '[' + '%" + 5 digits + ']:' + 5 digits + '\0' */
+    WCHAR buffer[90]; /* 32 digits + 7':' + '[' + '%" + 5 digits + ']:' + 5 digits + '\0' */
     WCHAR *p;
 
     if (!lpsaAddress || !lpszAddressString || !lpdwAddressStringLength)
@@ -3417,6 +3417,81 @@ WSPAddressToString(IN LPSOCKADDR lpsaAddress,
                 *p = 0;
             }
             break;
+        case AF_INET6:
+            if (dwAddressLength < sizeof(SOCKADDR_IN6))
+            {
+                if (lpErrno) *lpErrno = WSAEINVAL;
+                return SOCKET_ERROR;
+            }
+
+            PSOCKADDR_IN6 ip = (PSOCKADDR_IN6)lpsaAddress;
+
+            int best_start = -1;
+            int best_len = -1;
+            int cur_start = -1;
+            int cur_len = 0;
+            const char hex_chars[] = "0123456789abcdef";
+            LPWSTR ptr = buffer;
+
+            // Find the first block that is non-zero
+            for (int i = 0; i < 8; i++) {
+                WORD block = ip->sin6_addr.u.Word[i];
+                
+                if (block == 0) {
+                    if (cur_start == -1) cur_start = i;
+                    cur_len++;
+                    if (cur_len > best_len) {
+                        best_len = cur_len;
+                        best_start = cur_start;
+                    }
+                } else {
+                    cur_start = -1;
+                    cur_len = 0;
+                }
+            }
+
+            // Only compress if the zero run is 2 blocks or longer
+            if (best_len < 2) {
+                best_start = -1;
+            }
+
+            for (int i = 0; i < 8; i++) {
+                // Apply zero compression
+                if (i >= best_start && i < best_start + best_len) {
+                    if (i == best_start) {
+                        *ptr++ = ':';
+                        *ptr++ = ':';
+                    }
+                    continue;
+                }
+
+                // Add a colon separator between blocks (except at the start)
+                if (i > 0 && !(i == best_start + best_len && best_start == 0)) {
+                    *ptr++ = ':';
+                }
+
+                WORD block = ip->sin6_addr.u.Word[i];
+
+                // Manually format the 16-bit block (up to 4 hex characters)
+                int started = 0;
+                for (int j = 12; j >= 0; j -= 4) {
+                    int digit = (block >> j) & 0xF;
+                    if (digit || started || j == 0) {
+                        *ptr++ = hex_chars[digit];
+                        started = 1;
+                    }
+                }
+            }
+            *ptr = '\0';
+
+            if (ip->sin6_port)
+            {
+                _swprintf(buffer,
+                        L"%s:%u",
+                        buffer,
+                        ntohs(ip->sin6_port));
+            }
+            break;    
         default:
             if (lpErrno) *lpErrno = WSAEINVAL;
             return SOCKET_ERROR;

@@ -20,6 +20,7 @@ list(APPEND INF_FILES
     msmouse.inf
     ndisuio.inf
     NET_NIC.inf
+    netip6.inf
     nettcpip.inf
     ports.inf
     scsi.inf

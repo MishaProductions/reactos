@@ -165,6 +165,83 @@ again:
 }
 
 static
+BOOL
+WINAPI
+ParseV6Address(IN PCWSTR AddressString,
+               OUT BYTE* Address)
+{
+    WORD Blocks[8] = {0};
+    int BlockIndex = 0;
+    int CompressIndex = -1;
+    PCWSTR p = AddressString;
+
+    // Handle leading double-colon (e.g., ::1)
+    if (*p == ':' && *(p + 1) == ':') {
+        CompressIndex = 0;
+        p += 2;
+    }
+
+    while (*p && BlockIndex < 8) {
+        DWORD val = 0;
+        int digits = 0;
+
+        // Parse up to 4 hex digits for the current block
+        while (*p && *p != ':' && digits < 4) {
+            char c = *p;
+            int digit_val = -1;
+            
+            if (c >= '0' && c <= '9') digit_val = c - '0';
+            else if (c >= 'a' && c <= 'f') digit_val = c - 'a' + 10;
+            else if (c >= 'A' && c <= 'F') digit_val = c - 'A' + 10;
+
+            if (digit_val == -1) return FALSE; // Invalid character
+
+            val = (val << 4) | digit_val;
+            p++;
+            digits++;
+        }
+
+        if (digits == 0) return 0; // Empty block or trailing colon
+        Blocks[BlockIndex++] = (DWORD)val;
+
+        // Handle separators and compression
+        if (*p == ':') {
+            p++;
+            if (*p == ':') { // Found :: (zero compression)
+                if (CompressIndex != -1) return FALSE; // Multiple compressions are invalid
+                CompressIndex = BlockIndex;
+                p++;
+            }
+        }
+    }
+
+    // Expand compressed zeros if necessary
+    int TotalBlocks = BlockIndex;
+    int ZerosToAdd = 8 - TotalBlocks;
+    if (CompressIndex != -1) {
+        // Shift blocks after the compression index right to make space
+        for (int i = TotalBlocks - 1; i >= CompressIndex; i--) {
+            Blocks[i + ZerosToAdd] = Blocks[i];
+        }
+        // Fill the compressed region with zeros
+        for (int i = CompressIndex; i < CompressIndex + ZerosToAdd; i++) {
+            Blocks[i] = 0;
+        }
+    } else if (TotalBlocks < 8) {
+        return 0; // Incomplete address
+    }
+
+    // Convert 16-bit blocks to 128-bit network byte order (Big-Endian)
+    for (int i = 0; i < 8; i++) {
+        Address[i * 2] = (BYTE)(Blocks[i] >> 8);
+        Address[i * 2 + 1] = (BYTE)(Blocks[i] & 0xFF);
+    }
+
+    return TRUE;
+}
+
+
+static
 PADDRINFOW
 WINAPI
 NewAddrInfo(IN INT SocketType,
@@ -202,6 +279,49 @@ NewAddrInfo(IN INT SocketType,
     AddrInfo->ai_next = 0;
     AddrInfo->ai_canonname = NULL;
     AddrInfo->ai_addrlen = sizeof(SOCKADDR_IN);
+    AddrInfo->ai_addr = (PSOCKADDR)SockAddress;
+
+    /* Return it */
+    return AddrInfo;
+}
+
+static
+PADDRINFOW
+WINAPI
+NewAddrInfoV6(IN INT SocketType,
+            IN INT Protocol,
+            IN WORD Port,
+            IN BYTE* Address)
+{
+    PADDRINFOW AddrInfo;
+    PSOCKADDR_IN6 SockAddress;
+
+    /* Allocate a structure */
+    AddrInfo = HeapAlloc(WsSockHeap, 0, sizeof(ADDRINFOW));
+    if (!AddrInfo) return NULL;
+
+    /* Allocate a sockaddr */
+    SockAddress = HeapAlloc(WsSockHeap, 0, sizeof(SOCKADDR_IN6));
+    if (!SockAddress)
+    {
+        /* Free the addrinfo and fail */
+        HeapFree(WsSockHeap, 0, AddrInfo);
+        return NULL;
+    }
+
+    /* Write data for socket address */
+    SockAddress->sin6_family = AF_INET6;
+    SockAddress->sin6_port = Port;
+    memcpy(SockAddress->sin6_addr.u.Byte, Address, sizeof(SockAddress->sin6_addr.u.Byte));
+
+    /* Fill out the addrinfo */
+    AddrInfo->ai_family = AF_INET6;
+    AddrInfo->ai_socktype = SocketType;
+    AddrInfo->ai_protocol = Protocol;
+    AddrInfo->ai_flags = 0;
+    AddrInfo->ai_next = 0;
+    AddrInfo->ai_canonname = NULL;
+    AddrInfo->ai_addrlen = sizeof(SOCKADDR_IN6);
     AddrInfo->ai_addr = (PSOCKADDR)SockAddress;
 
     /* Return it */
@@ -518,6 +638,7 @@ GetAddrInfoW(IN PCWSTR pszNodeName,
     INT iProtocol = 0;
     WORD wPort = 0;
     DWORD dwAddress = 0;
+    BYTE dwAddressIPv6[16];
     PSERVENT ptService = NULL;
     PCHAR pc = NULL;
     BOOL bClone = FALSE;
@@ -672,6 +793,52 @@ GetAddrInfoW(IN PCWSTR pszNodeName,
 
         /* Create the Addr Info */
         *pptResult = NewAddrInfo(iSocketType, iProtocol, wPort, dwAddress);
+
+        /* If we didn't get one back, assume out of memory */
+        if (!(*pptResult)) iError = EAI_MEMORY;
+
+        /* Check if we have success and a nodename */
+        if (!iError && pszNodeName)
+        {
+            /* Set AI_NUMERICHOST since this is a numeric string */
+            (*pptResult)->ai_flags |= AI_NUMERICHOST;
+
+            /* Check if the canonical name was requested */
+            if (iFlags & AI_CANONNAME)
+            {
+                /* Get the canonical name */
+                GetNameInfoW((*pptResult)->ai_addr,
+                             (socklen_t)(*pptResult)->ai_addrlen,
+                             CanonicalName,
+                             0x41,
+                             NULL,
+                             0,
+                             2);
+
+                /* Allocate memory for a copy */
+                (*pptResult)->ai_canonname = HeapAlloc(WsSockHeap,
+                                                       0,
+                                                       wcslen(CanonicalName));
+
+                if (!(*pptResult)->ai_canonname)
+                {
+                    /* No memory for the copy */
+                    iError = EAI_MEMORY;
+                }
+                else
+                {
+                    /* Duplicate the string */
+                    RtlMoveMemory((*pptResult)->ai_canonname,
+                                  CanonicalName,
+                                  wcslen(CanonicalName));
+                }
+            }
+        }
+    }
+    else if (pszNodeName && ParseV6Address(pszNodeName, dwAddressIPv6))
+    {
+        /* Create the Addr Info */
+        *pptResult = NewAddrInfoV6(iSocketType, iProtocol, wPort, dwAddressIPv6);
 
         /* If we didn't get one back, assume out of memory */
         if (!(*pptResult)) iError = EAI_MEMORY;

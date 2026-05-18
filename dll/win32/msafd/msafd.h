@@ -17,6 +17,7 @@
 #include <windef.h>
 #include <winbase.h>
 #include <ws2spi.h>
+#include <ws2ipdef.h>
 #define NTOS_MODE_USER
 #include <ndk/exfuncs.h>
 #include <ndk/iofuncs.h>

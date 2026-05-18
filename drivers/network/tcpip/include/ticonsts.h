@@ -24,6 +24,7 @@
 #define DD_TCP_DEVICE_NAME      L"\\Device\\Tcp"
 #define DD_UDP_DEVICE_NAME      L"\\Device\\Udp"
 #define DD_IP_DEVICE_NAME       L"\\Device\\Ip"
+#define DD_IP6_DEVICE_NAME       L"\\Device\\Ip6"
 #define DD_RAWIP_DEVICE_NAME    L"\\Device\\RawIp"
 
 /* For NDIS protocol registration */

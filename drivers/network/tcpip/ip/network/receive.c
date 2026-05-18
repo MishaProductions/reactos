@@ -634,6 +634,80 @@ VOID IPv4Receive(PIP_INTERFACE IF, PIP_PACKET IPPacket)
     ProcessFragment(IF, IPPacket);
 }
 
+VOID IPv6Receive(PIP_INTERFACE IF, PIP_PACKET IPPacket)
+/*
+ * FUNCTION: Receives an IPv6 datagram (or fragment)
+ * ARGUMENTS:
+ *     Context  = Pointer to context information (IP_INTERFACE)
+ *     IPPacket = Pointer to IP packet
+ */
+{
+    UCHAR FirstByte;
+    ULONG BytesCopied;
+
+    TI_DbgPrint(DEBUG_IP, ("Received IPv6 datagram.\n"));
+
+    /* Read in the first IP header byte for size information */
+    BytesCopied = CopyPacketToBuffer((PCHAR)&FirstByte,
+                                     IPPacket->NdisPacket,
+                                     IPPacket->Position,
+                                     sizeof(UCHAR));
+    if (BytesCopied != sizeof(UCHAR))
+    {
+        TI_DbgPrint(MIN_TRACE, ("Failed to copy in first byte\n"));
+        /* Discard packet */
+        return;
+    }
+
+    IPPacket->HeaderSize = (FirstByte & 0x0F) << 2;
+    TI_DbgPrint(DEBUG_IP, ("IPPacket->HeaderSize = %d\n", IPPacket->HeaderSize));
+
+    if (IPPacket->HeaderSize > IPv4_MAX_HEADER_SIZE) {
+        TI_DbgPrint(MIN_TRACE, ("Datagram received with incorrect header size (%d).\n",
+	      IPPacket->HeaderSize));
+        /* Discard packet */
+        return;
+    }
+
+    /* This is freed by IPPacket->Free() */
+    IPPacket->Header = ExAllocatePoolWithTag(NonPagedPool,
+                                             IPPacket->HeaderSize,
+                                             PACKET_BUFFER_TAG);
+    if (!IPPacket->Header)
+    {
+        TI_DbgPrint(MIN_TRACE, ("No resources to allocate header\n"));
+        /* Discard packet */
+        return;
+    }
+
+    IPPacket->MappedHeader = FALSE;
+
+    BytesCopied = CopyPacketToBuffer((PCHAR)IPPacket->Header,
+                                     IPPacket->NdisPacket,
+                                     IPPacket->Position,
+                                     IPPacket->HeaderSize);
+    if (BytesCopied != IPPacket->HeaderSize)
+    {
+        TI_DbgPrint(MIN_TRACE, ("Failed to copy in header\n"));
+        /* Discard packet */
+        return;
+    }
+
+    IPPacket->TotalSize = WN2H(((PIPv6_HEADER)IPPacket->Header)->PayloadLength) + IPv6_HEADER_SIZE;
+
+    AddrInitIPv6(&IPPacket->SrcAddr, ((PIPv6_HEADER)IPPacket->Header)->SrcAddr);
+    AddrInitIPv6(&IPPacket->DstAddr, ((PIPv6_HEADER)IPPacket->Header)->DstAddr);
+
+    TI_DbgPrint(MID_TRACE,("IPPacket->Position = %d\n",
+                           IPPacket->Position));
+
+    /* FIXME: Possibly forward packets with multicast addresses */
+
+    /* FIXME: Should we allow packets to be received on the wrong interface? */
+    /* XXX Find out if this packet is destined for us */
+    ProcessFragment(IF, IPPacket);
+}
+
 
 VOID IPReceive( PIP_INTERFACE IF, PIP_PACKET IPPacket )
 /*
@@ -668,7 +742,7 @@ VOID IPReceive( PIP_INTERFACE IF, PIP_PACKET IPPacket )
             break;
         case 6:
             IPPacket->Type = IP_ADDRESS_V6;
-            TI_DbgPrint(MAX_TRACE, ("Datagram of type IPv6 discarded.\n"));
+            IPv6Receive(IF, IPPacket);
             break;
         default:
             TI_DbgPrint(MIN_TRACE, ("Datagram has an unsupported IP version %d.\n", Version));
