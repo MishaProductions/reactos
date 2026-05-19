@@ -10,6 +10,70 @@
 
 #include "precomp.h"
 
+NTSTATUS AddGenericHeaderIPv6(
+    PADDRESS_FILE AddrFile,
+    PIP_ADDRESS RemoteAddress,
+    USHORT RemotePort,
+    PIP_ADDRESS LocalAddress,
+    USHORT LocalPort,
+    PIP_PACKET IPPacket,
+    UINT DataLength,
+    UINT Protocol,
+    UINT ExtraLength,
+    PVOID *NextHeader )
+/*
+ * FUNCTION: Adds an IPv6 and RawIp header to an IP packet
+ * ARGUMENTS:
+ *     SendRequest  = Pointer to send request
+ *     LocalAddress = Pointer to our local address
+ *     LocalPort    = The port we send this datagram from
+ *     IPPacket     = Pointer to IP packet
+ * RETURNS:
+ *     Status of operation
+ */
+{
+    PIPv6_HEADER IPHeader;
+    ULONG BufferSize;
+
+    TI_DbgPrint(MID_TRACE, ("Packet: %x NdisPacket %x\n",
+			    IPPacket, IPPacket->NdisPacket));
+
+    BufferSize = sizeof(IPv6_HEADER) + ExtraLength;
+
+    GetDataPtr( IPPacket->NdisPacket,
+		0,
+		(PCHAR *)&IPPacket->Header,
+		&IPPacket->TotalSize );
+    IPPacket->MappedHeader = TRUE;
+
+    IPPacket->HeaderSize = sizeof(IPv6_HEADER);
+
+    TI_DbgPrint(MAX_TRACE, ("Allocated %d bytes for headers at 0x%X.\n",
+			    BufferSize, IPPacket->Header));
+    TI_DbgPrint(MAX_TRACE, ("Packet total length %d\n", IPPacket->TotalSize));
+
+    /* Build IPv6 header */
+    IPHeader = (PIPv6_HEADER)IPPacket->Header;
+    /* Version = 6, Traffic Class = 0, Flow Label = 0 */
+    IPHeader->VTF = 0x60000000;
+    /* Length of header and data */
+    IPHeader->PayloadLength = WH2N((USHORT)IPPacket->TotalSize) - sizeof(IPPacket->HeaderSize);
+    /* One fragment at offset 0 */
+    IPHeader->NextHeader = Protocol;
+    /* Hop Limit (same as TTL) */
+    IPHeader->HopLimit = AddrFile->TTL;
+    /* Source address */
+    memcpy(IPHeader->SrcAddr, LocalAddress->Address.IPv6Address, sizeof(IPHeader->SrcAddr));
+    /* Destination address. */
+    memcpy(IPHeader->DstAddr, RemoteAddress->Address.IPv6Address, sizeof(IPHeader->DstAddr));
+
+    /* Build RawIp header */
+    *NextHeader = (((PCHAR)IPHeader) + sizeof(IPv6_HEADER));
+    IPPacket->Data = ((PCHAR)*NextHeader) + ExtraLength;
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS AddGenericHeaderIPv4(
     PADDRESS_FILE AddrFile,
     PIP_ADDRESS RemoteAddress,
@@ -108,10 +172,16 @@ NTSTATUS BuildRawIpPacket(
 
     TI_DbgPrint(MAX_TRACE, ("Called.\n"));
 
-    /* FIXME: Assumes IPv4 */
-    IPInitializePacket(Packet, IP_ADDRESS_V4);
-
-    Packet->TotalSize = sizeof(IPv4_HEADER) + DataLen;
+    if (RemoteAddress->Type == IP_ADDRESS_V4)
+    {
+        IPInitializePacket(Packet, IP_ADDRESS_V4);
+        Packet->TotalSize = sizeof(IPv4_HEADER) + DataLen;
+    }
+    else
+    {
+        IPInitializePacket(Packet, IP_ADDRESS_V6);
+        Packet->TotalSize = sizeof(IPv6_HEADER) + DataLen;
+    }
 
     /* Prepare packet */
     Status = AllocatePacketWithBuffer( &Packet->NdisPacket,
@@ -133,9 +203,11 @@ NTSTATUS BuildRawIpPacket(
              0, (PVOID *)&Payload );
 	break;
     case IP_ADDRESS_V6:
-	/* FIXME: Support IPv6 */
-        Status = STATUS_UNSUCCESSFUL;
-	TI_DbgPrint(MIN_TRACE, ("IPv6 RawIp datagrams are not supported.\n"));
+	    Status = AddGenericHeaderIPv6
+            (AddrFile, RemoteAddress, RemotePort,
+             LocalAddress, LocalPort, Packet, DataLen,
+             AddrFile->Protocol,
+             0, (PVOID *)&Payload );
         break;
 
     default:
@@ -187,6 +259,7 @@ NTSTATUS RawIPSendDatagram(
 {
     IP_PACKET Packet;
     PTA_IP_ADDRESS RemoteAddressTa = (PTA_IP_ADDRESS)ConnInfo->RemoteAddress;
+    PTA_IP6_ADDRESS RemoteAddress6Ta = (PTA_IP6_ADDRESS)RemoteAddressTa;
     IP_ADDRESS RemoteAddress,  LocalAddress;
     USHORT RemotePort;
     NTSTATUS Status;
@@ -204,6 +277,11 @@ NTSTATUS RawIPSendDatagram(
             RemoteAddress.Address.IPv4Address =
             RemoteAddressTa->Address[0].Address[0].in_addr;
             RemotePort = RemoteAddressTa->Address[0].Address[0].sin_port;
+            break;
+        case TDI_ADDRESS_TYPE_IP6:
+            RemoteAddress.Type = IP_ADDRESS_V6;
+            memcpy(RemoteAddress.Address.IPv6Address, RemoteAddress6Ta->Address[0].Address->sin6_addr, sizeof(RemoteAddress6Ta->Address[0].Address->sin6_addr));
+            RemotePort = RemoteAddress6Ta->Address[0].Address[0].sin6_port;
             break;
 
         default:
@@ -275,7 +353,7 @@ VOID RawIpReceive(PIP_INTERFACE Interface, PIP_PACKET IPPacket)
 */
 {
   AF_SEARCH SearchContext;
-  PIPv4_HEADER IPv4Header;
+  UCHAR Protocol;
   PADDRESS_FILE AddrFile;
   PIP_ADDRESS DstAddress, SrcAddress;
   UINT DataSize;
@@ -285,7 +363,7 @@ VOID RawIpReceive(PIP_INTERFACE Interface, PIP_PACKET IPPacket)
   switch (IPPacket->Type) {
   /* IPv4 packet */
   case IP_ADDRESS_V4:
-    IPv4Header = IPPacket->Header;
+    Protocol = ((PIPv4_HEADER)IPPacket->Header)->Protocol;
     DstAddress = &IPPacket->DstAddr;
     SrcAddress = &IPPacket->SrcAddr;
     DataSize = IPPacket->TotalSize;
@@ -293,10 +371,11 @@ VOID RawIpReceive(PIP_INTERFACE Interface, PIP_PACKET IPPacket)
 
   /* IPv6 packet */
   case IP_ADDRESS_V6:
-    TI_DbgPrint(MIN_TRACE, ("Discarded IPv6 datagram (%i bytes).\n", IPPacket->TotalSize));
-
-    /* FIXME: IPv6 is not supported */
-    return;
+    Protocol = ((PIPv6_HEADER)IPPacket->Header)->NextHeader;
+    DstAddress = &IPPacket->DstAddr;
+    SrcAddress = &IPPacket->SrcAddr;
+    DataSize = IPPacket->TotalSize;
+    break;
 
   default:
     return;
@@ -309,7 +388,7 @@ VOID RawIpReceive(PIP_INTERFACE Interface, PIP_PACKET IPPacket)
 
   AddrFile = AddrSearchFirst(DstAddress,
                              0,
-                             IPv4Header->Protocol,
+                             Protocol,
                              &SearchContext);
   if (AddrFile) {
     do {

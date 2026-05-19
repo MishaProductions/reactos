@@ -130,6 +130,12 @@ NDIS_STATUS LoopRegisterAdapter(
   AddrInitIPv4(&Loopback->Netmask, LOOPBACK_ADDRMASK_IPv4);
   AddrInitIPv4(&Loopback->Broadcast, LOOPBACK_BCASTADDR_IPv4);
 
+  static const WORD LoopbackAddress[8] = {0, 0, 0, 0, 0, 0, 0, 1}; // ::1/128
+  static const WORD LoopbackMask[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+  AddrInitIPv6(&Loopback->AddressPermanent, LoopbackAddress);
+  AddrInitIPv6(&Loopback->NetmaskIPv6, LoopbackMask);
+
   IPRegisterInterface(Loopback);
 
   IPAddInterfaceRoute(Loopback);

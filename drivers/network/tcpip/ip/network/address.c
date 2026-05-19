@@ -126,7 +126,10 @@ BOOLEAN AddrIsUnspecified(
                     Address->Address.IPv4Address == 0xFFFFFFFF);
 
         case IP_ADDRESS_V6:
-        /* FIXME: IPv6 is not supported */
+            static const WORD IPv6AddressZeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+            static const WORD IPv6AddressBroadcast[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+            return !memcmp(Address->Address.IPv6Address, IPv6AddressZeros, sizeof(IPv6AddressZeros)) || !memcmp(Address->Address.IPv6Address, IPv6AddressBroadcast, sizeof(IPv6AddressBroadcast));
         default:
             return FALSE;
     }
@@ -166,6 +169,16 @@ NTSTATUS AddrGetAddress(
 		AddrInitIPv4(Address, ValidAddr->in_addr);
 		return STATUS_SUCCESS;
 	    }
+        case TDI_ADDRESS_TYPE_IP6:
+            if (CurAddr->AddressLength >= TDI_ADDRESS_LENGTH_IP6) {
+                /* This is an IPv6 address */
+                PTDI_ADDRESS_IP6 ValidAddr = (PTDI_ADDRESS_IP6)CurAddr->Address;
+                *Port = ValidAddr->sin6_port;
+		Address->Type = CurAddr->AddressType;
+		ValidAddr = (PTDI_ADDRESS_IP)CurAddr->Address;
+		AddrInitIPv6(Address, ValidAddr->sin6_addr);
+		return STATUS_SUCCESS;
+	    }
 	}
     }
 
@@ -187,27 +200,48 @@ NTSTATUS AddrBuildAddress(
     PUSHORT Port)
 {
   PTDI_ADDRESS_IP ValidAddr;
+  PTDI_ADDRESS_IP6 ValidAddr6;
   PTA_ADDRESS TdiAddress = &TaAddress->Address[0];
 
-  if (TdiAddress->AddressType != TDI_ADDRESS_TYPE_IP) {
-      TI_DbgPrint
-	  (MID_TRACE,("AddressType %x, Not valid\n", TdiAddress->AddressType));
+  if (TdiAddress->AddressType == TDI_ADDRESS_TYPE_IP)
+  {
+        if (TdiAddress->AddressLength < TDI_ADDRESS_LENGTH_IP) {
+          TI_DbgPrint
+	      (MID_TRACE,("AddressLength %x, Not valid (expected %x)\n",
+		          TdiAddress->AddressLength, TDI_ADDRESS_LENGTH_IP));
+          return STATUS_INVALID_ADDRESS;
+      }
+
+
+      ValidAddr = (PTDI_ADDRESS_IP)TdiAddress->Address;
+
+      AddrInitIPv4(Address, ValidAddr->in_addr);
+      *Port = ValidAddr->sin_port;
+
+      return STATUS_SUCCESS;
+  }
+  else if (TdiAddress->AddressType == TDI_ADDRESS_TYPE_IP6)
+  {
+        if (TdiAddress->AddressLength < TDI_ADDRESS_LENGTH_IP6) {
+          TI_DbgPrint
+	      (MID_TRACE,("AddressLength %x, Not valid (expected %x)\n",
+		          TdiAddress->AddressLength, TDI_ADDRESS_LENGTH_IP6));
+          return STATUS_INVALID_ADDRESS;
+      }
+
+
+      ValidAddr6 = (PTDI_ADDRESS_IP6)TdiAddress->Address;
+
+      AddrInitIPv6(Address, ValidAddr6->sin6_addr);
+      *Port = ValidAddr6->sin6_port;
+
+      return STATUS_SUCCESS;
+  }
+  else
+  {
+    TI_DbgPrint(MID_TRACE,("AddressType %x, Not valid\n", TdiAddress->AddressType));
     return STATUS_INVALID_ADDRESS;
   }
-  if (TdiAddress->AddressLength < TDI_ADDRESS_LENGTH_IP) {
-      TI_DbgPrint
-	  (MID_TRACE,("AddressLength %x, Not valid (expected %x)\n",
-		      TdiAddress->AddressLength, TDI_ADDRESS_LENGTH_IP));
-      return STATUS_INVALID_ADDRESS;
-  }
-
-
-  ValidAddr = (PTDI_ADDRESS_IP)TdiAddress->Address;
-
-  AddrInitIPv4(Address, ValidAddr->in_addr);
-  *Port = ValidAddr->sin_port;
-
-  return STATUS_SUCCESS;
 }
 
 /*
@@ -243,66 +277,6 @@ BOOLEAN AddrIsEqual(
 
     return FALSE;
 }
-
-
-/*
- * FUNCTION: Returns wether Address1 is less than Address2
- * ARGUMENTS:
- *     Address1 = Pointer to first address
- *     Address2 = Pointer to last address
- * RETURNS:
- *     -1 if Address1 < Address2, 1 if Address1 > Address2,
- *     or 0 if they are equal
- */
-INT AddrCompare(
-    PIP_ADDRESS Address1,
-    PIP_ADDRESS Address2)
-{
-    switch (Address1->Type) {
-        case IP_ADDRESS_V4: {
-            ULONG Addr1, Addr2;
-            if (Address2->Type == IP_ADDRESS_V4) {
-                Addr1 = DN2H(Address1->Address.IPv4Address);
-                Addr2 = DN2H(Address2->Address.IPv4Address);
-                if (Addr1 < Addr2)
-                    return -1;
-                else
-                    if (Addr1 == Addr2)
-                        return 0;
-                    else
-                        return 1;
-            } else
-                /* FIXME: Support IPv6 */
-                return -1;
-
-        case IP_ADDRESS_V6:
-            /* FIXME: Support IPv6 */
-        break;
-        }
-    }
-
-    return FALSE;
-}
-
-
-/*
- * FUNCTION: Returns wether two addresses are equal with IPv4 as input
- * ARGUMENTS:
- *     Address1 = Pointer to first address
- *     Address2 = Pointer to last address
- * RETURNS:
- *     TRUE if Address1 = Address2, FALSE if not
- */
-BOOLEAN AddrIsEqualIPv4(
-    PIP_ADDRESS Address1,
-    IPv4_RAW_ADDRESS Address2)
-{
-    if (Address1->Type == IP_ADDRESS_V4)
-        return (Address1->Address.IPv4Address == Address2);
-
-    return FALSE;
-}
-
 
 unsigned long NTAPI inet_addr(const char *AddrString)
 /*

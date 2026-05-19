@@ -280,6 +280,7 @@ DispEchoRequest(
     NTSTATUS Status;
     TDI_CONNECTION_INFORMATION ConnectionInfo;
     TA_IP_ADDRESS RemoteAddressTa, LocalAddressTa;
+    TA_IP6_ADDRESS RemoteAddressTa6, LocalAddressTa6;
     PADDRESS_FILE AddrFile;
     ULONG DataUsed;
     PUCHAR Buffer;
@@ -287,6 +288,7 @@ DispEchoRequest(
     PICMP_PACKET_CONTEXT SendContext;
     LARGE_INTEGER RequestTimeout;
     UINT8 SavedTtl;
+    BOOL IsIPV6 = TRUE;
 
     TI_DbgPrint(DEBUG_ICMP, ("About to send datagram, OutputBufferLength: %u, SystemBuffer: %p\n", OutputBufferLength, Irp->AssociatedIrp.SystemBuffer));
 
@@ -294,6 +296,13 @@ DispEchoRequest(
     if (OutputBufferLength < sizeof(ICMP_ECHO_REPLY) || InputBufferLength < sizeof(ICMP_ECHO_REQUEST))
     {
         return STATUS_INVALID_PARAMETER;
+    }
+
+    PICMPV6_ECHO_REQUEST RequestIPv6 = Irp->AssociatedIrp.SystemBuffer;
+
+    if (InputBufferLength < sizeof(ICMPV6_ECHO_REQUEST))
+    {
+        IsIPV6 = FALSE;
     }
 
     // check request parameters
@@ -318,18 +327,36 @@ DispEchoRequest(
     RtlZeroMemory(&RemoteAddressTa, sizeof(RemoteAddressTa));
     RtlZeroMemory(&LocalAddressTa, sizeof(LocalAddressTa));
     RtlZeroMemory(&ConnectionInfo, sizeof(ConnectionInfo));
+    RtlZeroMemory(&RemoteAddressTa6, sizeof(RemoteAddressTa6));
+    RtlZeroMemory(&LocalAddressTa6, sizeof(LocalAddressTa6));
 
-    RemoteAddressTa.TAAddressCount = 1;
-    RemoteAddressTa.Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP;
-    RemoteAddressTa.Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
-    RemoteAddressTa.Address[0].Address[0].in_addr = Request->Address;
+    if (IsIPV6)
+    {
+        RemoteAddressTa6.TAAddressCount = 1;
+        RemoteAddressTa6.Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP6;
+        RemoteAddressTa6.Address[0].AddressType = TDI_ADDRESS_TYPE_IP6;
+        memcpy( RemoteAddressTa6.Address[0].Address[0].sin6_addr, RequestIPv6->DestinationAddress.sin6_addr, sizeof(RequestIPv6->DestinationAddress.sin6_addr));
 
-    LocalAddressTa.TAAddressCount = 1;
-    LocalAddressTa.Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP;
-    LocalAddressTa.Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
-    LocalAddressTa.Address[0].Address[0].in_addr = 0;
+        LocalAddressTa6.TAAddressCount = 1;
+        LocalAddressTa6.Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP6;
+        LocalAddressTa6.Address[0].AddressType = TDI_ADDRESS_TYPE_IP6;
 
-    Status = FileOpenAddress(&SendContext->TdiRequest, &LocalAddressTa, IPPROTO_ICMP, FALSE, NULL);
+        Status = FileOpenAddress(&SendContext->TdiRequest, (PTA_IP_ADDRESS)&LocalAddressTa6, IPPROTO_ICMP, FALSE, NULL);
+    }
+    else
+    {
+        RemoteAddressTa.TAAddressCount = 1;
+        RemoteAddressTa.Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP;
+        RemoteAddressTa.Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
+        RemoteAddressTa.Address[0].Address[0].in_addr = Request->Address;
+
+        LocalAddressTa.TAAddressCount = 1;
+        LocalAddressTa.Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP;
+        LocalAddressTa.Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
+        LocalAddressTa.Address[0].Address[0].in_addr = 0;
+
+        Status = FileOpenAddress(&SendContext->TdiRequest, &LocalAddressTa, IPPROTO_ICMP, FALSE, NULL);
+    }
 
     if (!NT_SUCCESS(Status))
     {
@@ -358,8 +385,16 @@ DispEchoRequest(
 
     RequestTimeout.QuadPart = (-1LL) * 10 * 1000 * Request->Timeout;
 
-    ConnectionInfo.RemoteAddress = &RemoteAddressTa;
-    ConnectionInfo.RemoteAddressLength = sizeof(RemoteAddressTa);
+    if (IsIPV6)
+    {
+        ConnectionInfo.RemoteAddress = &RemoteAddressTa6;
+        ConnectionInfo.RemoteAddressLength = sizeof(RemoteAddressTa6);
+    }
+    else
+    {
+        ConnectionInfo.RemoteAddress = &RemoteAddressTa;
+        ConnectionInfo.RemoteAddressLength = sizeof(RemoteAddressTa);
+    }
 
     RequestSize = sizeof(ICMP_HEADER) + Request->DataSize;
 

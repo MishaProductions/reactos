@@ -60,14 +60,6 @@ BOOLEAN AddrIsEqual(
     PIP_ADDRESS Address1,
     PIP_ADDRESS Address2);
 
-INT AddrCompare(
-    PIP_ADDRESS Address1,
-    PIP_ADDRESS Address2);
-
-BOOLEAN AddrIsEqualIPv4(
-    PIP_ADDRESS Address1,
-    IPv4_RAW_ADDRESS Address2);
-
 PIP_INTERFACE AddrLocateInterface(
     PIP_ADDRESS MatchAddress);
 

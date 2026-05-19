@@ -233,8 +233,8 @@ ParseV6Address(IN PCWSTR AddressString,
 
     // Convert 16-bit blocks to 128-bit network byte order (Big-Endian)
     for (int i = 0; i < 8; i++) {
-        Address[i * 2] = (BYTE)(Blocks[i] >> 8);
-        Address[i * 2 + 1] = (BYTE)(Blocks[i] & 0xFF);
+        Address[i * 2] = (BYTE)(Blocks[i] & 0xFF);
+        Address[i * 2 + 1] = (BYTE)(Blocks[i] >> 8);
     }
 
     return TRUE;

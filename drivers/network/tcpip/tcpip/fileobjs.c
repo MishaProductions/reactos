@@ -404,7 +404,9 @@ NTSTATUS FileOpenAddress(
   PVOID Options)
 {
   PADDRESS_FILE AddrFile;
+  PTA_IP6_ADDRESS IPv6Address = (PTA_IP6_ADDRESS)Address;
   UINT AllocatedPort;
+  BOOL IsIPv6 = FALSE;
 
   TI_DbgPrint(MID_TRACE, ("Called (Proto %d).\n", Protocol));
 
@@ -452,10 +454,18 @@ NTSTATUS FileOpenAddress(
   KeQuerySystemTime(&AddrFile->CreationTime);
 
   /* Make sure address is a local unicast address or 0 */
-  /* FIXME: IPv4 only */
   AddrFile->Family = Address->Address[0].AddressType;
-  AddrFile->Address.Address.IPv4Address = Address->Address[0].Address[0].in_addr;
-  AddrFile->Address.Type = IP_ADDRESS_V4;
+  if (AddrFile->Family == 23 /* AF_INET6 */)
+  {
+    memcpy(AddrFile->Address.Address.IPv6Address, IPv6Address->Address[0].Address[0].sin6_addr, sizeof(IPv6Address->Address[0].Address[0].sin6_addr));
+    AddrFile->Address.Type = IP_ADDRESS_V6;
+    IsIPv6 = TRUE;
+  }
+  else
+  {
+    AddrFile->Address.Address.IPv4Address = Address->Address[0].Address[0].in_addr;
+    AddrFile->Address.Type = IP_ADDRESS_V4;
+  }
 
   if (!AddrIsUnspecified(&AddrFile->Address) &&
       !AddrLocateInterface(&AddrFile->Address)) {

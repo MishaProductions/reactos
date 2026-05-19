@@ -9,7 +9,7 @@
  *   CSH 01/08-2000 Created
  */
 
-#include "precomp.h"
+#include "../precomp.h"
 
 #include <ntifs.h>
 #include <ipifcons.h>
@@ -223,9 +223,18 @@ HasLoopbackPrefix(
     PIP_ADDRESS Address,
     PIP_ADDRESS Prefix)
 {
-    if (((Address->Address.IPv4Address & LOOPBACK_ADDRMASK_IPv4) == (LOOPBACK_ADDRESS_IPv4 & LOOPBACK_ADDRMASK_IPv4)) && 
-        (Prefix->Address.IPv4Address == LOOPBACK_ADDRESS_IPv4))
+    if ((Address->Type == IP_ADDRESS_V4))
+    {
+        if (((Address->Address.IPv4Address & LOOPBACK_ADDRMASK_IPv4) == (LOOPBACK_ADDRESS_IPv4 & LOOPBACK_ADDRMASK_IPv4)) && 
+            (Prefix->Address.IPv4Address == LOOPBACK_ADDRESS_IPv4))
         return TRUE;
+    }
+    else
+    {
+        static const WORD loopback[8] = {0, 0, 0, 0, 0, 0, 0, 1}; // ::1/128
+        if (!memcmp(loopback, Address->Address.IPv6Address, sizeof(loopback)))
+            return TRUE;
+    }
 
     return FALSE;
 }

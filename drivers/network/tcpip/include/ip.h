@@ -159,10 +159,16 @@ typedef struct _IP_INTERFACE {
     UINT  MTU;                    /* Maximum transmission unit */
     UINT  Speed;                  /* Link speed */
     UINT  Metric;                 /* Interface metric */
-    IP_ADDRESS Unicast;           /* Unicast address */
-    IP_ADDRESS PointToPoint;      /* Point to point address */
-    IP_ADDRESS Netmask;           /* Netmask */
-    IP_ADDRESS Broadcast;         /* Broadcast */
+    IP_ADDRESS Unicast;           /* IPv4 Unicast address */
+    IP_ADDRESS PointToPoint;      /* IPv4 Point to point address */
+    IP_ADDRESS Netmask;           /* IPv4 Netmask */
+    IP_ADDRESS Broadcast;         /* IPv4 Broadcast */
+    IP_ADDRESS NetmaskIPv6;       /* IPv6 Netmask */
+    IP_ADDRESS LinkLocal;         /* IPv6 Link Local address */
+
+    /* TODO: Create a list for these as there could be more IPv6 addresses*/
+    IP_ADDRESS AddressTemporary;  /* IPv6 temporary address */
+    IP_ADDRESS AddressPermanent;  /* IPv6 permanent address */
     UNICODE_STRING Name;          /* Adapter name (GUID) */
     UNICODE_STRING Description;   /* Adapter description (Human readable) */
     PUCHAR Address;               /* Pointer to interface address */
