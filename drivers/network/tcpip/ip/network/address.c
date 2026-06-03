@@ -76,6 +76,29 @@ UINT AddrCountPrefixBits( PIP_ADDRESS Netmask ) {
 	    BitTest >>= 1;
 	}
 	return Prefix;
+    } else if (Netmask->Type == IP_ADDRESS_V6)
+    {
+        UINT i, j;
+        for (i = 0; i < 8; i++)
+        {
+            USHORT Word = WH2N(Netmask->Address.IPv6Address[i]);
+            USHORT BitTest = 0x8000;
+
+            for (j = 0; j < 16; j++)
+            {
+                if ((Word & BitTest) != 0)
+                {
+                    Prefix++;
+                    BitTest >>= 1;
+                }
+                else
+                {
+                    return Prefix;
+                }
+            }
+        }
+
+        return Prefix;
     } else {
 	TI_DbgPrint(DEBUG_DATALINK, ("Don't know address type %d\n",
 				     Netmask->Type));
@@ -83,16 +106,25 @@ UINT AddrCountPrefixBits( PIP_ADDRESS Netmask ) {
     }
 }
 
-VOID AddrWidenAddress( PIP_ADDRESS Network, PIP_ADDRESS Source,
-		       PIP_ADDRESS Netmask ) {
-    if( Netmask->Type == IP_ADDRESS_V4 ) {
-        Network->Type = Netmask->Type;
-	Network->Address.IPv4Address =
-	    Source->Address.IPv4Address & Netmask->Address.IPv4Address;
-    } else {
-	TI_DbgPrint(DEBUG_DATALINK, ("Don't know address type %d\n",
-				     Netmask->Type));
-	*Network = *Source;
+VOID AddrWidenAddress( PIP_ADDRESS Network, PIP_ADDRESS Source, UINT MaskBits ) {
+    IP_ADDRESS Mask = CiderMaskToIPAddress(Source->Type, MaskBits);
+    Network->Type = Source->Type;
+    if (Source->Type == IP_ADDRESS_V4)
+    {
+	    Network->Address.IPv4Address = Source->Address.IPv4Address & Mask.Address.IPv4Address;
+    }
+    else if (Source->Type == IP_ADDRESS_V6)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            Network->Address.IPv6Address[i] =
+                Source->Address.IPv6Address[i] &
+                Mask.Address.IPv6Address[i];
+        }
+    }
+    else {
+	    TI_DbgPrint(DEBUG_DATALINK, ("Don't know address type %d\n", Source->Type));
+	    *Network = *Source;
     }
 }
 
@@ -175,7 +207,7 @@ NTSTATUS AddrGetAddress(
                 PTDI_ADDRESS_IP6 ValidAddr = (PTDI_ADDRESS_IP6)CurAddr->Address;
                 *Port = ValidAddr->sin6_port;
 		Address->Type = CurAddr->AddressType;
-		ValidAddr = (PTDI_ADDRESS_IP)CurAddr->Address;
+		ValidAddr = (PTDI_ADDRESS_IP6)CurAddr->Address;
 		AddrInitIPv6(Address, ValidAddr->sin6_addr);
 		return STATUS_SUCCESS;
 	    }
@@ -275,6 +307,35 @@ BOOLEAN AddrIsEqual(
             break;
     }
 
+    return FALSE;
+}
+
+BOOLEAN AddrIsBroadcast(PIP_INTERFACE Interface, PIP_ADDRESS Address)
+{
+    ADDR_LIST_ITER(CurrentAddress);
+
+    if (Address->Type == IP_ADDRESS_V6)
+    {
+        return FALSE;
+    }
+
+    ForEachAddress(Interface->Addresses, CurrentAddress) {
+        if (CurrentAddress->Address.Type == Address->Type)
+        {
+             ULONG  Mask =
+            (CurrentAddress->MaskBits == 0)
+                ? 0
+                : (0xFFFFFFFFUL << (32 - CurrentAddress->MaskBits));
+
+            ULONG  Network =
+                CurrentAddress->Address.Address.IPv4Address & Mask;
+
+            ULONG  Broadcast =
+                Network | (~Mask);
+
+            return (Broadcast == Address->Address.IPv4Address);
+        }
+    } EndFor(CurrentAddress);
     return FALSE;
 }
 

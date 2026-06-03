@@ -16,33 +16,6 @@
 
 ULONG NextDefaultAdapter = 0;
 
-NTSTATUS GetInterfaceIPv4Address( PIP_INTERFACE Interface,
-				  ULONG TargetType,
-				  PULONG Address ) {
-    switch( TargetType ) {
-    case ADE_UNICAST:
-	*Address = Interface->Unicast.Address.IPv4Address;
-	break;
-
-    case ADE_ADDRMASK:
-	*Address = Interface->Netmask.Address.IPv4Address;
-	break;
-
-    case ADE_BROADCAST:
-	*Address = Interface->Broadcast.Address.IPv4Address;
-	break;
-
-    case ADE_POINTOPOINT:
-	*Address = Interface->PointToPoint.Address.IPv4Address;
-	break;
-
-    default:
-	return STATUS_UNSUCCESSFUL;
-    }
-
-    return STATUS_SUCCESS;
-}
-
 UINT CountInterfaces() {
     ULONG Count = 0;
     KIRQL OldIrql;
@@ -92,15 +65,18 @@ PIP_INTERFACE AddrLocateInterface(
     KIRQL OldIrql;
     PIP_INTERFACE RetIF = NULL;
     IF_LIST_ITER(CurrentIF);
+    ADDR_LIST_ITER(CurrentAddr);
 
     TcpipAcquireSpinLock(&InterfaceListLock, &OldIrql);
 
     ForEachInterface(CurrentIF) {
-	if( AddrIsEqual( &CurrentIF->Unicast, MatchAddress ) ||
-            AddrIsEqual( &CurrentIF->Broadcast, MatchAddress ) ) {
-            RetIF = CurrentIF;
-            break;
-	}
+        ForEachAddress(CurrentIF->Addresses, CurrentAddr) {
+            if( AddrIsEqual( &CurrentAddr->Address, MatchAddress )) {// || TODO
+                //AddrIsEqual( &CurrentIF->Broadcast, MatchAddress ) ) {
+                RetIF = CurrentIF;
+                break;
+	        }
+        } EndFor(CurrentAddr);
     } EndFor(CurrentIF);
 
     TcpipReleaseSpinLock(&InterfaceListLock, OldIrql);
@@ -162,7 +138,7 @@ PIP_INTERFACE GetDefaultInterface(VOID)
    IF_LIST_ITER(CurrentIF);
 
    TcpipAcquireSpinLock(&InterfaceListLock, &OldIrql);
-   /* DHCP hack: Always return the adapter without an IP address */
+   /* DHCP hack: Always return the adapter without an IP address
    ForEachInterface(CurrentIF) {
       if (CurrentIF->Context && AddrIsUnspecified(&CurrentIF->Unicast)) {
           TcpipReleaseSpinLock(&InterfaceListLock, OldIrql);
@@ -174,7 +150,7 @@ PIP_INTERFACE GetDefaultInterface(VOID)
 
           TcpipAcquireSpinLock(&InterfaceListLock, &OldIrql);
       }
-   } EndFor(CurrentIF);
+   } EndFor(CurrentIF); */
 
    /* Try to continue from the next adapter */
    ForEachInterface(CurrentIF) {
@@ -250,6 +226,7 @@ PIP_INTERFACE FindOnLinkInterface(PIP_ADDRESS Address)
 {
     KIRQL OldIrql;
     IF_LIST_ITER(CurrentIF);
+    ADDR_LIST_ITER(LinkAddress);
 
     TI_DbgPrint(DEBUG_ROUTER, ("Called. Address (0x%X)\n", Address));
     TI_DbgPrint(DEBUG_ROUTER, ("Address (%s)\n", A2S(Address)));
@@ -260,11 +237,16 @@ PIP_INTERFACE FindOnLinkInterface(PIP_ADDRESS Address)
     TcpipAcquireSpinLock(&InterfaceListLock, &OldIrql);
 
     ForEachInterface(CurrentIF) {
-        if (HasLoopbackPrefix(Address, &CurrentIF->Unicast) ||
-            HasPrefix(Address, &CurrentIF->Unicast, AddrCountPrefixBits(&CurrentIF->Netmask)))
+        if (Address->Type == IP_ADDRESS_V4)
         {
-            TcpipReleaseSpinLock(&InterfaceListLock, OldIrql);
-            return CurrentIF;
+            ForEachAddress(CurrentIF->Addresses, LinkAddress) {
+                if (HasLoopbackPrefix(Address, &LinkAddress->Address) ||
+                    HasPrefix(Address, &LinkAddress->Address, LinkAddress->MaskBits))
+                {
+                    TcpipReleaseSpinLock(&InterfaceListLock, OldIrql);
+                    return CurrentIF;
+                }
+            } EndFor(LinkAddress);
         }
     } EndFor(CurrentIF);
 

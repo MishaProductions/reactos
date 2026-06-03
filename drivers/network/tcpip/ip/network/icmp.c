@@ -128,7 +128,7 @@ VOID ICMPReply(
     FakeAddrFile.TTL = 128;
 
     if (!NT_SUCCESS(BuildRawIpPacket(
-        &FakeAddrFile, &NewPacket, &IPPacket->SrcAddr, 0, &Interface->Unicast, 0, IPPacket->Data, DataSize)))
+        &FakeAddrFile, &NewPacket, &IPPacket->SrcAddr, 0, FindAddressByAddressType(NCE->Interface, IPPacket->SrcAddr.Type), 0, IPPacket->Data, DataSize)))
     {
         return;
     }

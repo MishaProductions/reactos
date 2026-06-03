@@ -32,6 +32,42 @@ typedef struct IP_ADDRESS {
 #define IP_ADDRESS_V4   0x04 /* IPv4 style address */
 #define IP_ADDRESS_V6   0x06 /* IPv6 style address */
 
+/* IPv4 Helpers */
+#define IPv4_GetNetworkMaskFromCidrMask(bits) 0xFFFFFFFF << (32 - bits);
+
+/* IP helpers */
+inline IP_ADDRESS CiderMaskToIPAddress(UCHAR type, UINT Mask)
+{
+    IP_ADDRESS address;
+    if (type == IP_ADDRESS_V4)
+    {
+        address.Type = IP_ADDRESS_V4;
+        address.Address.IPv4Address = IPv4_GetNetworkMaskFromCidrMask(Mask);
+    }
+    else
+    {
+        address.Type = IP_ADDRESS_V6;
+        for (int i = 0; i < 8; i++)
+        {
+            if (Mask >= 16)
+            {
+                address.Address.IPv6Address[i] = 0xFFFF;
+                Mask -= 16;
+            }
+            else if (Mask > 0)
+            {
+                address.Address.IPv6Address[i] = (USHORT)(0xFFFF << (16 - Mask));
+                Mask = 0;
+            }
+            else
+            {
+                address.Address.IPv6Address[i] = 0x0000;
+            }
+        }
+    }
+
+    return address;
+}
 
 /* IPv4 header format */
 typedef struct IPv4_HEADER {
@@ -148,6 +184,21 @@ typedef struct _SEND_RECV_STATS {
     UINT OutErrors;
 } SEND_RECV_STATS, *PSEND_RECV_STATS;
 
+typedef enum _IP_INTERFACE_ADDRESS_TYPE {
+    Any,
+    Unicast,
+    IPv6LinkLocal,
+    IPv6Permanent
+} IP_INTERFACE_ADDRESS_TYPE;
+
+typedef struct _IP_INTERFACE_ADDRESS {
+    LIST_ENTRY ListEntry;
+    IP_INTERFACE_ADDRESS_TYPE Type;
+    IP_ADDRESS Address;
+    UINT MaskBits;
+    ULONG Index;
+} IP_INTERFACE_ADDRESS, *PIP_INTERFACE_ADDRESS;
+
 /* Information about an IP interface */
 typedef struct _IP_INTERFACE {
     LIST_ENTRY ListEntry;         /* Entry on list */
@@ -159,16 +210,7 @@ typedef struct _IP_INTERFACE {
     UINT  MTU;                    /* Maximum transmission unit */
     UINT  Speed;                  /* Link speed */
     UINT  Metric;                 /* Interface metric */
-    IP_ADDRESS Unicast;           /* IPv4 Unicast address */
-    IP_ADDRESS PointToPoint;      /* IPv4 Point to point address */
-    IP_ADDRESS Netmask;           /* IPv4 Netmask */
-    IP_ADDRESS Broadcast;         /* IPv4 Broadcast */
-    IP_ADDRESS NetmaskIPv6;       /* IPv6 Netmask */
-    IP_ADDRESS LinkLocal;         /* IPv6 Link Local address */
-
-    /* TODO: Create a list for these as there could be more IPv6 addresses*/
-    IP_ADDRESS AddressTemporary;  /* IPv6 temporary address */
-    IP_ADDRESS AddressPermanent;  /* IPv6 permanent address */
+    LIST_ENTRY Addresses;         /* Interface addresses */
     UNICODE_STRING Name;          /* Adapter name (GUID) */
     UNICODE_STRING Description;   /* Adapter description (Human readable) */
     PUCHAR Address;               /* Pointer to interface address */
@@ -181,8 +223,8 @@ typedef struct _IP_INTERFACE {
 
 typedef struct _IP_SET_ADDRESS {
     ULONG NteIndex;
-    IPv4_RAW_ADDRESS Address;
-    IPv4_RAW_ADDRESS Netmask;
+    IP_ADDRESS Address;
+    IP_ADDRESS Netmask;
 } IP_SET_ADDRESS, *PIP_SET_ADDRESS;
 
 #define IP_PROTOCOL_TABLE_SIZE 0x100

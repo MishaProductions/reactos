@@ -103,6 +103,7 @@ TDI_STATUS InfoTdiQueryGetAddrTable(TDIEntityID ID,
     PIPADDR_ENTRY IPEntry;
     PIP_INTERFACE CurrentIF;
     UINT i;
+    ADDR_LIST_ITER(Address);
 
     TI_DbgPrint(DEBUG_INFO, ("Called.\n"));
 
@@ -132,15 +133,15 @@ TDI_STATUS InfoTdiQueryGetAddrTable(TDIEntityID ID,
     CurrentIF = EntityList[i].context;
 
     IPEntry->Index = CurrentIF->Index;
-    GetInterfaceIPv4Address(CurrentIF,
-			    ADE_UNICAST,
-			    &IPEntry->Addr);
-    GetInterfaceIPv4Address(CurrentIF,
-			    ADE_ADDRMASK,
-			    &IPEntry->Mask);
-    GetInterfaceIPv4Address(CurrentIF,
-			    ADE_BROADCAST,
-			    &IPEntry->BcastAddr);
+
+    ForEachAddress(CurrentIF->Addresses, Address) {
+        if (Address->Address.Type == IP_ADDRESS_V4)
+        {
+            IPEntry->Addr = Address->Address.Address.IPv4Address;
+            IPEntry->Mask = 0xFFFFFFFF << (32 - Address->MaskBits);
+            IPEntry->BcastAddr = IPEntry->Addr | IPEntry->Mask;
+        }
+    } EndFor(Address);
 
     TcpipReleaseSpinLock(&EntityListLock, OldIrql);
 

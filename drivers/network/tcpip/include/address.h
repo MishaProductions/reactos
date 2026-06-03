@@ -60,6 +60,10 @@ BOOLEAN AddrIsEqual(
     PIP_ADDRESS Address1,
     PIP_ADDRESS Address2);
 
+BOOLEAN AddrIsBroadcast(
+    PIP_INTERFACE Interface,
+    PIP_ADDRESS Address);
+
 PIP_INTERFACE AddrLocateInterface(
     PIP_ADDRESS MatchAddress);
 
@@ -78,7 +82,6 @@ ULONG IPv4NToHl( ULONG Address );
 
 UINT AddrCountPrefixBits( PIP_ADDRESS Netmask );
 
-VOID AddrWidenAddress( PIP_ADDRESS Network, PIP_ADDRESS Source,
-		       PIP_ADDRESS Netmask );
+VOID AddrWidenAddress( PIP_ADDRESS Network, PIP_ADDRESS Source, UINT Netmask );
 
 /* EOF */

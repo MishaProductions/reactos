@@ -653,8 +653,10 @@ NTSTATUS addIPAddress( IPAddr Address, IPMask Mask, DWORD IfIndex,
   if( !NT_SUCCESS(status) ) return status;
 
   Data.NteContext = IfIndex;
-  Data.NewAddress = Address;
-  Data.NewNetmask = Mask;
+  Data.NewAddress.Type = IP_ADDRESS_V4;
+  Data.NewNetmask.Type = IP_ADDRESS_V4;
+  Data.NewAddress.Address.IPv4Address = Address;
+  Data.NewNetmask.Address.IPv4Address = Mask;
 
   status = NtDeviceIoControlFile( tcpFile,
                                   NULL,
@@ -671,7 +673,7 @@ NTSTATUS addIPAddress( IPAddr Address, IPMask Mask, DWORD IfIndex,
 
   if( NT_SUCCESS(status) ) {
       *NteContext = Iosb.Information;
-      *NteInstance = Data.NewAddress;
+      *NteInstance = Data.NewAddress.Address.IPv4Address;
   }
 
   if (!NT_SUCCESS(status)) {

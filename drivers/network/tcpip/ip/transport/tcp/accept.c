@@ -37,7 +37,7 @@ NTSTATUS TCPCheckPeerForAccept(PVOID Context,
                                                  &ipaddr,
                                                  &RemoteAddress->Address[0].Address[0].sin_port));
 
-    IPADDRTOTDIIPADDRESS(ipaddr, RemoteAddress);
+    LWIPIpAddressToTDIIpAddress(&ipaddr, RemoteAddress);
 
     return Status;
 }
@@ -60,7 +60,7 @@ NTSTATUS TCPListen(PCONNECTION_ENDPOINT Connection, UINT Backlog)
 
     TI_DbgPrint(DEBUG_TCP, ("Connection->SocketContext %x\n",
         Connection->SocketContext));
-    NTIPADDRESSTOIPADDR(Connection->AddressFile->Address, AddressToBind);
+    NtIpAddressToLWIPIpAddress(&Connection->AddressFile->Address, &AddressToBind);
 
     Status = TCPTranslateError(LibTCPBind(Connection,
                                           &AddressToBind,

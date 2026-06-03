@@ -584,6 +584,10 @@ BOOLEAN ReadIpConfiguration(PIP_INTERFACE Interface)
     ULONG Unused;
     NTSTATUS Status;
     IP_ADDRESS DefaultMask, Router;
+    IP_ADDRESS ipv4;
+    IP_ADDRESS IPv4NetMask;
+    BOOL HasIPv4Address = FALSE;
+    BOOL HasIPv4Mask = FALSE;
 
     AddrInitIPv4(&DefaultMask, 0);
 
@@ -663,9 +667,10 @@ BOOLEAN ReadIpConfiguration(PIP_INTERFACE Interface)
                                                       TRUE);
                 if (NT_SUCCESS(Status))
                 {
-                    AddrInitIPv4(&Interface->Unicast,
+                    AddrInitIPv4(&ipv4,
                                  inet_addr(RegistryDataA.Buffer));
                     RtlFreeAnsiString(&RegistryDataA);
+                    HasIPv4Address = TRUE;
                 }
             }
 
@@ -684,8 +689,10 @@ BOOLEAN ReadIpConfiguration(PIP_INTERFACE Interface)
                                                       TRUE);
                 if (NT_SUCCESS(Status))
                 {
-                    AddrInitIPv4(&Interface->Netmask,
-                                 inet_addr(RegistryDataA.Buffer));
+                    AddrInitIPv4(&IPv4NetMask, inet_addr(RegistryDataA.Buffer));
+                    HasIPv4Mask = TRUE;
+                    
+                    InsertAddress(Interface, ipv4, AddrCountPrefixBits(&IPv4NetMask), Unicast);
                     RtlFreeAnsiString(&RegistryDataA);
                 }
             }
@@ -693,8 +700,8 @@ BOOLEAN ReadIpConfiguration(PIP_INTERFACE Interface)
             /* We have to wait until both IP address and subnet mask
              * are read to add the interface route, but we must do it
              * before we add the default gateway */
-            if (!AddrIsUnspecified(&Interface->Unicast) &&
-                !AddrIsUnspecified(&Interface->Netmask))
+            if ((HasIPv4Address && !AddrIsUnspecified(&ipv4)) &&
+                !AddrIsUnspecified(&IPv4NetMask))
                 IPAddInterfaceRoute(Interface);
 
             /* Read default gateway info */
@@ -744,18 +751,15 @@ BOOLEAN ReconfigureAdapter(PRECONFIGURE_CONTEXT Context)
     {
         /* Read the IP configuration */
         ReadIpConfiguration(Interface);
-
-        /* Compute the broadcast address */
-        Interface->Broadcast.Type = IP_ADDRESS_V4;
-        Interface->Broadcast.Address.IPv4Address = Interface->Unicast.Address.IPv4Address |
-                                                  ~Interface->Netmask.Address.IPv4Address;
     }
     else if (!Context->Adapter->CompletingReset)
     {
         /* Clear IP configuration */
-        Interface->Unicast = DefaultMask;
-        Interface->Netmask = DefaultMask;
-        Interface->Broadcast = DefaultMask;
+        while (!IsListEmpty(&Interface->Addresses))
+        {
+            PLIST_ENTRY entry = RemoveHeadList(&Interface->Addresses);
+            ExFreePool(CONTAINING_RECORD(entry, IP_INTERFACE_ADDRESS, ListEntry));
+        }
 
         /* Remove all interface routes */
         RouterRemoveRoutesForInterface(Interface);

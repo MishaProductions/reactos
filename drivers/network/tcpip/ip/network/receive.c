@@ -481,6 +481,219 @@ VOID ProcessFragment(
     TcpipReleaseSpinLock(&IPDR->Lock, OldIrql);
 }
 
+VOID ProcessFragmentV6(
+  PIP_INTERFACE IF,
+  PIP_PACKET IPPacket)
+/*
+ * FUNCTION: Processes an IP datagram or fragment
+ * ARGUMENTS:
+ *     IF       = Pointer to IP interface packet was receive on
+ *     IPPacket = Pointer to IP packet
+ * NOTES:
+ *     This routine reassembles fragments and, if a whole datagram can
+ *     be assembled, passes the datagram on to the IP protocol dispatcher
+ */
+{
+  KIRQL OldIrql;
+  PIPDATAGRAM_REASSEMBLY IPDR;
+  PLIST_ENTRY CurrentEntry;
+  PIPDATAGRAM_HOLE Hole, NewHole;
+  USHORT FragFirst;
+  USHORT FragLast;
+  BOOLEAN MoreFragments;
+  PIPv6_HEADER IPv4Header;
+  IP_PACKET Datagram;
+  PIP_FRAGMENT Fragment;
+  BOOLEAN Success;
+
+  /* FIXME: Assume IPv4 */
+
+  IPv4Header = (PIPv6_HEADER)IPPacket->Header;
+
+  /* Check if we already have an reassembly structure for this datagram */
+  IPDR = GetReassemblyInfo(IPPacket);
+  if (IPDR) {
+    TI_DbgPrint(DEBUG_IP, ("Continueing assembly.\n"));
+    /* We have a reassembly structure */
+    TcpipAcquireSpinLock(&IPDR->Lock, &OldIrql);
+
+    /* Reset the timeout since we received a fragment */
+    IPDR->TimeoutCount = 0;
+  } else {
+    TI_DbgPrint(DEBUG_IP, ("Starting new assembly.\n"));
+
+    /* We don't have a reassembly structure, create one */
+    IPDR = ExAllocateFromNPagedLookasideList(&IPDRList);
+    if (!IPDR)
+      /* We don't have the resources to process this packet, discard it */
+      return;
+
+    /* Create a descriptor spanning from zero to infinity.
+       Actually, we use a value slightly greater than the
+       maximum number of octets an IP datagram can contain */
+    Hole = CreateHoleDescriptor(0, 65536);
+    if (!Hole) {
+      /* We don't have the resources to process this packet, discard it */
+      ExFreeToNPagedLookasideList(&IPDRList, IPDR);
+      return;
+    }
+    AddrInitIPv6(&IPDR->SrcAddr, IPv4Header->SrcAddr);
+    AddrInitIPv6(&IPDR->DstAddr, IPv4Header->DstAddr);
+    IPDR->Id         = 6;
+    IPDR->Protocol   = IPv4Header->NextHeader;
+    IPDR->TimeoutCount = 0;
+    InitializeListHead(&IPDR->FragmentListHead);
+    InitializeListHead(&IPDR->HoleListHead);
+    InsertTailList(&IPDR->HoleListHead, &Hole->ListEntry);
+
+    TcpipInitializeSpinLock(&IPDR->Lock);
+
+    TcpipAcquireSpinLock(&IPDR->Lock, &OldIrql);
+
+    /* Update the reassembly list */
+    TcpipInterlockedInsertTailList(
+	&ReassemblyListHead,
+	&IPDR->ListEntry,
+	&ReassemblyListLock);
+  }
+
+  FragFirst = 0;//(WN2H(IPv4Header->FragmentOffsetFlags) & 0xFFF8) >> 3;
+  FragLast      =0;// FragFirst + WN2H(IPv4Header->TotalLength);
+  MoreFragments =0;// (WN2H(IPv4Header->FlagsFragOfs) & IPv4_MF_MASK) > 0;
+
+  CurrentEntry = IPDR->HoleListHead.Flink;
+  for (;;) {
+    if (CurrentEntry == &IPDR->HoleListHead)
+        break;
+
+    Hole = CONTAINING_RECORD(CurrentEntry, IPDATAGRAM_HOLE, ListEntry);
+
+    TI_DbgPrint(DEBUG_IP, ("Comparing Fragment (%d,%d) to Hole (%d,%d).\n",
+      FragFirst, FragLast, Hole->First, Hole->Last));
+
+    if ((FragFirst > Hole->Last) || (FragLast < Hole->First)) {
+      TI_DbgPrint(MID_TRACE, ("No overlap.\n"));
+      /* The fragment does not overlap with the hole, try next
+         descriptor in the list */
+
+      CurrentEntry = CurrentEntry->Flink;
+      continue;
+    }
+
+    /* The fragment overlap with the hole, unlink the descriptor */
+    RemoveEntryList(CurrentEntry);
+
+    if (FragFirst > Hole->First) {
+      NewHole = CreateHoleDescriptor(Hole->First, FragFirst - 1);
+      if (!NewHole) {
+        /* We don't have the resources to process this packet, discard it */
+        ExFreeToNPagedLookasideList(&IPHoleList, Hole);
+        Cleanup(&IPDR->Lock, OldIrql, IPDR);
+        return;
+      }
+
+      /* Put the new descriptor in the list */
+      InsertTailList(&IPDR->HoleListHead, &NewHole->ListEntry);
+    }
+
+    if ((FragLast < Hole->Last) && MoreFragments) {
+      NewHole = CreateHoleDescriptor(FragLast + 1, Hole->Last);
+      if (!NewHole) {
+        /* We don't have the resources to process this packet, discard it */
+        ExFreeToNPagedLookasideList(&IPHoleList, Hole);
+        Cleanup(&IPDR->Lock, OldIrql, IPDR);
+        return;
+      }
+
+      /* Put the new hole descriptor in the list */
+      InsertTailList(&IPDR->HoleListHead, &NewHole->ListEntry);
+    }
+
+    ExFreeToNPagedLookasideList(&IPHoleList, Hole);
+
+    /* If this is the first fragment, save the IP header */
+    if (FragFirst == 0) {
+        IPDR->IPv4Header = ExAllocatePoolWithTag(NonPagedPool,
+                                                 IPPacket->HeaderSize,
+                                                 PACKET_BUFFER_TAG);
+        if (!IPDR->IPv4Header)
+        {
+            Cleanup(&IPDR->Lock, OldIrql, IPDR);
+            return;
+        }
+
+        RtlCopyMemory(IPDR->IPv4Header, IPPacket->Header, IPPacket->HeaderSize);
+        IPDR->HeaderSize = IPPacket->HeaderSize;
+
+        TI_DbgPrint(DEBUG_IP, ("First fragment found. Header buffer is at (0x%X). "
+                               "Header size is (%d).\n", &IPDR->IPv4Header, IPPacket->HeaderSize));
+
+    }
+
+    /* Create a buffer, copy the data into it and put it
+       in the fragment list */
+
+    Fragment = ExAllocateFromNPagedLookasideList(&IPFragmentList);
+    if (!Fragment) {
+      /* We don't have the resources to process this packet, discard it */
+      Cleanup(&IPDR->Lock, OldIrql, IPDR);
+      return;
+    }
+
+    TI_DbgPrint(DEBUG_IP, ("Fragment descriptor allocated at (0x%X).\n", Fragment));
+
+    Fragment->Size = IPPacket->TotalSize - IPPacket->HeaderSize;
+    Fragment->Packet = IPPacket->NdisPacket;
+    Fragment->ReturnPacket = IPPacket->ReturnPacket;
+    Fragment->PacketOffset = IPPacket->Position + IPPacket->HeaderSize;
+    Fragment->Offset = FragFirst;
+
+    /* Disassociate the NDIS packet so it isn't freed upon return from IPReceive() */
+    IPPacket->NdisPacket = NULL;
+
+    /* If this is the last fragment, compute and save the datagram data size */
+    if (!MoreFragments)
+      IPDR->DataSize = FragFirst + Fragment->Size;
+
+    /* Put the fragment in the list */
+    InsertTailList(&IPDR->FragmentListHead, &Fragment->ListEntry);
+    break;
+  }
+
+  TI_DbgPrint(DEBUG_IP, ("Done searching for hole descriptor.\n"));
+
+  if (IsListEmpty(&IPDR->HoleListHead)) {
+    /* Hole list is empty which means a complete datagram can be assembled.
+       Assemble the datagram and pass it to an upper layer protocol */
+
+    TI_DbgPrint(DEBUG_IP, ("Complete datagram received.\n"));
+
+    RemoveIPDR(IPDR);
+    TcpipReleaseSpinLock(&IPDR->Lock, OldIrql);
+
+    /* FIXME: Assumes IPv4 */
+    IPInitializePacket(&Datagram, IP_ADDRESS_V6);
+
+    Success = ReassembleDatagram(&Datagram, IPDR);
+
+    FreeIPDR(IPDR);
+
+    if (!Success)
+      /* Not enough free resources, discard the packet */
+      return;
+
+    DISPLAY_IP_PACKET(&Datagram);
+
+    /* Give the packet to the protocol dispatcher */
+    IPDispatchProtocol(IF, &Datagram);
+
+    /* We're done with this datagram */
+    TI_DbgPrint(MAX_TRACE, ("Freeing datagram at (0x%X).\n", Datagram));
+    Datagram.Free(&Datagram);
+  } else
+    TcpipReleaseSpinLock(&IPDR->Lock, OldIrql);
+}
+
 
 VOID IPFreeReassemblyList(
   VOID)
@@ -659,15 +872,7 @@ VOID IPv6Receive(PIP_INTERFACE IF, PIP_PACKET IPPacket)
         return;
     }
 
-    IPPacket->HeaderSize = (FirstByte & 0x0F) << 2;
-    TI_DbgPrint(DEBUG_IP, ("IPPacket->HeaderSize = %d\n", IPPacket->HeaderSize));
-
-    if (IPPacket->HeaderSize > IPv4_MAX_HEADER_SIZE) {
-        TI_DbgPrint(MIN_TRACE, ("Datagram received with incorrect header size (%d).\n",
-	      IPPacket->HeaderSize));
-        /* Discard packet */
-        return;
-    }
+    IPPacket->HeaderSize = sizeof(IPv6_HEADER); // always the same
 
     /* This is freed by IPPacket->Free() */
     IPPacket->Header = ExAllocatePoolWithTag(NonPagedPool,
@@ -705,7 +910,7 @@ VOID IPv6Receive(PIP_INTERFACE IF, PIP_PACKET IPPacket)
 
     /* FIXME: Should we allow packets to be received on the wrong interface? */
     /* XXX Find out if this packet is destined for us */
-    ProcessFragment(IF, IPPacket);
+    ProcessFragmentV6(IF, IPPacket);
 }
 
 

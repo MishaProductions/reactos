@@ -63,12 +63,15 @@ BOOLEAN AddrIsBroadcastMatch(
     PIP_ADDRESS UnicastAddress,
     PIP_ADDRESS BroadcastAddress ) {
     IF_LIST_ITER(IF);
+    ADDR_LIST_ITER(Address);
 
     ForEachInterface(IF) {
-        if ((AddrIsUnspecified(UnicastAddress) ||
-             AddrIsEqual(&IF->Unicast, UnicastAddress)) &&
-            (AddrIsEqual(&IF->Broadcast, BroadcastAddress)))
+        ForEachAddress(IF->Addresses, Address) {
+            if ((AddrIsUnspecified(UnicastAddress) ||
+             AddrIsEqual(&Address->Address, UnicastAddress)) &&
+            (AddrIsBroadcast(IF, BroadcastAddress)))
             return TRUE;
+        } EndFor(Address);
     } EndFor(IF);
 
     return FALSE;

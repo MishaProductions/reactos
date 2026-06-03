@@ -127,7 +127,22 @@ BOOLEAN ARPTransmit(PIP_ADDRESS Address, PVOID LinkAddress,
     /* If Address is NULL then the caller wants an
      * gratuitous ARP packet sent */
     if (!Address)
-        Address = &Interface->Unicast;
+    {
+        PIP_ADDRESS UnicastAddress = FindAddressByAddressType(Interface, IP_ADDRESS_V4);
+        BOOL result = FALSE;
+        if (UnicastAddress)
+        {
+            result = ARPTransmit(UnicastAddress, LinkAddress, Interface);
+        }
+        UnicastAddress = FindAddressByAddressType(Interface, IP_ADDRESS_V6);
+        if (UnicastAddress)
+        {
+            result = ARPTransmit(UnicastAddress, LinkAddress, Interface);
+        }
+        return result;
+    }
+
+    PIP_ADDRESS SourceAddress = FindAddressByAddressType(Interface, Address->Type);
 
     switch (Address->Type) {
         case IP_ADDRESS_V4:
@@ -152,7 +167,7 @@ BOOLEAN ARPTransmit(PIP_ADDRESS Address, PVOID LinkAddress,
         (UCHAR)Interface->AddressLength, /* Hardware address length */
         (UCHAR)ProtoAddrLen,             /* Protocol address length */
         Interface->Address,              /* Sender's (local) hardware address */
-        &Interface->Unicast.Address.IPv4Address,/* Sender's (local) protocol address */
+        SourceAddress,                   /* Sender's (local) protocol address */
         LinkAddress,                     /* Target's (remote) hardware address */
         &Address->Address.IPv4Address,   /* Target's (remote) protocol address */
         ARP_OPCODE_REQUEST);             /* ARP request */
@@ -234,6 +249,8 @@ VOID ARPReceive(
         return;
     }
 
+    PIP_ADDRESS LocalUnicastAddress = FindAddressByAddressType(Interface, IP_ADDRESS_V4);
+
     DataSize = (2 * Header->HWAddrLen) + (2 * Header->ProtoAddrLen);
     DataBuffer = ExAllocatePool(PagedPool,
                                 DataSize);
@@ -261,7 +278,7 @@ VOID ARPReceive(
     TargetProtoAddress = (PVOID)(SenderProtoAddress + Header->ProtoAddrLen + Header->HWAddrLen);
 
     AddrInitIPv4(&DstAddress, *((PULONG)TargetProtoAddress));
-    if (!AddrIsEqual(&DstAddress, &Interface->Unicast))
+    if (!AddrIsEqual(&DstAddress, LocalUnicastAddress))
     {
         ExFreePool(DataBuffer);
         Packet->Free(Packet);
@@ -300,7 +317,7 @@ VOID ARPReceive(
         (UCHAR)Interface->AddressLength, /* Hardware address length */
         (UCHAR)Header->ProtoAddrLen,     /* Protocol address length */
         Interface->Address,              /* Sender's (local) hardware address */
-        &Interface->Unicast.Address.IPv4Address,/* Sender's (local) protocol address */
+        LocalUnicastAddress              ,/* Sender's (local) protocol address */
         SenderHWAddress,                 /* Target's (remote) hardware address */
         SenderProtoAddress,              /* Target's (remote) protocol address */
         ARP_OPCODE_REPLY);               /* ARP reply */

@@ -167,7 +167,7 @@ NTSTATUS UDPSendDatagram(
     IP_PACKET Packet;
     PTA_IP_ADDRESS RemoteAddressTa = (PTA_IP_ADDRESS)ConnInfo->RemoteAddress;
     IP_ADDRESS RemoteAddress;
-    IP_ADDRESS LocalAddress;
+    PIP_ADDRESS LocalAddress;
     USHORT RemotePort;
     NTSTATUS Status;
     PNEIGHBOR_CACHE_ENTRY NCE;
@@ -191,8 +191,8 @@ NTSTATUS UDPSendDatagram(
 		return STATUS_UNSUCCESSFUL;
     }
 
-    LocalAddress = AddrFile->Address;
-    if (AddrIsUnspecified(&LocalAddress))
+    LocalAddress = &AddrFile->Address;
+    if (AddrIsUnspecified(LocalAddress))
     {
         /* If the local address is unspecified (0),
          * then use the unicast address of the
@@ -203,11 +203,11 @@ NTSTATUS UDPSendDatagram(
             return STATUS_NETWORK_UNREACHABLE;
         }
 
-        LocalAddress = NCE->Interface->Unicast;
+        LocalAddress = FindAddressByAddressType(NCE->Interface, RemoteAddress.Type);
     }
     else
     {
-        if(!(NCE = NBLocateNeighbor( &LocalAddress, NULL ))) {
+        if(!(NCE = NBLocateNeighbor( LocalAddress, NULL ))) {
             UnlockObject(AddrFile);
             return STATUS_INVALID_PARAMETER;
         }
@@ -217,7 +217,7 @@ NTSTATUS UDPSendDatagram(
 							 &Packet,
 							 &RemoteAddress,
 							 RemotePort,
-							 &LocalAddress,
+							 LocalAddress,
 							 AddrFile->Port,
 							 BufferData,
 							 DataSize );

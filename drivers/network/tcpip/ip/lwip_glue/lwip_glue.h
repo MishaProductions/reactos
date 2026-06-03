@@ -14,123 +14,54 @@
 
 typedef struct tcp_pcb* PTCP_PCB;
 
-#define LWIP_IP6_TO_TDI(ip6, tdi)              \
-    do {                                       \
-        (tdi)->sin6_addr[0] = IP6_ADDR_BLOCK1(ip6); \
-        (tdi)->sin6_addr[1] = IP6_ADDR_BLOCK2(ip6); \
-        (tdi)->sin6_addr[2] = IP6_ADDR_BLOCK3(ip6); \
-        (tdi)->sin6_addr[3] = IP6_ADDR_BLOCK4(ip6); \
-        (tdi)->sin6_addr[4] = IP6_ADDR_BLOCK5(ip6); \
-        (tdi)->sin6_addr[5] = IP6_ADDR_BLOCK6(ip6); \
-        (tdi)->sin6_addr[6] = IP6_ADDR_BLOCK7(ip6); \
-        (tdi)->sin6_addr[7] = IP6_ADDR_BLOCK8(ip6); \
-    } while (0)
+static inline void NtIpAddressToLWIPIpAddress(IP_ADDRESS* x, ip_addr_t* y)
+{
+    if (x->Type == IP_ADDRESS_V4)
+    {                                                             
+        y->type = IPADDR_TYPE_V4;
+        y->u_addr.ip4.addr = x->Address.IPv4Address;
+    }                                                             
+    else                                                          
+    {                                                             
+        y->type = IPADDR_TYPE_V6;
+        memcpy(y->u_addr.ip6.addr, x->Address.IPv6Address, sizeof(x->Address.IPv6Address));
+    }
+}
 
-#define NTIPADDRESSTOIPADDR(x, y)                                     \
-    do {                                                              \
-        if ((x).Type == IP_ADDRESS_V4)                                \
-        {                                                             \
-            (y).type = IPADDR_TYPE_V4;                                \
-            (y).u_addr.ip4.addr = (x).Address.IPv4Address;                   \
-        }                                                             \
-        else                                                          \
-        {                                                             \
-            (y).type = IPADDR_TYPE_V6;                                \
-            IP6_ADDR(&(y).u_addr.ip6,                                 \
-                ((x).Address.IPv6Address[0] << 16) | (x).Address.IPv6Address[1], \
-                ((x).Address.IPv6Address[2] << 16) | (x).Address.IPv6Address[3], \
-                ((x).Address.IPv6Address[4] << 16) | (x).Address.IPv6Address[5], \
-                ((x).Address.IPv6Address[6] << 16) | (x).Address.IPv6Address[7]);\
-        }                                                             \
-    } while (0)
+static inline void LWIPIpAddressToNTIpAddress(ip_addr_t* x, PIP_ADDRESS y)
+{
+    if (x->type == IPADDR_TYPE_V4)
+    {
+        y->Type = IP_ADDRESS_V4;
+        y->Address.IPv4Address = x->u_addr.ip4.addr;
+    }
+    else if (x->type == IPADDR_TYPE_V6)
+    {
+        y->Type = IP_ADDRESS_V6;
+         memcpy(y->Address.IPv6Address, x->u_addr.ip6.addr, sizeof(x->u_addr.ip6.addr));
+    }
+}
 
-#define IPADDRTONTIPADDRESS(x, y)                                     \
-    do {                                                              \
-        if ((x).type == IPADDR_TYPE_V4)                               \
-        {                                                             \
-            (y).Type = IP_ADDRESS_V4;                                 \
-            (y).Address.IPv4Address = (x).u_addr.ip4.addr;                   \
-        }                                                             \
-        else                                                          \
-        {                                                             \
-            (y).Type = IP_ADDRESS_V6;                                 \
-            (y).Address.IPv6Address[0] = IP6_ADDR_BLOCK1(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[1] = IP6_ADDR_BLOCK2(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[2] = IP6_ADDR_BLOCK3(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[3] = IP6_ADDR_BLOCK4(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[4] = IP6_ADDR_BLOCK5(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[5] = IP6_ADDR_BLOCK6(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[6] = IP6_ADDR_BLOCK7(&(x).u_addr.ip6); \
-            (y).Address.IPv6Address[7] = IP6_ADDR_BLOCK8(&(x).u_addr.ip6); \
-        }                                                             \
-    } while (0)
+static inline void LWIPIpAddressToTDIIpAddress(ip_addr_t* x, PTA_IP_ADDRESS y)
+{
+    y->TAAddressCount = 1;
 
-#define TDIIPADDRESSTOIPADDR(x, y)                                      \
-    do {                                                               \
-        if ((x)->TAAddressCount > 0)                                    \
-        {                                                              \
-            if ((x)->Address[0].AddressType == TDI_ADDRESS_TYPE_IP)     \
-            {                                                          \
-                (y)->type = IPADDR_TYPE_V4;                             \
-                (y)->u_addr.ip4.addr =                                  \
-                    (x)->Address[0].Address[0].in_addr;                 \
-            }                                                          \
-            else if ((x)->Address[0].AddressType == TDI_ADDRESS_TYPE_IP6)\
-            {                                                          \
-                (y).type = IPADDR_TYPE_V6;                             \
-                IP6_ADDR(&(y).u_addr.ip6,                              \
-                    ((x).Address[0].Address[0].sin6_addr[0] << 16) |   \
-                     (x).Address[0].Address[0].sin6_addr[1],           \
-                    ((x).Address[0].Address[0].sin6_addr[2] << 16) |   \
-                     (x).Address[0].Address[0].sin6_addr[3],           \
-                    ((x).Address[0].Address[0].sin6_addr[4] << 16) |   \
-                     (x).Address[0].Address[0].sin6_addr[5],           \
-                    ((x).Address[0].Address[0].sin6_addr[6] << 16) |   \
-                     (x).Address[0].Address[0].sin6_addr[7]);          \
-            }                                                          \
-        }                                                              \
-    } while (0)
-
-#define IPADDRTOTDIIPADDRESS(x, y)                                      \
-    do {                                                               \
-        (y)->TAAddressCount = 1;                                        \
-                                                                         \
-        if ((x).type == IPADDR_TYPE_V4)                                \
-        {                                                              \
-            (y)->Address[0].AddressLength = sizeof(TDI_ADDRESS_IP);     \
-            (y)->Address[0].AddressType = TDI_ADDRESS_TYPE_IP;          \
-            (y)->Address[0].Address[0].sin_port = 0;                    \
-            (y)->Address[0].Address[0].in_addr =                        \
-                (x).u_addr.ip4.addr;                                   \
-            memset((y)->Address[0].Address[0].sin_zero, 0, 8);          \
-        }                                                              \
-        else                                                           \
-        {                                                              \
-            PTA_IP6_ADDRESS AddressIP6 = (PTA_IP6_ADDRESS)y;\
-            (AddressIP6)->Address[0].AddressLength = sizeof(TDI_ADDRESS_IP6);    \
-            (AddressIP6)->Address[0].AddressType = TDI_ADDRESS_TYPE_IP6;         \
-            (AddressIP6)->Address[0].Address[0].sin6_port = 0;                   \
-            (AddressIP6)->Address[0].Address[0].sin6_flowinfo = 0;               \
-            (AddressIP6)->Address[0].Address[0].sin6_scope_id = 0;               \
-                                                                         \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[0] =                   \
-                IP6_ADDR_BLOCK1(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[1] =                   \
-                IP6_ADDR_BLOCK2(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[2] =                   \
-                IP6_ADDR_BLOCK3(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[3] =                   \
-                IP6_ADDR_BLOCK4(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[4] =                   \
-                IP6_ADDR_BLOCK5(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[5] =                   \
-                IP6_ADDR_BLOCK6(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[6] =                   \
-                IP6_ADDR_BLOCK7(&(x).u_addr.ip6);                      \
-            (AddressIP6)->Address[0].Address[0].sin6_addr[7] =                   \
-                IP6_ADDR_BLOCK8(&(x).u_addr.ip6);                      \
-        }                                                              \
-    } while (0)
+    if (x->type == IPADDR_TYPE_V6)
+    {
+        y->Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP;
+        y->Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
+        y->Address[0].Address->in_addr = x->u_addr.ip4.addr;
+        RtlZeroMemory(&y->Address[0].Address[0].sin_zero,
+                  sizeof(y->Address[0].Address[0].sin_zero));
+    }
+    else if (x->type == IPADDR_TYPE_V6)
+    {
+        PTA_IP6_ADDRESS AddressIP6 = (PTA_IP6_ADDRESS)y;
+        AddressIP6->Address[0].AddressLength = TDI_ADDRESS_LENGTH_IP;
+        AddressIP6->Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
+        memcpy(&AddressIP6->Address[0].Address->sin6_addr, x->u_addr.ip6.addr, sizeof(x->u_addr.ip6.addr));
+    }
+}
 
 typedef struct _QUEUE_ENTRY
 {

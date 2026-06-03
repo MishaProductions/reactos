@@ -535,8 +535,7 @@ PNEIGHBOR_CACHE_ENTRY NBFindOrCreateNeighbor(
   NCE = NBLocateNeighbor(Address, Interface);
   if (NCE == NULL)
     {
-        TI_DbgPrint(MID_TRACE,("BCAST: %s\n", A2S(&Interface->Broadcast)));
-        if( AddrIsEqual(Address, &Interface->Broadcast) ||
+        if( AddrIsBroadcast(Interface, Address) ||
             AddrIsUnspecified(Address) ) {
             TI_DbgPrint(MID_TRACE,("Packet targeted at broadcast addr\n"));
             NCE = NBAddNeighbor(Interface, Address, NULL,
@@ -653,14 +652,24 @@ ULONG NBCopyNeighbors
   PNEIGHBOR_CACHE_ENTRY CurNCE;
   KIRQL OldIrql;
   UINT Size = 0, i;
+  ADDR_LIST_ITER(Address);
 
   for (i = 0; i <= NB_HASHMASK; i++) {
       TcpipAcquireSpinLock(&NeighborCache[i].Lock, &OldIrql);
       for( CurNCE = NeighborCache[i].Cache;
 	   CurNCE;
 	   CurNCE = CurNCE->Next ) {
-	  if( CurNCE->Interface == Interface &&
-              !AddrIsEqual( &CurNCE->Address, &CurNCE->Interface->Unicast ) ) {
+
+
+    ForEachAddress(Interface->Addresses, Address) {
+        if (Address->Address.Type == CurNCE->Address.Type && AddrIsEqual(&CurNCE->Address, &Address->Address ))
+        {
+            continue;
+        }
+    } EndFor(Address);
+
+
+	  if( CurNCE->Interface == Interface) {
 	      if( ArpTable ) {
 		  ArpTable[Size].Index = Interface->Index;
 		  ArpTable[Size].AddrSize = CurNCE->LinkAddressLength;

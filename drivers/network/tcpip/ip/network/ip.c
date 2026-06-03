@@ -219,10 +219,8 @@ PIP_INTERFACE IPCreateInterface(
     IF->AddressLength = BindInfo->AddressLength;
     IF->Transmit      = BindInfo->Transmit;
 
-	IF->Unicast.Type = IP_ADDRESS_V4;
-	IF->PointToPoint.Type = IP_ADDRESS_V4;
-	IF->Netmask.Type = IP_ADDRESS_V4;
-	IF->Broadcast.Type = IP_ADDRESS_V4;
+    InitializeListHead(&IF->ListEntry);
+    InitializeListHead(&IF->Addresses);
 
     TcpipInitializeSpinLock(&IF->Lock);
 
@@ -262,21 +260,26 @@ VOID IPDestroyInterface(
 VOID IPAddInterfaceRoute( PIP_INTERFACE IF ) {
     PNEIGHBOR_CACHE_ENTRY NCE;
     IP_ADDRESS NetworkAddress;
+    IP_ADDRESS NetworkMask;
 
-    /* Add a permanent neighbor for this NTE */
-    NCE = NBAddNeighbor(IF, &IF->Unicast,
-			IF->Address, IF->AddressLength,
-			NUD_PERMANENT, 0);
-    if (!NCE) {
-	TI_DbgPrint(MIN_TRACE, ("Could not create NCE.\n"));
-        return;
-    }
+    ADDR_LIST_ITER(Address);
 
-    AddrWidenAddress( &NetworkAddress, &IF->Unicast, &IF->Netmask );
+    ForEachAddress(IF->Addresses, Address) {
+        /* Add a permanent neighbor for this NTE */
+        NCE = NBAddNeighbor(IF, &Address->Address,
+			    IF->Address, IF->AddressLength,
+			    NUD_PERMANENT, 0);
+        if (!NCE) {
+	    TI_DbgPrint(MIN_TRACE, ("Could not create NCE.\n"));
+            return;
+        }
 
-    if (!RouterAddRoute(&NetworkAddress, &IF->Netmask, NCE, 1)) {
-	TI_DbgPrint(MIN_TRACE, ("Could not add route due to insufficient resources.\n"));
-    }
+        AddrWidenAddress( &NetworkAddress, &Address->Address, Address->MaskBits);
+
+        if (!RouterAddRoute(&NetworkAddress, &NetworkMask, NCE, 1)) {
+	        TI_DbgPrint(MIN_TRACE, ("Could not add route due to insufficient resources.\n"));
+        }
+    } EndFor(Address);
 
     /* Send a gratuitous ARP packet to update the route caches of
      * other computers */
@@ -331,19 +334,21 @@ BOOLEAN IPRegisterInterface(
 VOID IPRemoveInterfaceRoute( PIP_INTERFACE IF ) {
     PNEIGHBOR_CACHE_ENTRY NCE;
     IP_ADDRESS GeneralRoute;
+    ADDR_LIST_ITER(Address);
 
-    NCE = NBLocateNeighbor(&IF->Unicast, IF);
-    if (NCE)
-    {
-       TI_DbgPrint(DEBUG_IP,("Removing interface Addr %s\n", A2S(&IF->Unicast)));
-       TI_DbgPrint(DEBUG_IP,("                   Mask %s\n", A2S(&IF->Netmask)));
+    ForEachAddress(IF->ListEntry, Address) {
+        NCE = NBLocateNeighbor(&Address->Address, IF);
+        if (NCE)
+        {
+           TI_DbgPrint(DEBUG_IP,("Removing interface Addr %s/%d\n", A2S(&Address->Address), Address->MaskBits));
 
-       AddrWidenAddress(&GeneralRoute,&IF->Unicast,&IF->Netmask);
+           AddrWidenAddress(&GeneralRoute, &Address->Address, Address->MaskBits);
 
-       RouterRemoveRoute(&GeneralRoute, &IF->Unicast);
+           RouterRemoveRoute(&GeneralRoute, &Address->Address);
 
-       NBRemoveNeighbor(NCE);
-    }
+           NBRemoveNeighbor(NCE);
+        }
+    } EndFor(Address);
 }
 
 VOID IPUnregisterInterface(

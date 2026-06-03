@@ -348,11 +348,11 @@ NTSTATUS TCPConnect
             return STATUS_NETWORK_UNREACHABLE;
         }
 
-        NTIPADDRESSTOIPADDR(NCE->Interface->Unicast, bindaddr);
+        NtIpAddressToLWIPIpAddress(FindAddressByAddressType(NCE->Interface, RemoteAddress.Type), &bindaddr);
     }
     else
     {
-        NTIPADDRESSTOIPADDR(Connection->AddressFile->Address, bindaddr);
+        NtIpAddressToLWIPIpAddress(&Connection->AddressFile->Address, &bindaddr);
     }
 
     Status = TCPTranslateError(LibTCPBind(Connection,
@@ -366,7 +366,7 @@ NTSTATUS TCPConnect
     }
 
     /* Copy bind address into connection */
-    IPADDRTONTIPADDRESS(bindaddr, Connection->AddressFile->Address);
+    LWIPIpAddressToNTIpAddress(&bindaddr, &Connection->AddressFile->Address);
     /* Check if we had an unspecified port */
     if (!Connection->AddressFile->Port)
     {
@@ -392,7 +392,7 @@ NTSTATUS TCPConnect
         Connection->AddressFile->Port = AllocatedPort;
     }
 
-    NTIPADDRESSTOIPADDR(RemoteAddress, connaddr);
+    NtIpAddressToLWIPIpAddress(&RemoteAddress, &connaddr);
 
     Bucket = ExAllocateFromNPagedLookasideList(&TdiBucketLookasideList);
     if (!Bucket)
@@ -684,10 +684,7 @@ NTSTATUS TCPGetSockAddress
 
     UnlockObject(Connection);
 
-    IPADDRTOTDIIPADDRESS(ipaddr, AddressIP);
-
-    RtlZeroMemory(&AddressIP->Address[0].Address[0].sin_zero,
-                  sizeof(AddressIP->Address[0].Address[0].sin_zero));
+    LWIPIpAddressToTDIIpAddress(&ipaddr, AddressIP);
 
     return Status;
 }

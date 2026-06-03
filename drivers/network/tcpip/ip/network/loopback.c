@@ -106,6 +106,8 @@ NDIS_STATUS LoopRegisterAdapter(
  */
 {
   LLIP_BIND_INFO BindInfo;
+  IP_ADDRESS UnicastAddress;
+  IP_ADDRESS UnicastAddress6;
 
   TI_DbgPrint(MID_TRACE, ("Called.\n"));
 
@@ -126,15 +128,14 @@ NDIS_STATUS LoopRegisterAdapter(
   Loopback->Name.MaximumLength = Loopback->Name.Length =
       (USHORT)wcslen(Loopback->Name.Buffer) * sizeof(WCHAR);
 
-  AddrInitIPv4(&Loopback->Unicast, LOOPBACK_ADDRESS_IPv4);
-  AddrInitIPv4(&Loopback->Netmask, LOOPBACK_ADDRMASK_IPv4);
-  AddrInitIPv4(&Loopback->Broadcast, LOOPBACK_BCASTADDR_IPv4);
+  // Unicast IPV4 address
+  AddrInitIPv4(&UnicastAddress, LOOPBACK_ADDRESS_IPv4);
+  InsertAddress(Loopback, UnicastAddress, 8, Unicast);
 
-  static const WORD LoopbackAddress[8] = {0, 0, 0, 0, 0, 0, 0, 1}; // ::1/128
-  static const WORD LoopbackMask[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-
-  AddrInitIPv6(&Loopback->AddressPermanent, LoopbackAddress);
-  AddrInitIPv6(&Loopback->NetmaskIPv6, LoopbackMask);
+  // Unicast IPV6 address
+  static const WORD LoopbackAddress[8] = {0, 0, 0, 0, 0, 0, 0, 1};
+  AddrInitIPv6(&UnicastAddress6, LoopbackAddress);
+  InsertAddress(Loopback, UnicastAddress6, 128, Unicast);
 
   IPRegisterInterface(Loopback);
 

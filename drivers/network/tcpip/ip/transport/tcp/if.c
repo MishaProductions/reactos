@@ -146,20 +146,23 @@ TCPUpdateInterfaceIPInformation(PIP_INTERFACE IF)
     ip4_addr_t ipaddr;
     ip4_addr_t netmask;
     ip4_addr_t gw;
+    BOOL HasAddresses = FALSE;
+    ADDR_LIST_ITER(Address);
+
 
     gw.addr = 0;
 
-    GetInterfaceIPv4Address(IF,
-                            ADE_UNICAST,
-                            (PULONG)&ipaddr.addr);
+    ForEachAddress(IF->Addresses, Address) {
+        if (Address->Type == IP_ADDRESS_V4)
+        {
+            HasAddresses = TRUE;
+            ipaddr.addr = Address->Address.Address.IPv4Address;
+            netmask.addr = IPv4_GetNetworkMaskFromCidrMask(Address->MaskBits);
+            netif_set_addr(IF->TCPContext, &ipaddr, &netmask, &gw);
+        }
+    } EndFor(Address);
 
-    GetInterfaceIPv4Address(IF,
-                            ADE_ADDRMASK,
-                            (PULONG)&netmask.addr);
-
-    netif_set_addr(IF->TCPContext, &ipaddr, &netmask, &gw);
-
-    if (ipaddr.addr != 0)
+    if (HasAddresses)
     {
         netif_set_up(IF->TCPContext);
         netif_set_default(IF->TCPContext);

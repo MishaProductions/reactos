@@ -131,10 +131,34 @@ typedef struct _IFInfo {
     IPAddrEntry        ip_addr;
 } IFInfo;
 
+/* Shared between TCPIP ip.h */
+/* Raw IPv4 style address */
+typedef ULONG IPv4_RAW_ADDRESS;
+typedef IPv4_RAW_ADDRESS *PIPv4_RAW_ADDRESS;
+
+/* Raw IPv6 style address */
+typedef USHORT IPv6_RAW_ADDRESS[8];
+typedef IPv6_RAW_ADDRESS *PIPv6_RAW_ADDRESS;
+
+/* IP style address */
+typedef struct IP_ADDRESS
+{
+    UCHAR Type; /* Type of IP address */
+    union
+    {
+        IPv4_RAW_ADDRESS IPv4Address; /* IPv4 address (in network byte order) */
+        IPv6_RAW_ADDRESS IPv6Address; /* IPv6 address (in network byte order) */
+    } Address;
+} IP_ADDRESS, *PIP_ADDRESS;
+
+/* IP type constants */
+#define IP_ADDRESS_V4 0x04 /* IPv4 style address */
+#define IP_ADDRESS_V6 0x06 /* IPv6 style address */
+
 typedef struct _IP_SET_DATA {
     ULONG NteContext;
-    ULONG NewAddress;
-    ULONG NewNetmask;
+    IP_ADDRESS NewAddress;
+    IP_ADDRESS NewNetmask;
 } IP_SET_DATA, *PIP_SET_DATA;
 
 typedef enum _IPHLPAddrType {

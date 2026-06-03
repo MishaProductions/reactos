@@ -55,7 +55,7 @@ NTSTATUS AddGenericHeaderIPv6(
     /* Build IPv6 header */
     IPHeader = (PIPv6_HEADER)IPPacket->Header;
     /* Version = 6, Traffic Class = 0, Flow Label = 0 */
-    IPHeader->VTF = 0x60000000;
+    IPHeader->VTF = 0x00000060;
     /* Length of header and data */
     IPHeader->PayloadLength = WH2N((USHORT)IPPacket->TotalSize) - sizeof(IPPacket->HeaderSize);
     /* One fragment at offset 0 */
@@ -303,7 +303,16 @@ NTSTATUS RawIPSendDatagram(
             return STATUS_NETWORK_UNREACHABLE;
         }
 
-        LocalAddress = NCE->Interface->Unicast;
+
+        PIP_ADDRESS Address = FindAddressByAddressType(NCE->Interface, RemoteAddress.Type);
+        if (Address)
+        {
+            LocalAddress = *Address;
+        }
+        else
+        {
+            return STATUS_NETWORK_UNREACHABLE;
+        }
     }
     else
     {
