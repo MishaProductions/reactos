@@ -259,6 +259,36 @@ static NTSTATUS ReceiveActivity( PAFD_FCB FCB, PIRP Irp ) {
     return RetStatus;
 }
 
+NTSTATUS NTAPI
+AcceptExReceiveComplete(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
+{
+    PAFD_FCB FCB = (PAFD_FCB)Context;
+
+    if (!SocketAcquireStateLock(FCB))
+        return STATUS_FILE_CLOSED;
+
+    ASSERT(FCB->ReceiveIrp.InFlightRequest == Irp);
+    ASSERT(FCB->AcceptIrp != NULL);
+    FCB->ReceiveIrp.InFlightRequest = NULL;
+
+    /* Complete the AcceptEx IRP as the data has been received */
+    MmUnlockPages((PMDL)FCB->AcceptIrp->UserBuffer);
+    IoFreeMdl((PMDL)FCB->AcceptIrp->UserBuffer);
+    FCB->AcceptIrp->IoStatus.Information = Irp->IoStatus.Information;
+    FCB->AcceptIrp->IoStatus.Status = Irp->IoStatus.Status;
+    if (FCB->AcceptIrp->MdlAddress)
+        UnlockRequest(FCB->AcceptIrp, IoGetCurrentIrpStackLocation(FCB->AcceptIrp));
+    (void)IoSetCancelRoutine(FCB->AcceptIrp, NULL);
+    IoCompleteRequest(FCB->AcceptIrp, IO_NETWORK_INCREMENT);
+    FCB->AcceptIrp = NULL;
+
+    /* Continue receive activity */
+    ReceiveActivity(FCB, NULL);
+
+    SocketStateUnlock(FCB);
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS NTAPI ReceiveComplete
 ( PDEVICE_OBJECT DeviceObject,
   PIRP Irp,

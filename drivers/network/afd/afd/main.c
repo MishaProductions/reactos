@@ -497,6 +497,7 @@ AfdCloseSocket(PDEVICE_OBJECT DeviceObject, PIRP Irp,
     ASSERT(IsListEmpty(&FCB->PendingIrpList[FUNCTION_SEND]));
     ASSERT(IsListEmpty(&FCB->PendingIrpList[FUNCTION_RECV]));
     ASSERT(IsListEmpty(&FCB->PendingIrpList[FUNCTION_PREACCEPT]));
+    ASSERT(IsListEmpty(&FCB->PendingIrpList[FUNCTION_ACCEPTEX]));
     ASSERT(IsListEmpty(&FCB->PendingIrpList[FUNCTION_DISCONNECT]));
 
     while (!IsListEmpty(&FCB->PendingConnections))
@@ -1006,6 +1007,9 @@ AfdDispatch(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         case IOCTL_AFD_ACCEPT:
             return AfdAccept( DeviceObject, Irp, IrpSp );
 
+        case IOCTL_AFD_SUPER_ACCEPT:
+            return AfdSuperAccept( DeviceObject, Irp, IrpSp );
+
         case IOCTL_AFD_DISCONNECT:
             return AfdDisconnect( DeviceObject, Irp, IrpSp );
 
@@ -1241,6 +1245,10 @@ AfdCancelHandler(PDEVICE_OBJECT DeviceObject,
 
         case IOCTL_AFD_SUPER_CONNECT:
             Function = FUNCTION_CONNECTEX;
+            break;
+
+        case IOCTL_AFD_SUPER_ACCEPT:
+            Function = FUNCTION_ACCEPTEX;
             break;
 
         case IOCTL_AFD_WAIT_FOR_LISTEN:

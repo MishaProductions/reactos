@@ -90,7 +90,8 @@ typedef struct IPADDR_ENTRY {
 #define FUNCTION_DISCONNECT             5
 #define FUNCTION_CLOSE                  6
 #define FUNCTION_CONNECTEX              7
-#define MAX_FUNCTIONS                   8
+#define FUNCTION_ACCEPTEX               8
+#define MAX_FUNCTIONS                   9
 
 #define IN_FLIGHT_REQUESTS              5
 
@@ -162,7 +163,7 @@ typedef struct _AFD_STORED_DATAGRAM {
 
 typedef struct _AFD_FCB {
     SOCK_SHARED_INFO SharedData;
-    BOOLEAN Locked, Critical, NonBlocking, OobInline, TdiReceiveClosed, SendClosed;
+    BOOLEAN Locked, Critical, NonBlocking, OobInline, TdiReceiveClosed, SendClosed, Acceptor;
     UINT Flags, GroupID, GroupType;
     KIRQL OldIrql;
     PVOID CurrentThread;
@@ -177,7 +178,10 @@ typedef struct _AFD_FCB {
     PTDI_CONNECTION_INFORMATION AddressFrom, ConnectCallInfo, ConnectReturnInfo;
     AFD_TDI_OBJECT AddressFile, Connection;
     AFD_IN_FLIGHT_REQUEST ConnectIrp, ListenIrp, ReceiveIrp, SendIrp, DisconnectIrp;
+    PIRP AcceptIrp;
     AFD_DATA_WINDOW Send, Recv;
+    AFD_SUPER_ACCEPT_INFO PendingAcceptExData;
+    PFILE_OBJECT PendingAcceptExDataObject;
     KMUTEX Mutex;
     PKEVENT EventSelect;
     DWORD EventSelectTriggers;
@@ -216,7 +220,7 @@ AfdBindSocket(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 
 /* connect.c */
 
-NTSTATUS MakeSocketIntoConnection( PAFD_FCB FCB );
+NTSTATUS MakeSocketIntoConnection(PAFD_FCB FCB, BOOL Recieve);
 NTSTATUS WarmSocketForConnection( PAFD_FCB FCB );
 NTSTATUS NTAPI
 AfdStreamSocketConnect(PDEVICE_OBJECT DeviceObject, PIRP Irp,
@@ -283,6 +287,9 @@ NTSTATUS AfdListenSocket(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 NTSTATUS AfdAccept( PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		    PIO_STACK_LOCATION IrpSp );
 
+NTSTATUS AfdSuperAccept( PDEVICE_OBJECT DeviceObject, PIRP Irp,
+		    PIO_STACK_LOCATION IrpSp );
+
 /* lock.c */
 
 PAFD_WSABUF LockBuffers( PAFD_WSABUF Buf, UINT Count,
@@ -313,6 +320,8 @@ VOID RetryDisconnectCompletion(PAFD_FCB FCB);
 BOOLEAN CheckUnlockExtraBuffers(PAFD_FCB FCB, PIO_STACK_LOCATION IrpSp);
 
 /* read.c */
+
+IO_COMPLETION_ROUTINE AcceptExReceiveComplete;
 
 IO_COMPLETION_ROUTINE ReceiveComplete;
 
