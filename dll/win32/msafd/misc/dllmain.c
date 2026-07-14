@@ -2216,7 +2216,7 @@ WSPConnectEx(
         return FALSE;
     }
 
-    
+
     /* Cannot call on connectionless socket */
     if (SocketAddressLength > ARRAYSIZE(Buffer) - sizeof(AFD_CONNECT_INFO) || Socket->SharedData->ServiceFlags1 & XP1_CONNECTIONLESS)
     {
@@ -3030,7 +3030,7 @@ MsafdUpdateConnectionContext(
                                    0,
                                    &SharedData,
                                    sizeof(SharedData));
-    
+
     if (Status == STATUS_PENDING)
     {
         MsafdWaitForAlert(SockEvent);
@@ -3053,7 +3053,7 @@ MsafdUpdateConnectionContext(
                                    sizeof(flags),
                                    &HandleData,
                                    sizeof(HandleData));
-    
+
     if (Status == STATUS_PENDING)
     {
         MsafdWaitForAlert(SockEvent);
@@ -3417,6 +3417,10 @@ WSPAddressToString(IN LPSOCKADDR lpsaAddress,
                 *p = 0;
             }
             break;
+        case AF_INET6:
+            //RtlIpv6AddressToStringExW((SOCKADDR_IN6 *)lpsaAddress, );
+
+            break;
         default:
             if (lpErrno) *lpErrno = WSAEINVAL;
             return SOCKET_ERROR;
@@ -3542,6 +3546,26 @@ WSPStringToAddress(IN LPWSTR AddressString,
             sockaddr->sin_family = AF_INET;
             sockaddr->sin_addr.s_addr = inetaddr;
             sockaddr->sin_port = port;
+        }
+    }
+    else if (AddressFamily == AF_INET6)
+    {
+        if (*lpAddressLength < (INT)sizeof(struct in6_addr))
+        {
+            if (lpErrno) *lpErrno = WSAEFAULT;
+        }
+        else
+        {
+            PCWSTR terminator = NULL;
+            if (RtlIpv6StringToAddressW(AddressString, &terminator, (struct in6_addr*)lpAddress) != 0)
+            {
+                *lpAddressLength = sizeof(struct in6_addr);
+            }
+            else
+            {
+                if (lpErrno) *lpErrno = WSAEINVAL;
+                return SOCKET_ERROR;
+            }
         }
     }
 
