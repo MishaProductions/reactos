@@ -744,3 +744,5 @@
     SVC_(GdiDdDDISharedPrimaryUnLockNotification, 1)
     SVC_(GdiDdDDISignalSynchronizationObject, 1)
     SVC_(GdiDdDDIWaitForSynchronizationObject, 1)
+    SVC_(GdiGetFontFileData, 5)
+    SVC_(GdiGetFontFileInfo, 5)
