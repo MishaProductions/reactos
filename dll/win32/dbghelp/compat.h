@@ -22,6 +22,9 @@ typedef HANDLE HWND;
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define _strnicmp(_String1, _String2, _MaxCount) strncasecmp(_String1, _String2, _MaxCount)
 #define stricmp(_String1, _String2) strcasecmp(_String1, _String2)
+#define __WINE_ALLOC_SIZE(...)
+#define __WINE_DEALLOC(...)
+#define __WINE_MALLOC
 
 #ifdef __i386__
 #define CDECL __cdecl
@@ -94,16 +97,22 @@ typedef enum _EXCEPTION_DISPOSITION
 } EXCEPTION_DISPOSITION;
 
 // winerror.h
+#define ERROR_SUCCESS                                      0
 #define ERROR_ACCESS_DENIED                                5
 #define ERROR_INVALID_HANDLE                               6
+#define ERROR_BAD_FORMAT                                   11
 #define ERROR_OUTOFMEMORY                                  14
 #define ERROR_NOT_SUPPORTED                                50
 #define ERROR_INVALID_PARAMETER                            87
 #define ERROR_CALL_NOT_IMPLEMENTED                         120
 #define ERROR_INVALID_NAME                                 123
 #define ERROR_MOD_NOT_FOUND                                126
+#define ERROR_BAD_EXE_FORMAT                               193
 #define ERROR_NO_MORE_ITEMS                                259
 #define ERROR_INVALID_ADDRESS                              487
+
+// ntstatus.h
+#define STATUS_BUFFER_OVERFLOW           ((NTSTATUS) 0x80000005)
 
 // winnls.h
 #define CP_ACP 0
@@ -124,6 +133,7 @@ INT __WideCharToMultiByte( UINT page, DWORD flags, LPCWSTR src, INT srclen, LPST
 
 // winnt.h
 # define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#define IMAGE_FILE_MACHINE_UNKNOWN 0
 #define IMAGE_FILE_MACHINE_ARMNT      0x1c4
 #define IMAGE_FILE_MACHINE_POWERPC    0x1f0
 #define IMAGE_FILE_MACHINE_ARM64      0xaa64
@@ -212,6 +222,12 @@ typedef struct _EXCEPTION_RECORD {
   DWORD NumberParameters;
   ULONG_PTR ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
 } EXCEPTION_RECORD, *PEXCEPTION_RECORD;
+
+typedef struct _OMAP
+{
+    ULONG  rva;
+    ULONG  rvaTo;
+} OMAP, *POMAP;
 
 #define WOW64_CONTEXT_i386 0x00010000
 #define WOW64_CONTEXT_i486 0x00010000
@@ -733,6 +749,10 @@ typedef struct _EXCEPTION_REGISTRATION_RECORD
 #define HeapAlloc __HeapAlloc
 #define HeapReAlloc __HeapReAlloc
 #define HeapFree(x,y,z) free(z)
+#define heap_free(x) free(x)
+#define RtlAllocateHeap __HeapAlloc
+#define RtlFreeHeap HeapFree
+#define RtlReAllocateHeap(a,b,c,d) malloc(d)
 #define GetProcessHeap() 1
 #define GetProcessId(x) 8
 #define lstrcpynW __lstrcpynW
@@ -754,6 +774,7 @@ typedef struct _EXCEPTION_REGISTRATION_RECORD
 #define GetEnvironmentVariableA(x, y, z) 0
 #define GetEnvironmentVariableW(x, y, z) 0
 #define GetCurrentDirectoryW(x, y) 0
+#define GetFileSize __GetFileSize
 #define GetFileSizeEx __GetFileSizeEx
 #define ReadProcessMemory(a,b,c,d,e) 0
 #define GetCurrentProcess() (HANDLE)1
@@ -770,6 +791,7 @@ DWORD __SetFilePointer(HANDLE,LONG,PLONG,DWORD);
 void* __MapViewOfFile(HANDLE file,DWORD d1,DWORD d2,DWORD d3,SIZE_T s);
 BOOL __UnmapViewOfFile(const void*);
 LPSTR __lstrcpynA(LPSTR,LPCSTR,int);
+BOOL __GetFileSize(HANDLE,LPDWORD);
 BOOL __GetFileSizeEx(HANDLE,PLARGE_INTEGER);
 BOOL WINAPI __IsWow64Process(HANDLE,BOOL*);
 #define OPEN_EXISTING	3
@@ -894,6 +916,9 @@ typedef struct _TEB
     PVOID          *TlsExpansionSlots;          /* f94 */
 } TEB, *PTEB;
 
+typedef struct _OBJECT_NAME_INFORMATION {
+    UNICODE_STRING Name;
+} OBJECT_NAME_INFORMATION, *POBJECT_NAME_INFORMATION;
 
 // winver.h
 typedef struct tagVS_FIXEDFILEINFO {
@@ -1089,6 +1114,8 @@ typedef struct _IMAGEHLP_MODULEW64
     BOOL                        TypeInfo;
     BOOL                        SourceIndexed;
     BOOL                        Publics;
+    DWORD                       MachineType;
+    DWORD                       Reserved;
 } IMAGEHLP_MODULEW64, *PIMAGEHLP_MODULEW64;
 typedef struct _IMAGEHLP_LINE64
 {
@@ -1103,7 +1130,14 @@ typedef enum
     SYMOPT_EX_DISABLEACCESSTIMEUPDATE,
     SYMOPT_EX_MAX,
 /* __WINESRC__ */
-    SYMOPT_EX_WINE_NATIVE_MODULES = 1000
+    /* Include ELF/Mach-O modules in module operations */
+    SYMOPT_EX_WINE_NATIVE_MODULES = 1000,
+    /* Enable Wine's extension APIs */
+    SYMOPT_EX_WINE_EXTENSION_API,
+    /* Return the Unix actual path of loaded module */
+    SYMOPT_EX_WINE_MODULE_REAL_PATH,
+    /* Return the raw source file path from debug info (not always mapped to DOS) */
+    SYMOPT_EX_WINE_SOURCE_ACTUAL_PATH,
 } IMAGEHLP_EXTENDED_OPTIONS;
 typedef struct _SRCCODEINFO
 {
@@ -1122,6 +1156,7 @@ BOOL WINAPI SymCleanup(HANDLE hProcess);
 BOOL WINAPI SymAddSymbolW(HANDLE hProcess, ULONG64 BaseOfDll, PCWSTR name, DWORD64 addr, DWORD size, DWORD flags);
 BOOL  WINAPI SymGetModuleInfoW64(HANDLE hProcess, DWORD64 dwAddr, PIMAGEHLP_MODULEW64 ModuleInfo);
 BOOL WINAPI SymMatchStringW(PCWSTR string, PCWSTR re, BOOL _case);
+BOOL WINAPI SymMatchStringA(PCSTR, PCSTR, BOOL);
 DWORD WINAPI SymLoadModule(HANDLE hProcess, HANDLE hFile, PCSTR ImageName,
                            PCSTR ModuleName, DWORD BaseOfDll, DWORD SizeOfDll);
 DWORD64 WINAPI SymLoadModuleEx(HANDLE, HANDLE, PCSTR, PCSTR, DWORD64, DWORD,
@@ -1130,6 +1165,7 @@ DWORD64 WINAPI SymLoadModuleExW(HANDLE, HANDLE, PCWSTR, PCWSTR, DWORD64, DWORD,
                                 PMODLOAD_DATA, DWORD);
 DWORD64 WINAPI SymGetModuleBase64(HANDLE, DWORD64);
 BOOL WINAPI SymUnloadModule(HANDLE hProcess, DWORD BaseOfDll);
+BOOL WINAPI SymUnloadModule64(HANDLE, DWORD64);
 PVOID   WINAPI SymFunctionTableAccess(HANDLE, DWORD);
 PVOID WINAPI SymFunctionTableAccess64(HANDLE, DWORD64);
 BOOL WINAPI SymFromAddr(HANDLE hProcess, DWORD64 Address, DWORD64* Displacement, PSYMBOL_INFO Symbol);
@@ -1137,6 +1173,8 @@ BOOL WINAPI SymEnumLines(HANDLE hProcess, ULONG64 base, PCSTR compiland, PCSTR s
 DWORD WINAPI SymSetOptions(DWORD opts);
 BOOL WINAPI SymSetExtendedOption(IMAGEHLP_EXTENDED_OPTIONS option, BOOL value);
 BOOL WINAPI SymGetLineFromAddr64(HANDLE hProcess, DWORD64 dwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line);
+BOOL WINAPI SymGetLineNext64(HANDLE, PIMAGEHLP_LINE64);
+BOOL WINAPI SymSetScopeFromAddr(HANDLE, ULONG64);
 typedef BOOL (CALLBACK *PFIND_EXE_FILE_CALLBACKW)(HANDLE, PCWSTR, PVOID);
 #define FindExecutableImageExW __FindExecutableImageExW
 HANDLE __FindExecutableImageExW(PCWSTR, PCWSTR, PWSTR, PFIND_EXE_FILE_CALLBACKW, PVOID);
@@ -1258,6 +1296,8 @@ typedef struct _IMAGEHLP_MODULE64
     BOOL                        TypeInfo;
     BOOL                        SourceIndexed;
     BOOL                        Publics;
+    DWORD                       MachineType;
+    DWORD                       Reserved;
 } IMAGEHLP_MODULE64, *PIMAGEHLP_MODULE64;
 typedef DWORD   RVA;
 typedef ULONG64 RVA64;
@@ -1353,6 +1393,51 @@ typedef struct _MINIDUMP_CALLBACK_INFORMATION
     MINIDUMP_CALLBACK_ROUTINE   CallbackRoutine;
     void*                       CallbackParam;
 } MINIDUMP_CALLBACK_INFORMATION, *PMINIDUMP_CALLBACK_INFORMATION;
+
+typedef struct _EXCEPTION_RECORD32 {
+  NTSTATUS ExceptionCode;
+  ULONG ExceptionFlags;
+  ULONG ExceptionRecord;
+  ULONG ExceptionAddress;
+  ULONG NumberParameters;
+  ULONG ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
+} EXCEPTION_RECORD32, *PEXCEPTION_RECORD32;
+
+typedef struct _EXCEPTION_RECORD64 {
+  NTSTATUS ExceptionCode;
+  ULONG ExceptionFlags;
+  ULONG64 ExceptionRecord;
+  ULONG64 ExceptionAddress;
+  ULONG NumberParameters;
+  ULONG __unusedAlignment;
+  ULONG64 ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
+} EXCEPTION_RECORD64, *PEXCEPTION_RECORD64;
+
+typedef struct _EXCEPTION_POINTERS {
+  PEXCEPTION_RECORD ExceptionRecord;
+  PCONTEXT ContextRecord;
+} EXCEPTION_POINTERS, *PEXCEPTION_POINTERS;
+
+typedef struct _MINIDUMP_EXCEPTION_INFORMATION
+{
+    DWORD                       ThreadId;
+    PEXCEPTION_POINTERS         ExceptionPointers;
+    BOOL                        ClientPointers;
+} MINIDUMP_EXCEPTION_INFORMATION, *PMINIDUMP_EXCEPTION_INFORMATION;
+
+typedef struct _MINIDUMP_USER_STREAM
+{
+    ULONG                       Type;
+    ULONG                       BufferSize;
+    void*                       Buffer;
+} MINIDUMP_USER_STREAM, *PMINIDUMP_USER_STREAM;
+
+typedef struct _MINIDUMP_USER_STREAM_INFORMATION
+{
+    ULONG                       UserStreamCount;
+    PMINIDUMP_USER_STREAM       UserStreamArray;
+} MINIDUMP_USER_STREAM_INFORMATION, *PMINIDUMP_USER_STREAM_INFORMATION;
+
 typedef struct _SYMBOL_INFOW
 {
     ULONG       SizeOfStruct;
@@ -1371,6 +1456,47 @@ typedef struct _SYMBOL_INFOW
     ULONG       MaxNameLen;
     WCHAR       Name[1];
 } SYMBOL_INFOW, *PSYMBOL_INFOW;
+
+typedef struct _SYMBOL_INFO_PACKAGE
+{
+    SYMBOL_INFO si;
+    CHAR        name[MAX_SYM_NAME+1];
+} SYMBOL_INFO_PACKAGE, *PSYMBOL_INFO_PACKAGE;
+
+typedef struct _SYMBOL_INFO_PACKAGEW
+{
+    SYMBOL_INFOW si;
+    WCHAR        name[MAX_SYM_NAME+1];
+} SYMBOL_INFO_PACKAGEW, *PSYMBOL_INFO_PACKAGEW;
+
+typedef struct _SYMSRV_INDEX_INFO
+{
+    DWORD sizeofstruct;
+    CHAR  file[MAX_PATH + 1];
+    BOOL  stripped;
+    DWORD timestamp;
+    DWORD size;
+    CHAR  dbgfile[MAX_PATH + 1];
+    CHAR  pdbfile[MAX_PATH + 1];
+    GUID  guid;
+    DWORD sig;
+    DWORD age;
+} SYMSRV_INDEX_INFO, *PSYMSRV_INDEX_INFO;
+
+typedef struct
+{
+    DWORD sizeofstruct;
+    WCHAR file[MAX_PATH + 1];
+    BOOL  stripped;
+    DWORD timestamp;
+    DWORD size;
+    WCHAR dbgfile[MAX_PATH + 1];
+    WCHAR pdbfile[MAX_PATH + 1];
+    GUID  guid;
+    DWORD sig;
+    DWORD age;
+} SYMSRV_INDEX_INFOW, *PSYMSRV_INDEX_INFOW;
+
 typedef struct _IMAGEHLP_STACK_FRAME
 {
     ULONG64     InstructionOffset;
@@ -1439,6 +1565,15 @@ typedef enum _IMAGEHLP_SYMBOL_TYPE_INFO
     TI_GET_UDTKIND,
     TI_IS_EQUIV_TO,
     TI_GET_CALLING_CONVENTION,
+    TI_IS_CLOSE_EQUIV_TO,
+    TI_GTIEX_REQS_VALID,
+    TI_GET_VIRTUALBASEOFFSET,
+    TI_GET_VIRTUALBASEDISPINDEX,
+    TI_GET_IS_REFERENCE,
+    TI_GET_INDIRECTVIRTUALBASECLASS,
+    TI_GET_VIRTUALBASETABLETYPE,
+    TI_GET_OBJECTPOINTERTYPE,
+    IMAGEHLP_SYMBOL_TYPE_INFO_MAX
 } IMAGEHLP_SYMBOL_TYPE_INFO;
 typedef struct _SOURCEFILE
 {
@@ -1595,13 +1730,13 @@ enum SymTagEnum
    SymTagPointerType,
    SymTagArrayType,
    SymTagBaseType,
-   SymTagTypedef,
+   SymTagTypedef, 
    SymTagBaseClass,
    SymTagFriend,
-   SymTagFunctionArgType,
-   SymTagFuncDebugStart,
+   SymTagFunctionArgType, 
+   SymTagFuncDebugStart, 
    SymTagFuncDebugEnd,
-   SymTagUsingNamespace,
+   SymTagUsingNamespace, 
    SymTagVTableShape,
    SymTagVTable,
    SymTagCustom,
@@ -1609,6 +1744,18 @@ enum SymTagEnum
    SymTagCustomType,
    SymTagManagedType,
    SymTagDimension,
+   SymTagCallSite,
+   SymTagInlineSite,
+   SymTagBaseInterface,
+   SymTagVectorType,
+   SymTagMatrixType,
+   SymTagHLSLType,
+   SymTagCaller,
+   SymTagCallee,
+   SymTagExport,
+   SymTagHeapAllocationSite,
+   SymTagCoffGroup,
+   SymTagInlinee,
    SymTagMax
 };
 
@@ -1632,6 +1779,9 @@ enum BasicType
     btBit = 29,
     btBSTR = 30,
     btHresult = 31,
+    btChar16 = 32,
+    btChar32 = 33,
+    btChar8 = 34,
 };
 
 /* kind of UDT */
@@ -2346,6 +2496,36 @@ enum VARENUM {
     VT_TYPEMASK = 0xfff
 };
 
+/* Wine extensions to dbghelp */
+enum dhext_module_type
+{
+    DMT_UNKNOWN,        /* for lookup, not actually used for a module */
+    DMT_ELF,            /* a real ELF shared module */
+    DMT_MACHO,          /* a real Mach-O shared module */
+    DMT_PE,             /* a native or builtin PE module */
+};
+
+/* only reporting the formats not exposed in regular IMAGHELP_MODULE_INFO */
+enum dhext_debug_format
+{
+    DHEXT_FORMAT_DWARF2     = 0x0001,
+    DHEXT_FORMAT_DWARF3     = 0x0002,
+    DHEXT_FORMAT_DWARF4     = 0x0004,
+    DHEXT_FORMAT_DWARF5     = 0x0008,
+    DHEXT_FORMAT_STABS      = 0x0010,
+};
+
+struct dhext_module_information
+{
+    enum dhext_module_type      type;
+    unsigned                    is_wine_builtin : 1,
+                                is_virtual : 1,
+                                has_file_image : 1;
+    unsigned                    debug_format_bitmask;
+};
+
+extern BOOL WINAPI wine_get_module_information(HANDLE, DWORD64 base, struct dhext_module_information*, unsigned len);
+
 // oaidl.h
 typedef struct tagSAFEARRAYBOUND {
     ULONG cElements;
@@ -2361,19 +2541,12 @@ typedef struct tagSAFEARRAY {
 } SAFEARRAY;
 typedef SAFEARRAY *LPSAFEARRAY;
 
-#if (__STDC__ && !defined(_FORCENAMELESSUNION)) || defined(NONAMELESSUNION)
-#define __VARIANT_NAME_1 n1
-#define __VARIANT_NAME_2 n2
-#define __VARIANT_NAME_3 n3
-#define __VARIANT_NAME_4 brecVal
-#else
 #define __tagVARIANT
 #define __VARIANT_NAME_1
 #define __VARIANT_NAME_2
 #define __VARIANT_NAME_3
 #define __tagBRECORD
 #define __VARIANT_NAME_4
-#endif
 typedef struct tagVARIANT VARIANT;
 struct tagVARIANT {
     union {
@@ -2439,6 +2612,34 @@ struct tagVARIANT {
 typedef VARIANT *LPVARIANT;
 typedef VARIANT VARIANTARG;
 typedef VARIANTARG *LPVARIANTARG;
+
+// oleauto.h
+#define V_VT(A)         ((A)->vt)
+#define V_UNION(A,B)    ((A)->B)
+#define V_BYREF(A)       V_UNION(A,byref)
+#define V_I1(A)          V_UNION(A,cVal)
+#define V_I1REF(A)       V_UNION(A,pcVal)
+#define V_I2(A)          V_UNION(A,iVal)
+#define V_I2REF(A)       V_UNION(A,piVal)
+#define V_I4(A)          V_UNION(A,lVal)
+#define V_I4REF(A)       V_UNION(A,plVal)
+#define V_I8(A)          V_UNION(A,llVal)
+#define V_I8REF(A)       V_UNION(A,pllVal)
+#define V_INT(A)         V_UNION(A,intVal)
+#define V_UI1(A)         V_UNION(A,bVal)
+#define V_UI8(A)         V_UNION(A,ullVal)
+#define V_UI8REF(A)      V_UNION(A,pullVal)
+#define V_UI4(A)         V_UNION(A,ulVal)
+#define V_UI4REF(A)      V_UNION(A,pulVal)
+#define V_UINT(A)        V_UNION(A,uintVal)
+#define V_UI2(A)         V_UNION(A,uiVal)
+#ifdef _WIN64
+#define V_UINT_PTR(A)    V_UI8(A)
+#define V_UINT_PTRREF(A) V_UI8REF(A)
+#else
+#define V_UINT_PTR(A)    V_UI4(A)
+#define V_UINT_PTRREF(A) V_UI4REF(A)
+#endif
 
 // wine/windef16.h
 typedef DWORD SEGPTR;

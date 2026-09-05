@@ -143,6 +143,14 @@ BOOL __GetFileSizeEx(HANDLE file, PLARGE_INTEGER fsize)
     return TRUE;
 }
 
+BOOL __GetFileSize(HANDLE file, LPDWORD lpFileSizeHigh)
+{
+    if (fseek((FILE*)file, 0, 2) == -1)
+        return FALSE;
+    *lpFileSizeHigh = ftell((FILE*)file);
+    return TRUE;
+}
+
 BOOL __CloseHandle(HANDLE handle)
 {
     fclose(handle);

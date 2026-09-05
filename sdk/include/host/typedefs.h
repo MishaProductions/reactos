@@ -53,8 +53,9 @@ typedef const char *PCSTR, *LPCSTR;
 typedef unsigned char UCHAR, *PUCHAR, BYTE, *LPBYTE, BOOLEAN, *PBOOLEAN;
 typedef uint8_t UINT8;
 typedef int16_t SHORT, *PSHORT;
-typedef uint16_t USHORT, *PUSHORT, WORD, *PWORD, *LPWORD, WCHAR, *PWCHAR, *PWSTR, *LPWSTR, UINT16;
-typedef const uint16_t *PCWSTR, *LPCWSTR;
+typedef uint16_t USHORT, *PUSHORT, WORD, *PWORD, *LPWORD, UINT16;
+typedef const wchar_t *PCWSTR, *LPCWSTR;
+typedef wchar_t WCHAR, *PWCHAR, *PWSTR, *LPWSTR;
 typedef int32_t INT, LONG, *PLONG, *LPLONG, BOOL, WINBOOL, INT32;
 typedef uint32_t UINT, *PUINT, *LPUINT, ULONG, *PULONG, DWORD, *PDWORD, *LPDWORD, UINT32;
 #if defined(_LP64) || defined(_WIN64)

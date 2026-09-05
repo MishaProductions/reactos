@@ -151,7 +151,7 @@ enum st_mode {stm_start, stm_32bit, stm_16bit, stm_done};
 #define set_curr_mode(m) {frame->Reserved[__CurrentModeCount] &= ~0x0F; frame->Reserved[__CurrentModeCount] |= (m & 0x0F);}
 #define inc_curr_count() (frame->Reserved[__CurrentModeCount] += 0x10)
 
-static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
+static BOOL i386_stack_walk(struct cpu_stack_walk *csw, STACKFRAME64 *frame,
     union ctx *context)
 {
     STACK32FRAME        frame32;
@@ -168,13 +168,13 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
     /* sanity check */
     if (curr_mode >= stm_done) return FALSE;
 
-    TRACE("Enter: PC=%s Frame=%s Return=%s Stack=%s Mode=%s Count=%s cSwitch=%p nSwitch=%p\n",
+    TRACE("Enter: PC=%s Frame=%s Return=%s Stack=%s Mode=%s Count=%I64u cSwitch=%p nSwitch=%p\n",
           wine_dbgstr_addr(&frame->AddrPC),
           wine_dbgstr_addr(&frame->AddrFrame),
           wine_dbgstr_addr(&frame->AddrReturn),
           wine_dbgstr_addr(&frame->AddrStack),
           curr_mode == stm_start ? "start" : (curr_mode == stm_16bit ? "16bit" : "32bit"),
-          wine_dbgstr_longlong(curr_count),
+          curr_count,
           (void*)(DWORD_PTR)curr_switch, (void*)(DWORD_PTR)next_switch);
 
     /* if we're at first call (which doesn't actually unwind, it just computes ReturnPC,
@@ -224,10 +224,10 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
         if (NtQueryInformationThread(csw->hThread, ThreadBasicInformation, &info,
                                      sizeof(info), NULL) == STATUS_SUCCESS)
         {
-            curr_switch = (DWORD_PTR)info.TebBaseAddress + FIELD_OFFSET(TEB, SystemReserved1[0]);
+            curr_switch = (DWORD_PTR)info.TebBaseAddress + FIELD_OFFSET(TEB, SystemReserved1);
             if (!sw_read_mem(csw, curr_switch, &p, sizeof(p)))
             {
-                WARN("Can't read TEB:SystemReserved1[0]\n");
+                WARN("Can't read TEB:SystemReserved1\n");
                 goto done_err;
             }
             next_switch = p;
@@ -257,7 +257,7 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
                 p = sw_xlat_addr(csw, &tmp);
                 if (!sw_read_mem(csw, p, &frame16, sizeof(frame16)))
                 {
-                    WARN("Bad stack frame 0x%08x\n", p);
+                    WARN("Bad stack frame 0x%08lx\n", p);
                     goto done_err;
                 }
                 curr_switch = (DWORD_PTR)frame16.frame32;
@@ -321,7 +321,7 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
 
                 if (!sw_read_mem(csw, p, &frame16, sizeof(frame16)))
                 {
-                    WARN("Bad stack frame 0x%08x\n", p);
+                    WARN("Bad stack frame 0x%08lx\n", p);
                     goto done_err;
                 }
                 curr_switch = (DWORD_PTR)frame16.frame32;
@@ -338,16 +338,16 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
 
                 if (!sw_read_mem(csw, p, &frame16, sizeof(frame16)))
                 {
-                    WARN("Bad stack frame 0x%08x\n", p);
+                    WARN("Bad stack frame 0x%08lx\n", p);
                     goto done_err;
                 }
 
                 TRACE("Got a 16 bit stack switch:"
                       "\n\tframe32: %p"
-                      "\n\tedx:%08x ecx:%08x ebp:%08x"
+                      "\n\tedx:%08lx ecx:%08lx ebp:%08lx"
                       "\n\tds:%04x es:%04x fs:%04x gs:%04x"
-                      "\n\tcall_from_ip:%08x module_cs:%04x relay=%08x"
-                      "\n\tentry_ip:%04x entry_point:%08x"
+                      "\n\tcall_from_ip:%08lx module_cs:%04lx relay=%08lx"
+                      "\n\tentry_ip:%04x entry_point:%08lx"
                       "\n\tbp:%04x ip:%04x cs:%04x\n",
                       frame16.frame32,
                       frame16.edx, frame16.ecx, frame16.ebp,
@@ -408,8 +408,8 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
                 frame->AddrStack.Offset = context->x86.Esp;
                 frame->AddrFrame.Offset = context->x86.Ebp;
                 if (frame->AddrReturn.Offset != context->x86.Eip)
-                    FIXME("new PC=%s different from Eip=%x\n",
-                          wine_dbgstr_longlong(frame->AddrReturn.Offset), context->x86.Eip);
+                    FIXME("new PC=%I64x different from Eip=%lx\n",
+                          frame->AddrReturn.Offset, context->x86.Eip);
                 frame->AddrPC.Offset = context->x86.Eip;
             }
         }
@@ -478,7 +478,14 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
         union ctx newctx = *context;
 
         if (!fetch_next_frame32(csw, &newctx, frame->AddrPC.Offset - deltapc))
-            goto done_err;
+        {
+            /* When running on wow64 setup, frame below can a 64 bit frame.
+             * As we don't expose 64bit frames for now, pretend it's the first frame.
+             */
+            if (frame->AddrPC.Offset == 0)
+                goto done_err;
+            newctx.x86.Eip = 0;
+        }
         frame->AddrReturn.Mode = AddrModeFlat;
         frame->AddrReturn.Offset = newctx.x86.Eip;
 
@@ -498,13 +505,13 @@ static BOOL i386_stack_walk(struct cpu_stack_walk* csw, STACKFRAME64 *frame,
         frame->FuncTableEntry = NULL;
 
     inc_curr_count();
-    TRACE("Leave: PC=%s Frame=%s Return=%s Stack=%s Mode=%s Count=%s cSwitch=%p nSwitch=%p FuncTable=%p\n",
+    TRACE("Leave: PC=%s Frame=%s Return=%s Stack=%s Mode=%s Count=%I64u cSwitch=%p nSwitch=%p FuncTable=%p\n",
           wine_dbgstr_addr(&frame->AddrPC),
           wine_dbgstr_addr(&frame->AddrFrame),
           wine_dbgstr_addr(&frame->AddrReturn),
           wine_dbgstr_addr(&frame->AddrStack),
           curr_mode == stm_start ? "start" : (curr_mode == stm_16bit ? "16bit" : "32bit"),
-          wine_dbgstr_longlong(curr_count),
+          curr_count,
           (void*)(DWORD_PTR)curr_switch, (void*)(DWORD_PTR)next_switch, frame->FuncTableEntry);
 
     return TRUE;
@@ -703,7 +710,7 @@ static BOOL i386_fetch_minidump_module(struct dump_context* dc, unsigned index, 
     return FALSE;
 }
 
-DECLSPEC_HIDDEN struct cpu cpu_i386 = {
+struct cpu cpu_i386 = {
     IMAGE_FILE_MACHINE_I386,
     4,
     CV_REG_EBP,

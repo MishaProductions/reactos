@@ -80,7 +80,7 @@ unsigned source_new(struct module* module, const char* base, const char* name)
         if (!tmp) return ret;
         full = tmp;
         strcpy(tmp, base);
-        if (tmp[bsz - 1] != '/') tmp[bsz++] = '/';
+        if (bsz && tmp[bsz - 1] != '/') tmp[bsz++] = '/';
         strcpy(&tmp[bsz], name);
     }
     rb_module = module;
@@ -154,7 +154,7 @@ BOOL WINAPI SymEnumSourceFilesW(HANDLE hProcess, ULONG64 ModBase, PCWSTR Mask,
          
     if (ModBase)
     {
-        pair.requested = module_find_by_addr(pair.pcs, ModBase, DMT_UNKNOWN);
+        pair.requested = module_find_by_addr(pair.pcs, ModBase);
         if (!module_get_debug(&pair)) return FALSE;
     }
     else
@@ -295,8 +295,8 @@ BOOL WINAPI SymEnumSourceLines(HANDLE hProcess, ULONG64 base, PCSTR obj,
                                PSYM_ENUMLINES_CALLBACK EnumLinesCallback,
                                PVOID UserContext)
 {
-    FIXME("%p %s %s %s %u %u %p %p: stub!\n",
-          hProcess, wine_dbgstr_longlong(base), debugstr_a(obj), debugstr_a(file),
+    FIXME("%p %I64x %s %s %lu %lu %p %p: stub!\n",
+          hProcess, base, debugstr_a(obj), debugstr_a(file),
           line, flags, EnumLinesCallback, UserContext);
     SetLastError(ERROR_NOT_SUPPORTED);
     return FALSE;
@@ -311,8 +311,8 @@ BOOL WINAPI SymEnumSourceLinesW(HANDLE hProcess, ULONG64 base, PCWSTR obj,
                                 PSYM_ENUMLINES_CALLBACKW EnumLinesCallback,
                                 PVOID UserContext)
 {
-    FIXME("%p %s %s %s %u %u %p %p: stub!\n",
-          hProcess, wine_dbgstr_longlong(base), debugstr_w(obj), debugstr_w(file),
+    FIXME("%p %I64x %s %s %lu %lu %p %p: stub!\n",
+          hProcess, base, debugstr_w(obj), debugstr_w(file),
           line, flags, EnumLinesCallback, UserContext);
     SetLastError(ERROR_NOT_SUPPORTED);
     return FALSE;
@@ -325,8 +325,8 @@ BOOL WINAPI SymEnumSourceLinesW(HANDLE hProcess, ULONG64 base, PCWSTR obj,
 BOOL WINAPI SymGetSourceFileToken(HANDLE hProcess, ULONG64 base,
                                   PCSTR src, PVOID* token, DWORD* size)
 {
-    FIXME("%p %s %s %p %p: stub!\n",
-          hProcess, wine_dbgstr_longlong(base), debugstr_a(src), token, size);
+    FIXME("%p %I64x %s %p %p: stub!\n",
+          hProcess, base, debugstr_a(src), token, size);
     SetLastError(ERROR_NOT_SUPPORTED);
     return FALSE;
 }
@@ -338,8 +338,8 @@ BOOL WINAPI SymGetSourceFileToken(HANDLE hProcess, ULONG64 base,
 BOOL WINAPI SymGetSourceFileTokenW(HANDLE hProcess, ULONG64 base,
                                    PCWSTR src, PVOID* token, DWORD* size)
 {
-    FIXME("%p %s %s %p %p: stub!\n",
-          hProcess, wine_dbgstr_longlong(base), debugstr_w(src), token, size);
+    FIXME("%p %I64x %s %p %p: stub!\n",
+          hProcess, base, debugstr_w(src), token, size);
     SetLastError(ERROR_NOT_SUPPORTED);
     return FALSE;
 }
