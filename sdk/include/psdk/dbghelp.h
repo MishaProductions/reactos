@@ -1186,7 +1186,35 @@ typedef struct _SYMBOL_INFO_PACKAGEW
     WCHAR        name[MAX_SYM_NAME+1];
 } SYMBOL_INFO_PACKAGEW, *PSYMBOL_INFO_PACKAGEW;
 
-typedef enum _IMAGEHLP_SYMBOL_TYPE_INFO
+typedef struct _SYMSRV_INDEX_INFO
+{
+    DWORD sizeofstruct;
+    CHAR  file[MAX_PATH + 1];
+    BOOL  stripped;
+    DWORD timestamp;
+    DWORD size;
+    CHAR  dbgfile[MAX_PATH + 1];
+    CHAR  pdbfile[MAX_PATH + 1];
+    GUID  guid;
+    DWORD sig;
+    DWORD age;
+} SYMSRV_INDEX_INFO, *PSYMSRV_INDEX_INFO;
+
+typedef struct
+{
+    DWORD sizeofstruct;
+    WCHAR file[MAX_PATH + 1];
+    BOOL  stripped;
+    DWORD timestamp;
+    DWORD size;
+    WCHAR dbgfile[MAX_PATH + 1];
+    WCHAR pdbfile[MAX_PATH + 1];
+    GUID  guid;
+    DWORD sig;
+    DWORD age;
+} SYMSRV_INDEX_INFOW, *PSYMSRV_INDEX_INFOW;
+
+typedef enum _IMAGEHLP_SYMBOL_TYPE_INFO 
 {
     TI_GET_SYMTAG,
     TI_GET_SYMNAME,
@@ -1215,6 +1243,15 @@ typedef enum _IMAGEHLP_SYMBOL_TYPE_INFO
     TI_GET_UDTKIND,
     TI_IS_EQUIV_TO,
     TI_GET_CALLING_CONVENTION,
+    TI_IS_CLOSE_EQUIV_TO,
+    TI_GTIEX_REQS_VALID,
+    TI_GET_VIRTUALBASEOFFSET,
+    TI_GET_VIRTUALBASEDISPINDEX,
+    TI_GET_IS_REFERENCE,
+    TI_GET_INDIRECTVIRTUALBASECLASS,
+    TI_GET_VIRTUALBASETABLETYPE,
+    TI_GET_OBJECTPOINTERTYPE,
+    IMAGEHLP_SYMBOL_TYPE_INFO_MAX
 } IMAGEHLP_SYMBOL_TYPE_INFO;
 
 #define IMAGEHLP_GET_TYPE_INFO_UNCACHED            0x00000001
@@ -1247,6 +1284,12 @@ typedef struct _TI_FINDCHILDREN_PARAMS
     ULONG Start;
     ULONG ChildId[1];
 } TI_FINDCHILDREN_PARAMS;
+
+typedef struct _OMAP
+{
+    ULONG  rva;
+    ULONG  rvaTo;
+} OMAP, *POMAP;
 
 #define UNDNAME_COMPLETE                 (0x0000)
 #define UNDNAME_NO_LEADING_UNDERSCORES   (0x0001)
@@ -1600,6 +1643,16 @@ SymDeleteSymbolW(
   _In_opt_ PCWSTR,
   _In_ DWORD64,
   _In_ DWORD);
+
+BOOL
+WINAPI
+SymGetOmaps(
+  _In_ HANDLE hProcess,
+  _In_ DWORD64 BaseOfDll,
+  _Out_ POMAP* OmapTo,
+  _Out_ PDWORD64 cOmapTo,
+  _Out_ POMAP* OmapFrom,
+  _Out_ PDWORD64 cOmapFrom);
 
 /*************************
  *      Source Files     *
