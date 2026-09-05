@@ -335,6 +335,8 @@ typedef struct _IMAGEHLP_MODULE64
     BOOL                        TypeInfo;
     BOOL                        SourceIndexed;
     BOOL                        Publics;
+    DWORD                       MachineType;
+    DWORD                       Reserved;
 } IMAGEHLP_MODULE64, *PIMAGEHLP_MODULE64;
 
 typedef struct _IMAGEHLP_MODULEW64
@@ -362,6 +364,8 @@ typedef struct _IMAGEHLP_MODULEW64
     BOOL                        TypeInfo;
     BOOL                        SourceIndexed;
     BOOL                        Publics;
+    DWORD                       MachineType;
+    DWORD                       Reserved;
 } IMAGEHLP_MODULEW64, *PIMAGEHLP_MODULEW64;
 
 #if !defined(_IMAGEHLP_SOURCE_) && defined(_IMAGEHLP64)
