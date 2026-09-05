@@ -1605,10 +1605,10 @@ static struct symt* dwarf2_parse_array_type(dwarf2_debug_info_t* di)
                     if (pc && symt_check_tag(*pc, SymTagData))
                     {
                         struct symt_data* elt = (struct symt_data*)(*pc);
-                        if (elt->lVal < min.u.uvalue)
-                            min.u.uvalue = elt->lVal;
-                        if (elt->Val > max.u.uvalue)
-                            max.u.uvalue = elt->lVal;
+                        if (elt->u.value.lVal < min.u.uvalue)
+                            min.u.uvalue = elt->u.value.lVal;
+                        if (elt->u.value.lVal > max.u.uvalue)
+                            max.u.uvalue = elt->u.value.lVal;
                     }
                 }
             }
