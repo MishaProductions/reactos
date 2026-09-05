@@ -1944,6 +1944,12 @@ SymRegisterFunctionEntryCallback64(
   _In_ PSYMBOL_FUNCENTRY_CALLBACK64,
   _In_ ULONG64);
 
+DWORD
+WINAPI
+SymAddrIncludeInlineTrace(
+  _In_ HANDLE, 
+  _In_ DWORD64);
+
 /*************************
  * Version, global stuff *
  *************************/
