@@ -1802,6 +1802,11 @@ SymSetContext(
   _In_ PIMAGEHLP_STACK_FRAME,
   _In_opt_ PIMAGEHLP_CONTEXT);
 
+BOOL
+WINAPI
+SymSetScopeFromAddr(
+  _In_ HANDLE, 
+  _In_ ULONG64);
 
 /*************************
  *    Stack management   *

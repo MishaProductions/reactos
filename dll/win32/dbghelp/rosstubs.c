@@ -764,12 +764,12 @@ SymSrvGetFileIndexInfoW(
 BOOL
 WINAPI
 SymGetOmaps(
-    HANDLE hProcess,
-    DWORD64 BaseOfDll,
-    POMAP *OmapTo,
-    PDWORD64 cOmapTo,
-    POMAP *OmapFrom,
-    PDWORD64 cOmapFrom)
+  _In_ HANDLE hProcess,
+  _In_ DWORD64 BaseOfDll,
+  _Out_ POMAP* OmapTo,
+  _Out_ PDWORD64 cOmapTo,
+  _Out_ POMAP* OmapFrom,
+  _Out_ PDWORD64 cOmapFrom)
 {
     UNIMPLEMENTED;
     return FALSE;
