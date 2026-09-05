@@ -41,7 +41,12 @@ WINE_DEFAULT_DEBUG_CHANNEL(dbghelp);
 
 #define NOTE_GNU_BUILD_ID  3
 
-#ifndef __REACTOS__
+#ifdef __REACTOS__
+#define EnumProcessModulesEx(a, b, c, d, e) EnumProcessModules(a, b, c, d)
+
+#define LIST_MODULES_DEFAULT 0x00
+#define LIST_MODULES_32BIT 0x01
+#else
 const WCHAR S_WineLoaderW[] = L"<wine-loader>";
 #endif
 static const WCHAR * const ext[] = {L".acm", L".dll", L".drv", L".exe", L".ocx", L".vxd", NULL};
