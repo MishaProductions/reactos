@@ -148,6 +148,7 @@ const char* wine_dbgstr_addr(const ADDRESS64* addr)
     switch (addr->Mode)
     {
     case AddrModeFlat:
+        return wine_dbg_sprintf("flat<%I64x>", addr->Offset);
     case AddrMode1616:
         return wine_dbg_sprintf("1616<%04x:%04lx>", addr->Segment, (DWORD)addr->Offset);
     case AddrMode1632:

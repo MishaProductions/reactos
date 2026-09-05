@@ -52,6 +52,7 @@ struct pool /* poor's man */
     HANDLE      heap;
 };
 
+void     pool_init(struct pool* a, size_t arena_size);
 void     pool_destroy(struct pool* a);
 void*    pool_alloc(struct pool* a, size_t len) __WINE_ALLOC_SIZE(2) __WINE_MALLOC;
 void*    pool_realloc(struct pool* a, void* ptr, size_t len) __WINE_ALLOC_SIZE(3);
