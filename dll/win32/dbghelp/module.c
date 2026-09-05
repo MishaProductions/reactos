@@ -43,7 +43,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(dbghelp);
 
 #ifdef __REACTOS__
 #define EnumProcessModulesEx(a, b, c, d, e) EnumProcessModules(a, b, c, d)
-#define IsWow64Process2()
 
 static inline BOOL IsWow64Process2(HANDLE Process, USHORT* ProcessMachine, USHORT* NativeMachine)
 {
