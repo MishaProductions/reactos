@@ -29,7 +29,7 @@
 @ stdcall ImagehlpApiVersionEx(ptr) dbghelp.ImagehlpApiVersionEx
 @ stdcall MakeSureDirectoryPathExists(str) dbghelp.MakeSureDirectoryPathExists
 @ stdcall MapAndLoad(str str ptr long long)
-@ stdcall MapDebugInformation(long str str long) dbghelp.MapDebugInformation
+@ stdcall -arch=win32 MapDebugInformation(long str str long) dbghelp.MapDebugInformation
 @ stdcall MapFileAndCheckSumA(str ptr ptr)
 @ stdcall MapFileAndCheckSumW(wstr ptr ptr)
 @ stub  MarkImageAsRunFromSwap
@@ -104,6 +104,6 @@
 @ stdcall TouchFileTimes(long ptr)
 @ stdcall UnDecorateSymbolName(str str long long) dbghelp.UnDecorateSymbolName
 @ stdcall UnMapAndLoad(ptr)
-@ stdcall UnmapDebugInformation(ptr) dbghelp.UnmapDebugInformation
+@ stdcall -arch=win32 UnmapDebugInformation(ptr) dbghelp.UnmapDebugInformation
 @ stdcall UpdateDebugInfoFile(str str str ptr)
 @ stdcall UpdateDebugInfoFileEx(str str str ptr long)
