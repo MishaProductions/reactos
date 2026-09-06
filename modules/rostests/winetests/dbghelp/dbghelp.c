@@ -29,7 +29,11 @@ static const BOOL is_win64 = sizeof(void*) > sizeof(int);
 static WCHAR system_directory[MAX_PATH];
 static WCHAR wow64_directory[MAX_PATH];
 
+#ifdef __REACTOS__
 static BOOL (*WINAPI pIsWow64Process2)(HANDLE, USHORT*, USHORT*);
+#else
+static BOOL (*WINAPI pIsWow64Process2)(HANDLE, USHORT*, USHORT*);
+#endif
 
 struct startup_cb
 {
@@ -354,7 +358,11 @@ static unsigned get_module_count(HANDLE proc)
 
 static unsigned get_native_module_count(HANDLE proc)
 {
+#ifdef __REACTOS__
+    BOOL (*WINAPI pSymSetExtendedOption)(IMAGEHLP_EXTENDED_OPTIONS option, BOOL value);
+#else
     static BOOL (*WINAPI pSymSetExtendedOption)(IMAGEHLP_EXTENDED_OPTIONS option, BOOL value);
+#endif
     unsigned count = 0;
     BOOL old, ret;
 
