@@ -707,6 +707,7 @@ SymLoadModuleExW(
   _In_opt_ DWORD);
 
 BOOL WINAPI SymUnloadModule64(_In_ HANDLE, _In_ DWORD64);
+BOOL WINAPI SymRefreshModuleList(_In_ HANDLE);
 
 /*************************
  *    Symbol Handling    *

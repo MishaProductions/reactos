@@ -1,7 +1,5 @@
 /*
- * File dbghelp.c - generic routines (process) for dbghelp DLL
- *
- * Copyright (C) 2004, Eric Pouech
+ * Copyright 2018 Zebediah Figura
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,947 +16,1671 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-
-#include <unistd.h>
-#include "dbghelp_private.h"
-#include "winternl.h"
-#include "winerror.h"
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
+#include "windows.h"
 #include "psapi.h"
-#include "wine/debug.h"
-#include "wdbgexts.h"
-#include "winnls.h"
+#include "verrsrc.h"
+#include "dbghelp.h"
+#include "wine/test.h"
+#include "winternl.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(dbghelp);
+static const BOOL is_win64 = sizeof(void*) > sizeof(int);
+static WCHAR system_directory[MAX_PATH];
+static WCHAR wow64_directory[MAX_PATH];
 
-/* TODO
- *  - support for symbols' types is still partly missing
- *      + C++ support
- *      + we should store the underlying type for an enum in the symt_enum struct
- *      + for enums, we store the names & values (associated to the enum type), 
- *        but those values are not directly usable from a debugger (that's why, I
- *        assume, that we have also to define constants for enum values, as 
- *        Codeview does BTW.
- *      + SymEnumTypes should only return *user* defined types (UDT, typedefs...) not
- *        all the types stored/used in the modules (like char*)
- *  - SymGetLine{Next|Prev} don't work as expected (they don't seem to work across
- *    functions, and even across function blocks...). Basically, for *Next* to work
- *    it requires an address after the prolog of the func (the base address of the 
- *    func doesn't work)
- *  - most options (dbghelp_options) are not used (loading lines...)
- *  - in symbol lookup by name, we don't use RE everywhere we should. Moreover, when
- *    we're supposed to use RE, it doesn't make use of our hash tables. Therefore,
- *    we could use hash if name isn't a RE, and fall back to a full search when we
- *    get a full RE
- *  - msc:
- *      + we should add parameters' types to the function's signature
- *        while processing a function's parameters
- *      + add support for function-less labels (as MSC seems to define them)
- *      + C++ management
- *  - stabs: 
- *      + when, in a same module, the same definition is used in several compilation
- *        units, we get several definitions of the same object (especially 
- *        struct/union). we should find a way not to duplicate them
- *      + in some cases (dlls/user/dialog16.c DIALOG_GetControl16), the same static
- *        global variable is defined several times (at different scopes). We are
- *        getting several of those while looking for a unique symbol. Part of the 
- *        issue is that we don't give a scope to a static variable inside a function
- *      + C++ management
- */
+static BOOL (*WINAPI pIsWow64Process2)(HANDLE, USHORT*, USHORT*);
 
-unsigned   dbghelp_options = SYMOPT_UNDNAME;
-BOOL       dbghelp_opt_native = FALSE;
-BOOL       dbghelp_opt_extension_api = FALSE;
-BOOL       dbghelp_opt_real_path = FALSE;
-BOOL       dbghelp_opt_source_actual_path = FALSE;
-SYSTEM_INFO sysinfo;
-
-static struct process* process_first /* = NULL */;
-
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
+struct startup_cb
 {
-    switch (reason)
+    DWORD pid;
+    HWND wnd;
+};
+
+static BOOL CALLBACK startup_cb_window(HWND wnd, LPARAM lParam)
+{
+    struct startup_cb *info = (struct startup_cb*)lParam;
+    DWORD pid;
+
+    if (GetWindowThreadProcessId(wnd, &pid) && info->pid == pid && IsWindowVisible(wnd))
     {
-    case DLL_PROCESS_ATTACH:
-        GetSystemInfo(&sysinfo);
-        DisableThreadLibraryCalls(instance);
-        break;
-    }
-    return TRUE;
-}
-
-/******************************************************************
- *		process_find_by_handle
- *
- */
-struct process*    process_find_by_handle(HANDLE hProcess)
-{
-    struct process* p;
-
-    for (p = process_first; p && p->handle != hProcess; p = p->next);
-    if (!p) SetLastError(ERROR_INVALID_HANDLE);
-    return p;
-}
-
-/******************************************************************
- *             validate_addr64 (internal)
- *
- */
-BOOL validate_addr64(DWORD64 addr)
-{
-    if (sizeof(void*) == sizeof(int) && (addr >> 32))
-    {
-        FIXME("Unsupported address %I64x\n", addr);
-        SetLastError(ERROR_INVALID_PARAMETER);
+        info->wnd = wnd;
         return FALSE;
     }
     return TRUE;
 }
 
-/******************************************************************
- *		fetch_buffer
- *
- * Ensures process' internal buffer is large enough.
- */
-void* fetch_buffer(struct process* pcs, unsigned size)
+static BOOL wait_process_window_visible(HANDLE proc, DWORD pid, DWORD timeout)
 {
-    if (size > pcs->buffer_size)
+    DWORD max_tc = GetTickCount() + timeout;
+    BOOL ret = WaitForInputIdle(proc, timeout);
+    struct startup_cb info = {pid, NULL};
+
+    if (!ret)
     {
-        if (pcs->buffer)
-            pcs->buffer = HeapReAlloc(GetProcessHeap(), 0, pcs->buffer, size);
-        else
-            pcs->buffer = HeapAlloc(GetProcessHeap(), 0, size);
-        pcs->buffer_size = (pcs->buffer) ? size : 0;
-    }
-    return pcs->buffer;
-}
-
-const char* wine_dbgstr_addr(const ADDRESS64* addr)
-{
-    if (!addr) return "(null)";
-    switch (addr->Mode)
-    {
-    case AddrModeFlat:
-        return wine_dbg_sprintf("flat<%I64x>", addr->Offset);
-    case AddrMode1616:
-        return wine_dbg_sprintf("1616<%04x:%04lx>", addr->Segment, (DWORD)addr->Offset);
-    case AddrMode1632:
-        return wine_dbg_sprintf("1632<%04x:%08lx>", addr->Segment, (DWORD)addr->Offset);
-    case AddrModeReal:
-        return wine_dbg_sprintf("real<%04x:%04lx>", addr->Segment, (DWORD)addr->Offset);
-    default:
-        return "unknown";
-    }
-}
-
-extern struct cpu       cpu_i386, cpu_x86_64, cpu_arm, cpu_arm64;
-
-static struct cpu*      dbghelp_cpus[] = {&cpu_i386, &cpu_x86_64, &cpu_arm, &cpu_arm64, NULL};
-struct cpu*             dbghelp_current_cpu =
-#if defined(__i386__)
-    &cpu_i386
-#elif defined(__x86_64__)
-    &cpu_x86_64
-#elif defined(__arm__)
-    &cpu_arm
-#elif defined(__aarch64__)
-    &cpu_arm64
-#else
-#error define support for your CPU
-#endif
-    ;
-
-struct cpu* cpu_find(DWORD machine)
-{
-    struct cpu** cpu;
-
-    for (cpu = dbghelp_cpus ; *cpu; cpu++)
-    {
-        if (cpu[0]->machine == machine) return cpu[0];
-    }
-    return NULL;
-}
-
-static WCHAR* make_default_search_path(void)
-{
-    WCHAR*      search_path;
-    WCHAR*      p;
-    unsigned    sym_path_len;
-    unsigned    alt_sym_path_len;
-
-    sym_path_len = GetEnvironmentVariableW(L"_NT_SYMBOL_PATH", NULL, 0);
-    alt_sym_path_len = GetEnvironmentVariableW(L"_NT_ALT_SYMBOL_PATH", NULL, 0);
-
-    /* The default symbol path is ".[;%_NT_SYMBOL_PATH%][;%_NT_ALT_SYMBOL_PATH%]".
-     * If the variables exist, the lengths include a null-terminator. We use that
-     * space for the semicolons, and only add the initial dot and the final null. */
-    search_path = HeapAlloc(GetProcessHeap(), 0,
-                            (1 + sym_path_len + alt_sym_path_len + 1) * sizeof(WCHAR));
-    if (!search_path) return NULL;
-
-    p = search_path;
-    *p++ = L'.';
-    if (sym_path_len)
-    {
-        *p++ = L';';
-        GetEnvironmentVariableW(L"_NT_SYMBOL_PATH", p, sym_path_len);
-        p += sym_path_len - 1;
-    }
-
-    if (alt_sym_path_len)
-    {
-        *p++ = L';';
-        GetEnvironmentVariableW(L"_NT_ALT_SYMBOL_PATH", p, alt_sym_path_len);
-        p += alt_sym_path_len - 1;
-    }
-    *p = L'\0';
-
-    return search_path;
-}
-
-/******************************************************************
- *		SymSetSearchPathW (DBGHELP.@)
- *
- */
-BOOL WINAPI SymSetSearchPathW(HANDLE hProcess, PCWSTR searchPath)
-{
-    struct process* pcs = process_find_by_handle(hProcess);
-    WCHAR*          search_path_buffer;
-
-    if (!pcs) return FALSE;
-
-    if (searchPath)
-    {
-        search_path_buffer = HeapAlloc(GetProcessHeap(), 0,
-                                       (lstrlenW(searchPath) + 1) * sizeof(WCHAR));
-        if (!search_path_buffer) return FALSE;
-        lstrcpyW(search_path_buffer, searchPath);
-    }
-    else
-    {
-        search_path_buffer = make_default_search_path();
-        if (!search_path_buffer) return FALSE;
-    }
-    HeapFree(GetProcessHeap(), 0, pcs->search_path);
-    pcs->search_path = search_path_buffer;
-    return TRUE;
-}
-
-/******************************************************************
- *		SymSetSearchPath (DBGHELP.@)
- *
- */
-BOOL WINAPI SymSetSearchPath(HANDLE hProcess, PCSTR searchPath)
-{
-    BOOL        ret = FALSE;
-    unsigned    len;
-    WCHAR*      sp = NULL;
-
-    if (searchPath)
-    {
-        len = MultiByteToWideChar(CP_ACP, 0, searchPath, -1, NULL, 0);
-        sp = HeapAlloc(GetProcessHeap(), 0, len * sizeof(WCHAR));
-        if (!sp) return FALSE;
-        MultiByteToWideChar(CP_ACP, 0, searchPath, -1, sp, len);
-    }
-
-    ret = SymSetSearchPathW(hProcess, sp);
-
-    HeapFree(GetProcessHeap(), 0, sp);
-    return ret;
-}
-
-/***********************************************************************
- *		SymGetSearchPathW (DBGHELP.@)
- */
-BOOL WINAPI SymGetSearchPathW(HANDLE hProcess, PWSTR szSearchPath,
-                              DWORD SearchPathLength)
-{
-    struct process* pcs = process_find_by_handle(hProcess);
-    if (!pcs) return FALSE;
-
-    lstrcpynW(szSearchPath, pcs->search_path, SearchPathLength);
-    return TRUE;
-}
-
-/***********************************************************************
- *		SymGetSearchPath (DBGHELP.@)
- */
-BOOL WINAPI SymGetSearchPath(HANDLE hProcess, PSTR szSearchPath,
-                             DWORD SearchPathLength)
-{
-    WCHAR*      buffer = HeapAlloc(GetProcessHeap(), 0, SearchPathLength * sizeof(WCHAR));
-    BOOL        ret = FALSE;
-
-    if (buffer)
-    {
-        ret = SymGetSearchPathW(hProcess, buffer, SearchPathLength);
-        if (ret)
-            WideCharToMultiByte(CP_ACP, 0, buffer, SearchPathLength,
-                                szSearchPath, SearchPathLength, NULL, NULL);
-        HeapFree(GetProcessHeap(), 0, buffer);
-    }
-    return ret;
-}
-
-const WCHAR *process_getenv(const struct process *process, const WCHAR *name)
-{
-    size_t name_len;
-    const WCHAR *iter;
-
-    if (!process->environment) return NULL;
-    name_len = lstrlenW(name);
-
-    for (iter = process->environment; *iter; iter += lstrlenW(iter) + 1)
-    {
-        if (!wcsnicmp(iter, name, name_len) && iter[name_len] == '=')
-            return iter + name_len + 1;
-    }
-
-    return NULL;
-}
-
-const struct cpu* process_get_cpu(const struct process* pcs)
-{
-    const struct module* m = pcs->lmodules;
-
-    /* return cpu of main module, which is the first module in process's modules list */
-    return (m) ? m->cpu : dbghelp_current_cpu;
-}
-
-/******************************************************************
- *		check_live_target
- *
- */
-static BOOL check_live_target(struct process* pcs, BOOL wow64, BOOL child_wow64)
-{
-    PROCESS_BASIC_INFORMATION pbi;
-    DWORD64 base = 0, env = 0;
-    const char* peb_addr;
-
-    if (!GetProcessId(pcs->handle)) return FALSE;
-    if (GetEnvironmentVariableA("DBGHELP_NOLIVE", NULL, 0)) return FALSE;
-
-    if (NtQueryInformationProcess( pcs->handle, ProcessBasicInformation,
-                                   &pbi, sizeof(pbi), NULL ))
-        return FALSE;
-
-    /* Note: we have to deal with the PEB64 and PEB32 in debuggee process
-     * while debugger can be in same or different bitness.
-     * For a 64 bit debuggee, use PEB64 and underlying ELF/system 64 (easy).
-     * For a 32 bit debuggee,
-     * - for environment variables, we need PEB32
-     * - for ELF/system base address, we need PEB32 when run in pure 32bit
-     *   or run in old wow configuration, but PEB64 when run in new wow
-     *   configuration.
-     * - this must be read from a debugger in either 32 or 64 bit setup.
-     */
-    peb_addr = (const char*)pbi.PebBaseAddress;
-    if (!pcs->is_64bit)
-    {
-        DWORD env32;
-        PEB32 peb32;
-
-        C_ASSERT(sizeof(void*) != 4 || FIELD_OFFSET(RTL_USER_PROCESS_PARAMETERS, Environment) == 0x48);
-
-        if (!wow64 && child_wow64)
-            /* current process is 64bit, while child process is 32 bit, need to read 32bit PEB */
-            peb_addr += 0x1000;
-        if (!ReadProcessMemory(pcs->handle, peb_addr, &peb32, sizeof(peb32), NULL)) return FALSE;
-        base = *(const DWORD*)((const char*)&peb32 + 0x460 /* CloudFileFlags */);
-        pcs->is_host_64bit = FALSE;
-        if (read_process_memory(pcs, peb32.ProcessParameters + 0x48, &env32, sizeof(env32))) env = env32;
-    }
-    if (pcs->is_64bit || base == 0)
-    {
-        PEB64 peb;
-
-        if (!pcs->is_64bit) peb_addr -= 0x1000; /* PEB32 => PEB64 */
-        if (!ReadProcessMemory(pcs->handle, peb_addr, &peb, sizeof(peb), NULL)) return FALSE;
-        base = *(const DWORD64*)&peb.CloudFileFlags;
-        pcs->is_host_64bit = TRUE;
-        if (pcs->is_64bit)
-            ReadProcessMemory(pcs->handle,
-                              (char *)(ULONG_PTR)peb.ProcessParameters + FIELD_OFFSET(RTL_USER_PROCESS_PARAMETERS, Environment),
-                              &env, sizeof(env), NULL);
-    }
-
-    /* read debuggee environment block */
-    if (env)
-    {
-        size_t buf_size = 0, i, last_null = -1;
-        WCHAR *buf = NULL;
-        WCHAR *new_buf;
-
         do
         {
-            size_t read_size = sysinfo.dwPageSize - (env & (sysinfo.dwPageSize - 1));
-            if (!(new_buf = realloc(buf, buf_size + read_size))) break;
-            buf = new_buf;
+            if (EnumWindows(startup_cb_window, (LPARAM)&info))
+                Sleep(100);
+        } while (!info.wnd && GetTickCount() < max_tc);
+    }
+    return info.wnd != NULL;
+}
 
-            if (!read_process_memory(pcs, env, (char*)buf + buf_size, read_size)) break;
-            for (i = buf_size / sizeof(WCHAR); i < (buf_size + read_size) / sizeof(WCHAR); i++)
-            {
-                if (buf[i]) continue;
-                if (last_null + 1 == i)
-                {
-                    pcs->environment = realloc(buf, (i + 1) * sizeof(WCHAR));
-                    buf = NULL;
-                    break;
-                }
-                last_null = i;
-            }
-            env += read_size;
-            buf_size += read_size;
+#if defined(__i386__) || defined(__x86_64__)
+
+static DWORD CALLBACK stack_walk_thread(void *arg)
+{
+    DWORD count = SuspendThread(GetCurrentThread());
+    ok(!count, "got %ld\n", count);
+    return 0;
+}
+
+static void test_stack_walk(void)
+{
+    char si_buf[sizeof(SYMBOL_INFO) + 200];
+    SYMBOL_INFO *si = (SYMBOL_INFO *)si_buf;
+    STACKFRAME64 frame = {{0}}, frame0;
+    BOOL found_our_frame = FALSE;
+    DWORD machine;
+    HANDLE thread;
+    DWORD64 disp;
+    CONTEXT ctx;
+    DWORD count;
+    BOOL ret;
+
+    thread = CreateThread(NULL, 0, stack_walk_thread, NULL, 0, NULL);
+
+    /* wait for the thread to suspend itself */
+    do
+    {
+        Sleep(50);
+        count = SuspendThread(thread);
+        ResumeThread(thread);
+    }
+    while (!count);
+
+    ctx.ContextFlags = CONTEXT_CONTROL;
+    ret = GetThreadContext(thread, &ctx);
+    ok(ret, "got error %u\n", ret);
+
+    frame.AddrPC.Mode    = AddrModeFlat;
+    frame.AddrFrame.Mode = AddrModeFlat;
+    frame.AddrStack.Mode = AddrModeFlat;
+
+#ifdef __i386__
+    machine = IMAGE_FILE_MACHINE_I386;
+
+    frame.AddrPC.Segment = ctx.SegCs;
+    frame.AddrPC.Offset = ctx.Eip;
+    frame.AddrFrame.Segment = ctx.SegSs;
+    frame.AddrFrame.Offset = ctx.Ebp;
+    frame.AddrStack.Segment = ctx.SegSs;
+    frame.AddrStack.Offset = ctx.Esp;
+#elif defined(__x86_64__)
+    machine = IMAGE_FILE_MACHINE_AMD64;
+
+    frame.AddrPC.Segment = ctx.SegCs;
+    frame.AddrPC.Offset = ctx.Rip;
+    frame.AddrFrame.Segment = ctx.SegSs;
+    frame.AddrFrame.Offset = ctx.Rbp;
+    frame.AddrStack.Segment = ctx.SegSs;
+    frame.AddrStack.Offset = ctx.Rsp;
+#endif
+    frame0 = frame;
+
+    /* first invocation just calculates the return address */
+    ret = StackWalk64(machine, GetCurrentProcess(), thread, &frame, &ctx, NULL,
+        SymFunctionTableAccess64, SymGetModuleBase64, NULL);
+    ok(ret, "StackWalk64() failed: %lu\n", GetLastError());
+    ok(frame.AddrPC.Offset == frame0.AddrPC.Offset, "expected %s, got %s\n",
+        wine_dbgstr_longlong(frame0.AddrPC.Offset),
+        wine_dbgstr_longlong(frame.AddrPC.Offset));
+    ok(frame.AddrStack.Offset == frame0.AddrStack.Offset, "expected %s, got %s\n",
+        wine_dbgstr_longlong(frame0.AddrStack.Offset),
+        wine_dbgstr_longlong(frame.AddrStack.Offset));
+    ok(frame.AddrReturn.Offset && frame.AddrReturn.Offset != frame.AddrPC.Offset,
+        "got bad return address %s\n", wine_dbgstr_longlong(frame.AddrReturn.Offset));
+
+    while (frame.AddrReturn.Offset)
+    {
+        char *addr;
+
+        ret = StackWalk64(machine, GetCurrentProcess(), thread, &frame, &ctx, NULL,
+            SymFunctionTableAccess64, SymGetModuleBase64, NULL);
+        ok(ret, "StackWalk64() failed: %lu\n", GetLastError());
+
+        addr = (void *)(DWORD_PTR)frame.AddrPC.Offset;
+
+        if (!found_our_frame && addr > (char *)stack_walk_thread && addr < (char *)stack_walk_thread + 0x100)
+        {
+            found_our_frame = TRUE;
+
+            si->SizeOfStruct = sizeof(SYMBOL_INFO);
+            si->MaxNameLen = 200;
+            if (SymFromAddr(GetCurrentProcess(), frame.AddrPC.Offset, &disp, si))
+                ok(!strcmp(si->Name, "stack_walk_thread"), "got wrong name %s\n", si->Name);
         }
-        while (buf);
-        free(buf);
     }
 
-    if (!base) return FALSE;
+    ret = StackWalk64(machine, GetCurrentProcess(), thread, &frame, &ctx, NULL,
+        SymFunctionTableAccess64, SymGetModuleBase64, NULL);
+    ok(!ret, "StackWalk64() should have failed\n");
 
-    TRACE("got debug info address %#I64x from PEB %p\n", base, pbi.PebBaseAddress);
-    if (!elf_read_wine_loader_dbg_info(pcs, base) && !macho_read_wine_loader_dbg_info(pcs, base))
+    ok(found_our_frame, "didn't find stack_walk_thread frame\n");
+}
+
+#else /* __i386__ || __x86_64__ */
+
+static void test_stack_walk(void)
+{
+}
+
+#endif /* __i386__ || __x86_64__ */
+
+static void test_search_path(void)
+{
+    char search_path[128];
+    BOOL ret;
+
+    /* The default symbol path is ".[;%_NT_SYMBOL_PATH%][;%_NT_ALT_SYMBOL_PATH%]".
+     * We unset both variables earlier so should simply get "." */
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, "."), "Got search path '%s', expected '.'\n", search_path);
+
+    /* Set an arbitrary search path */
+    ret = SymSetSearchPath(GetCurrentProcess(), "W:\\");
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, "W:\\"), "Got search path '%s', expected 'W:\\'\n", search_path);
+
+    /* Setting to NULL resets to the default */
+    ret = SymSetSearchPath(GetCurrentProcess(), NULL);
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, "."), "Got search path '%s', expected '.'\n", search_path);
+
+    /* With _NT_SYMBOL_PATH */
+    SetEnvironmentVariableA("_NT_SYMBOL_PATH", "X:\\");
+    ret = SymSetSearchPath(GetCurrentProcess(), NULL);
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, ".;X:\\"), "Got search path '%s', expected '.;X:\\'\n", search_path);
+
+    /* With both _NT_SYMBOL_PATH and _NT_ALT_SYMBOL_PATH */
+    SetEnvironmentVariableA("_NT_ALT_SYMBOL_PATH", "Y:\\");
+    ret = SymSetSearchPath(GetCurrentProcess(), NULL);
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, ".;X:\\;Y:\\"), "Got search path '%s', expected '.;X:\\;Y:\\'\n", search_path);
+
+    /* With just _NT_ALT_SYMBOL_PATH */
+    SetEnvironmentVariableA("_NT_SYMBOL_PATH", NULL);
+    ret = SymSetSearchPath(GetCurrentProcess(), NULL);
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, ".;Y:\\"), "Got search path '%s', expected '.;Y:\\'\n", search_path);
+
+    /* Restore original search path */
+    SetEnvironmentVariableA("_NT_ALT_SYMBOL_PATH", NULL);
+    ret = SymSetSearchPath(GetCurrentProcess(), NULL);
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ret = SymGetSearchPath(GetCurrentProcess(), search_path, ARRAY_SIZE(search_path));
+    ok(ret == TRUE, "ret = %d\n", ret);
+    ok(!strcmp(search_path, "."), "Got search path '%s', expected '.'\n", search_path);
+}
+
+static BOOL ends_withW(const WCHAR* str, const WCHAR* suffix)
+{
+    size_t strlen = wcslen(str);
+    size_t sfxlen = wcslen(suffix);
+
+    return strlen >= sfxlen && !wcsicmp(str + strlen - sfxlen, suffix);
+}
+
+static unsigned get_machine_bitness(USHORT machine)
+{
+    switch (machine)
     {
-        WARN("couldn't load process debug info at %#I64x\n", base);
-        pcs->loader = &empty_loader_ops;
+    case IMAGE_FILE_MACHINE_I386:
+    case IMAGE_FILE_MACHINE_ARM:
+    case IMAGE_FILE_MACHINE_ARMNT:
+        return 32;
+    case IMAGE_FILE_MACHINE_AMD64:
+    case IMAGE_FILE_MACHINE_ARM64:
+        return 64;
+    default:
+        ok(0, "Unsupported machine %x\n", machine);
+        return 0;
+    }
+}
+
+static USHORT get_module_machine(const char* path)
+{
+    HANDLE hFile, hMap;
+    void* mapping;
+    IMAGE_NT_HEADERS *nthdr;
+    USHORT machine = IMAGE_FILE_MACHINE_UNKNOWN;
+
+    hFile = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        hMap = CreateFileMappingW(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+        if (hMap != NULL)
+        {
+            mapping = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
+            if (mapping != NULL)
+            {
+                nthdr = RtlImageNtHeader(mapping);
+                if (nthdr != NULL) machine = nthdr->FileHeader.Machine;
+                UnmapViewOfFile(mapping);
+            }
+            CloseHandle(hMap);
+        }
+        CloseHandle(hFile);
+    }
+    return machine;
+}
+
+static BOOL skip_too_old_dbghelp(HANDLE proc, DWORD64 base)
+{
+    IMAGEHLP_MODULE im0 = {sizeof(im0)};
+    BOOL ret;
+
+    /* test if get module info succeeds with oldest structure format */
+    ret = SymGetModuleInfo(proc, base, &im0);
+    if (ret)
+    {
+        skip("Too old dbghelp. Skipping module tests.\n");
+        ret = SymCleanup(proc);
+        ok(ret, "SymCleanup failed: %lu\n", GetLastError());
+        return TRUE;
+    }
+    ok(ret, "SymGetModuleInfo failed: %lu\n", GetLastError());
+    return FALSE;
+}
+
+static DWORD get_module_size(const char* path)
+{
+    BOOL ret;
+    HANDLE hFile, hMap;
+    void* mapping;
+    IMAGE_NT_HEADERS *nthdr;
+    DWORD size;
+
+    hFile = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    ok(hFile != INVALID_HANDLE_VALUE, "Couldn't open file %s (%lu)\n", path, GetLastError());
+    hMap = CreateFileMappingW(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+    ok(hMap != NULL, "Couldn't create map (%lu)\n", GetLastError());
+    mapping = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
+    ok(mapping != NULL, "Couldn't map (%lu)\n", GetLastError());
+    nthdr = RtlImageNtHeader(mapping);
+    ok(nthdr != NULL, "Cannot get NT headers out of %s\n", path);
+    size = nthdr ? nthdr->OptionalHeader.SizeOfImage : 0;
+    ret = UnmapViewOfFile(mapping);
+    ok(ret, "Couldn't unmap (%lu)\n", GetLastError());
+    CloseHandle(hMap);
+    CloseHandle(hFile);
+    return size;
+}
+
+static BOOL CALLBACK count_module_cb(const char* name, DWORD64 base, void* usr)
+{
+    (*(unsigned*)usr)++;
+    return TRUE;
+}
+
+static BOOL CALLBACK count_native_module_cb(const char* name, DWORD64 base, void* usr)
+{
+    if (strstr(name, ".so") || strchr(name, '<')) (*(unsigned*)usr)++;
+    return TRUE;
+}
+
+static unsigned get_module_count(HANDLE proc)
+{
+    unsigned count = 0;
+    BOOL ret;
+
+    ret = SymEnumerateModules64(proc, count_module_cb, &count);
+    ok(ret, "SymEnumerateModules64 failed: %lu\n", GetLastError());
+    return count;
+}
+
+static unsigned get_native_module_count(HANDLE proc)
+{
+    static BOOL (*WINAPI pSymSetExtendedOption)(IMAGEHLP_EXTENDED_OPTIONS option, BOOL value);
+    unsigned count = 0;
+    BOOL old, ret;
+
+    if (!pSymSetExtendedOption)
+    {
+        pSymSetExtendedOption = (void*)GetProcAddress(GetModuleHandleA("dbghelp.dll"), "SymSetExtendedOption");
+        ok(pSymSetExtendedOption != NULL, "SymSetExtendedOption should be present on Wine\n");
+    }
+
+    old = pSymSetExtendedOption(SYMOPT_EX_WINE_NATIVE_MODULES, TRUE);
+    ret = SymEnumerateModules64(proc, count_native_module_cb, &count);
+    ok(ret, "SymEnumerateModules64 failed: %lu\n", GetLastError());
+    pSymSetExtendedOption(SYMOPT_EX_WINE_NATIVE_MODULES, old);
+
+    return count;
+}
+
+struct module_present
+{
+    const WCHAR* module_name;
+    BOOL found;
+};
+
+static BOOL CALLBACK is_module_present_cb(const WCHAR* name, DWORD64 base, void* usr)
+{
+    struct module_present* present = usr;
+    if (!wcsicmp(name, present->module_name))
+    {
+        present->found = TRUE;
+        return FALSE;
     }
     return TRUE;
 }
 
-/******************************************************************
- *		SymInitializeW (DBGHELP.@)
- *
- * The initialisation of a dbghelp's context.
- * Note that hProcess doesn't need to be a valid process handle (except
- * when fInvadeProcess is TRUE).
- * Since we also allow loading ELF (pure) libraries and Wine ELF libraries
- * containing PE (and NE) module(s), here's how we handle it:
- * - we load every module (ELF, NE, PE) passed in SymLoadModule
- * - in fInvadeProcess (in SymInitialize) is TRUE, we set up what is called ELF
- *   synchronization: hProcess should be a valid process handle, and we hook
- *   ourselves on hProcess's loaded ELF-modules, and keep this list in sync with
- *   our internal ELF modules representation (loading / unloading). This way,
- *   we'll pair every loaded builtin PE module with its ELF counterpart (and
- *   access its debug information).
- * - if fInvadeProcess (in SymInitialize) is FALSE, we check anyway if the 
- *   hProcess refers to a running process. We use some heuristics here, so YMMV.
- *   If we detect a live target, then we get the same handling as if
- *   fInvadeProcess is TRUE (except that the modules are not loaded). Otherwise,
- *   we won't be able to make the peering between a builtin PE module and its ELF
- *   counterpart. Hence we won't be able to provide the requested debug
- *   information. We'll however be able to load native PE modules (and their
- *   debug information) without any trouble.
- * Note also that this scheme can be intertwined with the deferred loading 
- * mechanism (ie only load the debug information when we actually need it).
- */
-BOOL WINAPI SymInitializeW(HANDLE hProcess, PCWSTR UserSearchPath, BOOL fInvadeProcess)
+static BOOL is_module_present(HANDLE proc, const WCHAR* module_name)
 {
-    struct process*     pcs;
-    BOOL wow64, child_wow64;
+    struct module_present present = { .module_name = module_name };
+    return SymEnumerateModulesW64(proc, is_module_present_cb, &present) && present.found;
+}
 
-    TRACE("(%p %s %u)\n", hProcess, debugstr_w(UserSearchPath), fInvadeProcess);
+struct nth_module
+{
+    HANDLE              proc;
+    unsigned int        index;
+    BOOL                could_fail;
+    IMAGEHLP_MODULE64   module;
+};
 
-    if (process_find_by_handle(hProcess))
+static BOOL CALLBACK nth_module_cb(const char* name, DWORD64 base, void* usr)
+{
+    struct nth_module* nth = usr;
+    BOOL ret;
+
+    if (nth->index--) return TRUE;
+    nth->module.SizeOfStruct = sizeof(nth->module);
+    ret = SymGetModuleInfo64(nth->proc, base, &nth->module);
+    if (nth->could_fail)
     {
-        WARN("the symbols for this process have already been initialized!\n");
-
-        /* MSDN says to only call this function once unless SymCleanup() has been called since the last call.
-           It also says to call SymRefreshModuleList() instead if you just want the module list refreshed.
-           Native still returns TRUE even if the process has already been initialized. */
-        return TRUE;
-    }
-
-    IsWow64Process(GetCurrentProcess(), &wow64);
-
-    if (GetProcessId(hProcess) && !IsWow64Process(hProcess, &child_wow64))
-        return FALSE;
-
-    pcs = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*pcs));
-    if (!pcs) return FALSE;
-
-    pcs->handle = hProcess;
-    pcs->is_64bit = (sizeof(void *) == 8 || wow64) && !child_wow64;
-    pcs->loader = &no_loader_ops; /* platform-specific initialization will override it if loader debug info can be found */
-
-    if (UserSearchPath)
-    {
-        pcs->search_path = lstrcpyW(HeapAlloc(GetProcessHeap(), 0,      
-                                              (lstrlenW(UserSearchPath) + 1) * sizeof(WCHAR)),
-                                    UserSearchPath);
+        /* Windows11 succeeds into loading the overlapped module */
+        ok(!ret || broken(base == nth->module.BaseOfImage), "SymGetModuleInfo64 should have failed\n");
+        nth->module.BaseOfImage = base;
     }
     else
     {
-        pcs->search_path = make_default_search_path();
+        ok(ret, "SymGetModuleInfo64 failed: %lu\n", GetLastError());
+        ok(nth->module.BaseOfImage == base, "Wrong base\n");
     }
-
-    pcs->lmodules = NULL;
-    pcs->dbg_hdr_addr = 0;
-    pcs->next = process_first;
-    process_first = pcs;
-    
-    if (check_live_target(pcs, wow64, child_wow64))
-    {
-        if (fInvadeProcess)
-            module_refresh_list(pcs);
-        else
-            pcs->loader->synchronize_module_list(pcs);
-    }
-    else if (fInvadeProcess)
-    {
-        SymCleanup(hProcess);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-
-    return TRUE;
+    return FALSE;
 }
 
-/******************************************************************
- *		SymInitialize (DBGHELP.@)
- *
- *
+/* wrapper around EnumerateLoadedModuleW64 which sometimes fails for unknown reasons on Win11,
+ * with STATUS_INFO_LENGTH_MISMATCH as GetLastError()!
  */
-BOOL WINAPI SymInitialize(HANDLE hProcess, PCSTR UserSearchPath, BOOL fInvadeProcess)
+static BOOL wrapper_EnumerateLoadedModulesW64(HANDLE proc, PENUMLOADED_MODULES_CALLBACKW64 cb, void* usr)
 {
-    WCHAR*              sp = NULL;
-    BOOL                ret;
+    BOOL ret;
+    int retry;
+    int retry_count = !strcmp(winetest_platform, "wine") ? 1 : 5;
 
-    if (UserSearchPath)
+    for (retry = retry_count - 1; retry >= 0; retry--)
     {
-        unsigned len;
-
-        len = MultiByteToWideChar(CP_ACP, 0, UserSearchPath, -1, NULL, 0);
-        sp = HeapAlloc(GetProcessHeap(), 0, len * sizeof(WCHAR));
-        MultiByteToWideChar(CP_ACP, 0, UserSearchPath, -1, sp, len);
+        ret = EnumerateLoadedModulesW64(proc, cb, usr);
+        if (ret || GetLastError() != STATUS_INFO_LENGTH_MISMATCH)
+            break;
+        Sleep(10);
     }
+    if (retry + 1 < retry_count)
+        trace("used wrapper retry: ret=%d retry=%d top=%d\n", ret, retry, retry_count);
 
-    ret = SymInitializeW(hProcess, sp, fInvadeProcess);
-    HeapFree(GetProcessHeap(), 0, sp);
     return ret;
 }
 
-/******************************************************************
- *		SymCleanup (DBGHELP.@)
- *
+/* wrapper around SymRefreshModuleList which sometimes fails (it's very likely implemented on top
+ * of EnumerateLoadedModulesW64 on native too)
  */
-BOOL WINAPI SymCleanup(HANDLE hProcess)
+static BOOL wrapper_SymRefreshModuleList(HANDLE proc)
 {
-    struct process**    ppcs;
-    struct process*     next;
+    BOOL ret;
+    int retry;
+    int retry_count = !strcmp(winetest_platform, "wine") ? 1 : 5;
 
-    TRACE("(%p)\n", hProcess);
-
-    for (ppcs = &process_first; *ppcs; ppcs = &(*ppcs)->next)
+    for (retry = retry_count - 1; retry >= 0; retry--)
     {
-        if ((*ppcs)->handle == hProcess)
+        ret = SymRefreshModuleList(proc);
+        if (ret || (GetLastError() != STATUS_INFO_LENGTH_MISMATCH && GetLastError() == STATUS_PARTIAL_COPY))
+            break;
+        Sleep(10);
+    }
+    if (retry + 1 < retry_count)
+        trace("used wrapper retry: ret=%d retry=%d top=%d\n", ret, retry, retry_count);
+
+    return ret;
+}
+
+static BOOL test_modules(void)
+{
+    BOOL ret;
+    char file_system[MAX_PATH];
+    char file_wow64[MAX_PATH];
+    DWORD64 base;
+    const DWORD64 base1 = 0x00010000;
+    const DWORD64 base2 = 0x08010000;
+    IMAGEHLP_MODULEW64 im;
+    USHORT machine_wow, machine2;
+    HANDLE dummy = (HANDLE)(ULONG_PTR)0xcafef00d;
+    const char* target_dll = "c:\\windows\\system32\\kernel32.dll";
+    unsigned count;
+
+    im.SizeOfStruct = sizeof(im);
+
+    /* can sym load an exec of different bitness even if 32Bit flag not set */
+
+    SymSetOptions(SymGetOptions() & ~SYMOPT_INCLUDE_32BIT_MODULES);
+    ret = SymInitialize(GetCurrentProcess(), 0, FALSE);
+    ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+
+    GetSystemWow64DirectoryA(file_wow64, MAX_PATH);
+    strcat(file_wow64, "\\msinfo32.exe");
+
+    /* not always present */
+    machine_wow = get_module_machine(file_wow64);
+    if (machine_wow != IMAGE_FILE_MACHINE_UNKNOWN)
+    {
+        base = SymLoadModule(GetCurrentProcess(), NULL, file_wow64, NULL, base2, 0);
+        ok(base == base2, "SymLoadModule failed: %lu\n", GetLastError());
+        ret = SymGetModuleInfoW64(GetCurrentProcess(), base2, &im);
+        if (!ret && skip_too_old_dbghelp(GetCurrentProcess(), base2)) return FALSE;
+        ok(ret, "SymGetModuleInfoW64 failed: %lu\n", GetLastError());
+        ok(im.BaseOfImage == base2, "Wrong base address\n");
+        ok(im.MachineType == machine_wow, "Wrong machine %lx (expecting %u)\n", im.MachineType, machine_wow);
+    }
+
+    GetSystemDirectoryA(file_system, MAX_PATH);
+    strcat(file_system, "\\msinfo32.exe");
+
+    base = SymLoadModule(GetCurrentProcess(), NULL, file_system, NULL, base1, 0);
+    ok(base == base1, "SymLoadModule failed: %lu\n", GetLastError());
+    ret = SymGetModuleInfoW64(GetCurrentProcess(), base1, &im);
+    if (!ret && skip_too_old_dbghelp(GetCurrentProcess(), base1)) return FALSE;
+    ok(ret, "SymGetModuleInfoW64 failed: %lu\n", GetLastError());
+    ok(im.BaseOfImage == base1, "Wrong base address\n");
+    machine2 = get_module_machine(file_system);
+    ok(machine2 != IMAGE_FILE_MACHINE_UNKNOWN, "Unexpected machine %u\n", machine2);
+    ok(im.MachineType == machine2, "Wrong machine %lx (expecting %u)\n", im.MachineType, machine2);
+
+    /* still can access first module after loading second */
+    if (machine_wow != IMAGE_FILE_MACHINE_UNKNOWN)
+    {
+        ret = SymGetModuleInfoW64(GetCurrentProcess(), base2, &im);
+        ok(ret, "SymGetModuleInfoW64 failed: %lu\n", GetLastError());
+        ok(im.BaseOfImage == base2, "Wrong base address\n");
+        ok(im.MachineType == machine_wow, "Wrong machine %lx (expecting %u)\n", im.MachineType, machine_wow);
+    }
+
+    ret = SymCleanup(GetCurrentProcess());
+    ok(ret, "SymCleanup failed: %lu\n", GetLastError());
+
+    ret = SymInitialize(dummy, NULL, FALSE);
+    ok(ret, "got error %lu\n", GetLastError());
+
+    ret = SymRefreshModuleList(dummy);
+    ok(!ret, "SymRefreshModuleList should have failed\n");
+    ok(GetLastError() == STATUS_INVALID_CID, "Unexpected last error %lx\n", GetLastError());
+
+    count = get_module_count(dummy);
+    ok(count == 0, "Unexpected count (%u instead of 0)\n", count);
+
+    /* loading with 0 size succeeds */
+    base = SymLoadModuleEx(dummy, NULL, target_dll, NULL, base1, 0, NULL, 0);
+    ok(base == base1, "SymLoadModuleEx failed: %lu\n", GetLastError());
+
+    ret = SymUnloadModule64(dummy, base1);
+    ok(ret, "SymUnloadModule64 failed: %lu\n", GetLastError());
+
+    count = get_module_count(dummy);
+    ok(count == 0, "Unexpected count (%u instead of 0)\n", count);
+
+    ret = SymCleanup(dummy);
+    ok(ret, "SymCleanup failed: %lu\n", GetLastError());
+
+    return TRUE;
+}
+
+struct test_module
+{
+    DWORD64             base;
+    DWORD               size;
+    const char*         name;
+};
+
+static struct test_module get_test_module(const char* path)
+{
+    struct test_module tm;
+    HANDLE dummy = (HANDLE)(ULONG_PTR)0xcafef00d;
+    IMAGEHLP_MODULEW64 im;
+    BOOL ret;
+
+    ret = SymInitialize(dummy, NULL, FALSE);
+    ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+
+    tm.base = SymLoadModuleEx(dummy, NULL, path, NULL, 0, 0, NULL, 0);
+    ok(tm.base != 0, "SymLoadModuleEx failed: %lu\n", GetLastError());
+
+    im.SizeOfStruct = sizeof(im);
+    ret = SymGetModuleInfoW64(dummy, tm.base, &im);
+    ok(ret, "SymGetModuleInfoW64 failed: %lu\n", GetLastError());
+
+    tm.size = im.ImageSize;
+    ok(tm.base == im.BaseOfImage, "Unexpected image base\n");
+    ok(tm.size == get_module_size(path), "Unexpected size\n");
+    tm.name = path;
+
+    ret = SymCleanup(dummy);
+    ok(ret, "SymCleanup failed: %lu\n", GetLastError());
+
+    return tm;
+}
+
+static void test_modules_overlap(void)
+{
+    BOOL ret;
+    DWORD64 base[2];
+    const DWORD64 base1 = 0x00010000;
+    HANDLE dummy = (HANDLE)(ULONG_PTR)0xcafef00d;
+    const char* target1_dll = "c:\\windows\\system32\\kernel32.dll";
+    const char* target2_dll = "c:\\windows\\system32\\winmm.dll";
+    const char* target3_dll = "c:\\windows\\system32\\idontexist.dll";
+    char buffer[512];
+    IMAGEHLP_SYMBOL64* sym = (void*)buffer;
+
+    int i, j;
+    struct test_module target1_dflt = get_test_module(target1_dll);
+    DWORD64 base0 = target1_dflt.base;
+    DWORD64 imsize0 = target1_dflt.size;
+    const struct test
+    {
+        DWORD64             first_base;
+        struct test_module  input;
+        DWORD               error_code;
+        struct test_module  outputs[2];
+    }
+    tests[] =
+    {
+        /* cases where first module is left "untouched" and second not loaded */
+/* 0*/  {base1, {base1,               0,           target1_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0,     target1_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0 / 2, target1_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0 * 2, target1_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+
+        {base1, {base1,               0,           target2_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+/* 5*/  {base1, {base1,               imsize0,     target2_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0 / 2, target2_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0 * 2, target2_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+
+        {base1, {base1,               0,           target3_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0,     target3_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+/*10*/  {base1, {base1,               imsize0 / 2, target3_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+        {base1, {base1,               imsize0 * 2, target3_dll}, ERROR_SUCCESS, {{base1, imsize0, "kernel32"}, {0}}},
+
+        {base0, {base0,               0,           target1_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0,     target1_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0 / 2, target1_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+/*15*/  {base0, {base0,               imsize0 * 2, target1_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+
+        {base0, {base0,               0,           target2_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0,     target2_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0 / 2, target2_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0 * 2, target2_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+
+/*20*/  {base0, {base0,               0,           target3_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0,     target3_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0 / 2, target3_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {base0,               imsize0 * 2, target3_dll}, ERROR_SUCCESS, {{base0, imsize0, "kernel32"}, {0}}},
+
+        /* error cases for second module */
+        {base0, {0,                   0,           target1_dll}, ERROR_INVALID_ADDRESS, {{base0, imsize0, "kernel32"}, {0}}},
+/*25*/  {base0, {0,                   imsize0,     target1_dll}, ERROR_INVALID_ADDRESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {0,                   imsize0 / 2, target1_dll}, ERROR_INVALID_ADDRESS, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {0,                   imsize0 * 2, target1_dll}, ERROR_INVALID_ADDRESS, {{base0, imsize0, "kernel32"}, {0}}},
+
+        {base0, {0,                   0,           target3_dll}, ERROR_NO_MORE_FILES, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {0,                   imsize0,     target3_dll}, ERROR_NO_MORE_FILES, {{base0, imsize0, "kernel32"}, {0}}},
+/*30*/  {base0, {0,                   imsize0 / 2, target3_dll}, ERROR_NO_MORE_FILES, {{base0, imsize0, "kernel32"}, {0}}},
+        {base0, {0,                   imsize0 * 2, target3_dll}, ERROR_NO_MORE_FILES, {{base0, imsize0, "kernel32"}, {0}}},
+
+        /* cases where first module is unloaded and replaced by second module */
+        {base1, {base1 + imsize0 / 2, imsize0,     target1_dll}, ~0,            {{base1 + imsize0 / 2, imsize0,     "kernel32"}, {0}}},
+        {base1, {base1 + imsize0 / 3, imsize0 / 3, target1_dll}, ~0,            {{base1 + imsize0 / 3, imsize0 / 3, "kernel32"}, {0}}},
+        {base1, {base1 + imsize0 / 2, imsize0,     target2_dll}, ~0,            {{base1 + imsize0 / 2, imsize0,     "winmm"}, {0}}},
+/*35*/  {base1, {base1 + imsize0 / 3, imsize0 / 3, target2_dll}, ~0,            {{base1 + imsize0 / 3, imsize0 / 3, "winmm"}, {0}}},
+
+        /* cases where second module is actually loaded */
+        {base1, {base1 + imsize0,     imsize0,     target1_dll}, ~0,            {{base1, imsize0, "kernel32"}, {base1 + imsize0, imsize0, "kernel32"}}},
+        {base1, {base1 - imsize0 / 2, imsize0,     target1_dll}, ~0,            {{base1, imsize0, "kernel32"}, {base1 - imsize0 / 2, imsize0, NULL}}},
+        /* we mark with a NULL modulename the cases where the module is loaded, but isn't visible
+         * (SymGetModuleInfo fails in callback) as it's base address is inside the first loaded module.
+         */
+        {base1, {base1 + imsize0,     imsize0,     target2_dll}, ~0,            {{base1, imsize0, "kernel32"}, {base1 + imsize0, imsize0, "winmm"}}},
+        {base1, {base1 - imsize0 / 2, imsize0,     target2_dll}, ~0,            {{base1, imsize0, "kernel32"}, {base1 - imsize0 / 2, imsize0, NULL}}},
+    };
+
+    for (i = 0; i < ARRAY_SIZE(tests); i++)
+    {
+        winetest_push_context("overlap tests[%d]", i);
+        ret = SymInitialize(dummy, NULL, FALSE);
+        ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+
+        base[0] = SymLoadModuleEx(dummy, NULL, target1_dll, NULL, tests[i].first_base, 0, NULL, 0);
+        ok(base[0] == tests[i].first_base ? tests[i].first_base : base0, "SymLoadModuleEx failed: %lu\n", GetLastError());
+        ret = SymAddSymbol(dummy, base[0], "winetest_symbol_virtual", base[0] + (3 * imsize0) / 4, 13, 0);
+        ok(ret, "SymAddSymbol failed: %lu\n", GetLastError());
+
+        base[1] = SymLoadModuleEx(dummy, NULL, tests[i].input.name, NULL, tests[i].input.base, tests[i].input.size, NULL, 0);
+        if (tests[i].error_code != ~0)
         {
-            while ((*ppcs)->lmodules) module_remove(*ppcs, (*ppcs)->lmodules);
-
-            HeapFree(GetProcessHeap(), 0, (*ppcs)->search_path);
-            free((*ppcs)->environment);
-            next = (*ppcs)->next;
-            HeapFree(GetProcessHeap(), 0, *ppcs);
-            *ppcs = next;
-            return TRUE;
+            ok(base[1] == 0, "SymLoadModuleEx should have failed\n");
+            ok(GetLastError() == tests[i].error_code ||
+               /* Win8 returns this */
+               (tests[i].error_code == ERROR_NO_MORE_FILES && broken(GetLastError() == ERROR_INVALID_HANDLE)),
+               "Wrong error %lu\n", GetLastError());
         }
-    }
+        else
+        {
+            ok(base[1] == tests[i].input.base, "SymLoadModuleEx failed: %lu\n", GetLastError());
+        }
+        for (j = 0; j < ARRAY_SIZE(tests[i].outputs); j++)
+        {
+            struct nth_module nth = {dummy, j, !tests[i].outputs[j].name, {0}};
 
-    ERR("this process has not had SymInitialize() called for it!\n");
-    return FALSE;
+            ret = SymEnumerateModules64(dummy, nth_module_cb, &nth);
+            ok(ret, "SymEnumerateModules64 failed: %lu\n", GetLastError());
+            if (!tests[i].outputs[j].base)
+            {
+                ok(nth.index != -1, "Got more modules than expected %d, %d\n", nth.index, j);
+                break;
+            }
+            ok(nth.index == -1, "Expecting more modules\n");
+            ok(nth.module.BaseOfImage == tests[i].outputs[j].base, "Wrong base\n");
+            if (!nth.could_fail)
+            {
+                ok(nth.module.ImageSize == tests[i].outputs[j].size, "Wrong size\n");
+                ok(!strcasecmp(nth.module.ModuleName, tests[i].outputs[j].name), "Wrong name\n");
+            }
+        }
+        memset(sym, 0, sizeof(*sym));
+        sym->SizeOfStruct = sizeof(*sym);
+        sym->MaxNameLength = sizeof(buffer) - sizeof(*sym);
+        ret = SymGetSymFromName64(dummy, "winetest_symbol_virtual", sym);
+        if (tests[i].error_code != ~0 || tests[i].outputs[1].base)
+        {
+            /* first module is not unloaded, so our added symbol should be present, with right attributes */
+            ok(ret, "SymGetSymFromName64 has failed: %lu (%d, %d)\n", GetLastError(), i, j);
+            ok(sym->Address == base[0] + (3 * imsize0) / 4, "Unexpected size %lu\n", sym->Size);
+            ok(sym->Size == 13, "Unexpected size %lu\n", sym->Size);
+            ok(sym->Flags & SYMFLAG_VIRTUAL, "Unexpected flag %lx\n", sym->Flags);
+        }
+        else
+        {
+            /* the first module is really unloaded, the our added symbol has disappead */
+            ok(!ret, "SymGetSymFromName64 should have failed %lu\n", GetLastError());
+        }
+        ret = SymCleanup(dummy);
+        ok(ret, "SymCleanup failed: %lu\n", GetLastError());
+        winetest_pop_context();
+    }
 }
 
-/******************************************************************
- *		SymSetOptions (DBGHELP.@)
- *
- */
-DWORD WINAPI SymSetOptions(DWORD opts)
+enum process_kind
 {
-    struct process* pcs;
+    PCSKIND_ERROR,
+    PCSKIND_64BIT,          /* 64 bit process */
+    PCSKIND_32BIT,          /* 32 bit only configuration (Wine, some Win 7...) */
+    PCSKIND_WINE_OLD_WOW64, /* Wine "old" wow64 configuration */
+    PCSKIND_WOW64,          /* Wine "new" wow64 configuration, and Windows with wow64 support */
+};
 
-    for (pcs = process_first; pcs; pcs = pcs->next)
+static enum process_kind get_process_kind_internal(HANDLE process)
+{
+    USHORT m1, m2;
+
+    if (!pIsWow64Process2) /* only happens on old Win 8 and early win 1064v1507 */
     {
-        pcs_callback(pcs, CBA_SET_OPTIONS, &opts);
+        BOOL is_wow64;
+
+        if (!strcmp(winetest_platform, "wine") || !IsWow64Process(process, &is_wow64))
+            return PCSKIND_ERROR;
+        if (is_wow64) return PCSKIND_WOW64;
+        return is_win64 ? PCSKIND_64BIT : PCSKIND_32BIT;
     }
-    return dbghelp_options = opts;
-}
-
-/******************************************************************
- *		SymGetOptions (DBGHELP.@)
- *
- */
-DWORD WINAPI SymGetOptions(void)
-{
-    return dbghelp_options;
-}
-
-/******************************************************************
- *		SymSetExtendedOption (DBGHELP.@)
- *
- */
-BOOL WINAPI SymSetExtendedOption(IMAGEHLP_EXTENDED_OPTIONS option, BOOL value)
-{
-    BOOL old = FALSE;
-
-    switch(option)
+    if (!pIsWow64Process2(process, &m1, &m2)) return PCSKIND_ERROR;
+    if (m1 == IMAGE_FILE_MACHINE_UNKNOWN && get_machine_bitness(m2) == 32) return PCSKIND_32BIT;
+    if (m1 == IMAGE_FILE_MACHINE_UNKNOWN && get_machine_bitness(m2) == 64) return PCSKIND_64BIT;
+    if (get_machine_bitness(m1) == 32 && get_machine_bitness(m2) == 64)
     {
-        case SYMOPT_EX_WINE_NATIVE_MODULES:
-            old = dbghelp_opt_native;
-            dbghelp_opt_native = value;
-            break;
-        case SYMOPT_EX_WINE_EXTENSION_API:
-            old = dbghelp_opt_extension_api;
-            dbghelp_opt_extension_api = value;
-            break;
-        case SYMOPT_EX_WINE_MODULE_REAL_PATH:
-            old = dbghelp_opt_real_path;
-            dbghelp_opt_real_path = value;
-            break;
-        case SYMOPT_EX_WINE_SOURCE_ACTUAL_PATH:
-            old = dbghelp_opt_source_actual_path;
-            dbghelp_opt_source_actual_path = value;
-            break;
-        default:
-            FIXME("Unsupported option %d with value %d\n", option, value);
+        enum process_kind pcskind = PCSKIND_WOW64;
+        if (!strcmp(winetest_platform, "wine"))
+        {
+            PROCESS_BASIC_INFORMATION pbi;
+            PEB32 peb32;
+            const char* peb_addr;
+
+            if (NtQueryInformationProcess(process, ProcessBasicInformation, &pbi, sizeof(pbi), NULL))
+                return PCSKIND_ERROR;
+
+            peb_addr = (const char*)pbi.PebBaseAddress;
+            if (is_win64) peb_addr += 0x1000;
+            if (!ReadProcessMemory(process, peb_addr, &peb32, sizeof(peb32), NULL)) return PCSKIND_ERROR;
+            if (*(const DWORD*)((const char*)&peb32 + 0x460 /* CloudFileFlags */))
+                pcskind = PCSKIND_WINE_OLD_WOW64;
+        }
+        return pcskind;
     }
-
-    return old;
+    return PCSKIND_ERROR;
 }
 
-/******************************************************************
- *		SymGetExtendedOption (DBGHELP.@)
- *
- */
-BOOL WINAPI SymGetExtendedOption(IMAGEHLP_EXTENDED_OPTIONS option)
+static enum process_kind get_process_kind(HANDLE process)
 {
-    switch(option)
-    {
-        case SYMOPT_EX_WINE_NATIVE_MODULES:
-            return dbghelp_opt_native;
-        case SYMOPT_EX_WINE_EXTENSION_API:
-            return dbghelp_opt_extension_api;
-        case SYMOPT_EX_WINE_MODULE_REAL_PATH:
-            return dbghelp_opt_real_path;
-        case SYMOPT_EX_WINE_SOURCE_ACTUAL_PATH:
-            return dbghelp_opt_source_actual_path;
-        default:
-            FIXME("Unsupported option %d\n", option);
-    }
-
-    return FALSE;
+    DWORD gle = GetLastError();
+    enum process_kind pcskind = get_process_kind_internal(process);
+    SetLastError(gle);
+    return pcskind;
 }
 
-/******************************************************************
- *		SymSetParentWindow (DBGHELP.@)
- *
- */
-BOOL WINAPI SymSetParentWindow(HWND hwnd)
+static const char* process_kind2string(enum process_kind pcskind)
 {
-    /* Save hwnd so it can be used as parent window */
-    FIXME("(%p): stub\n", hwnd);
-    return TRUE;
+    static const char* str[] = {"error", "64bit", "32bit", "wine_old_wow64", "wow64"};
+    return (pcskind >= ARRAY_SIZE(str)) ? str[0] : str[pcskind];
 }
 
-/******************************************************************
- *		SymSetContext (DBGHELP.@)
- *
- */
-BOOL WINAPI SymSetContext(HANDLE hProcess, PIMAGEHLP_STACK_FRAME StackFrame,
-                          PIMAGEHLP_CONTEXT Context)
+struct loaded_module_aggregation
 {
-    struct process* pcs;
+    HANDLE       proc;
+    unsigned int count_32bit;
+    unsigned int count_64bit;
+    unsigned int count_exe;
+    unsigned int count_ntdll;
+    unsigned int count_systemdir;
+    unsigned int count_wowdir;
+};
 
-    TRACE("(%p %p %p)\n", hProcess, StackFrame, Context);
-
-    if (!(pcs = process_find_by_handle(hProcess))) return FALSE;
-    if (pcs->ctx_frame.ReturnOffset       == StackFrame->ReturnOffset &&
-        pcs->ctx_frame.FrameOffset        == StackFrame->FrameOffset  &&
-        pcs->ctx_frame.StackOffset        == StackFrame->StackOffset  &&
-        pcs->ctx_frame.InstructionOffset  == StackFrame->InstructionOffset)
-    {
-        TRACE("Setting same frame {rtn=%I64x frm=%I64x stk=%I64x}\n",
-              pcs->ctx_frame.ReturnOffset,
-              pcs->ctx_frame.FrameOffset,
-              pcs->ctx_frame.StackOffset);
-        SetLastError(ERROR_SUCCESS);
-        return FALSE;
-    }
-
-    if (!SymSetScopeFromAddr(hProcess, StackFrame->InstructionOffset))
-        return FALSE;
-    pcs->ctx_frame = *StackFrame;
-    /* Context is not (no longer?) used */
-
-    return TRUE;
-}
-
-/******************************************************************
- *		SymSetScopeFromAddr (DBGHELP.@)
- */
-BOOL WINAPI SymSetScopeFromAddr(HANDLE hProcess, ULONG64 addr)
+static BOOL CALLBACK aggregate_cb(PCWSTR imagename, DWORD64 base, ULONG sz, PVOID usr)
 {
-    struct module_pair pair;
-    struct symt_ht* sym;
+    struct loaded_module_aggregation* aggregation = usr;
+    IMAGEHLP_MODULEW64 im;
+    BOOL ret, wow64;
 
-    TRACE("(%p %#I64x)\n", hProcess, addr);
+    memset(&im, 0, sizeof(im));
+    im.SizeOfStruct = sizeof(im);
 
-    if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
-    pair.pcs->localscope_pc = addr;
-    if ((sym = symt_find_symbol_at(pair.effective, addr)) != NULL && sym->symt.tag == SymTagFunction)
-        pair.pcs->localscope_symt = &sym->symt;
+    ret = SymGetModuleInfoW64(aggregation->proc, base, &im);
+    if (ret)
+        ok(aggregation->count_exe && ends_withW(imagename, L".exe"),
+           "%ls shouldn't already be loaded\n", imagename);
     else
-        pair.pcs->localscope_symt = NULL;
+    {
+        ok(!ret, "Module %ls shouldn't be loaded\n", imagename);
+        ret = SymLoadModuleExW(aggregation->proc, NULL, imagename, NULL, base, sz, NULL, 0);
+        ok(ret || broken(GetLastError() == ERROR_SUCCESS) /* Win10/64 v1607 return this on bcryptPrimitives.DLL */,
+           "SymLoadModuleExW failed on %ls: %lu\n", imagename, GetLastError());
+        ret = SymGetModuleInfoW64(aggregation->proc, base, &im);
+        ok(ret, "SymGetModuleInfoW64 failed: %lu\n", GetLastError());
+    }
+
+    switch (get_machine_bitness(im.MachineType))
+    {
+    case 32: aggregation->count_32bit++; break;
+    case 64: aggregation->count_64bit++; break;
+    default: break;
+    }
+    if (ends_withW(imagename, L".exe"))
+        aggregation->count_exe++;
+    if (!wcsicmp(im.ModuleName, L"ntdll"))
+        aggregation->count_ntdll++;
+    if (!wcsnicmp(imagename, system_directory, wcslen(system_directory)))
+        aggregation->count_systemdir++;
+    if (IsWow64Process(aggregation->proc, &wow64) && wow64 &&
+        !wcsnicmp(imagename, wow64_directory, wcslen(wow64_directory)))
+        aggregation->count_wowdir++;
 
     return TRUE;
 }
 
-/******************************************************************
- *		SymSetScopeFromIndex (DBGHELP.@)
- */
-BOOL WINAPI SymSetScopeFromIndex(HANDLE hProcess, ULONG64 addr, DWORD index)
+
+static void test_loaded_modules(void)
 {
-    struct module_pair pair;
-    struct symt* sym;
+    BOOL ret;
+    char buffer[200];
+    PROCESS_INFORMATION pi = {0};
+    STARTUPINFOA si = {0};
+    struct loaded_module_aggregation aggregation = {0};
+    enum process_kind pcskind;
 
-    TRACE("(%p %#I64x %lu)\n", hProcess, addr, index);
+    ret = GetSystemDirectoryA(buffer, sizeof(buffer));
+    ok(ret, "got error %lu\n", GetLastError());
+    strcat(buffer, "\\msinfo32.exe");
 
-    if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
-    sym = symt_index2ptr(pair.effective, index);
-    if (!symt_check_tag(sym, SymTagFunction)) return FALSE;
+    /* testing invalid process handle */
+    ret = wrapper_EnumerateLoadedModulesW64((HANDLE)(ULONG_PTR)0xffffffc0, NULL, FALSE);
+    ok(!ret, "EnumerateLoadedModulesW64 should have failed\n");
+    ok(GetLastError() == STATUS_INVALID_CID, "Unexpected last error %lx\n", GetLastError());
 
-    pair.pcs->localscope_pc = ((struct symt_function*)sym)->ranges[0].low; /* FIXME of FuncDebugStart when it exists? */
-    pair.pcs->localscope_symt = sym;
+    /* testing with child process of different machines */
+    ret = CreateProcessA(NULL, buffer, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    ok(ret, "CreateProcess failed: %lu\n", GetLastError());
 
-    return TRUE;
-}
+    ret = wait_process_window_visible(pi.hProcess, pi.dwProcessId, 5000);
+    ok(ret, "wait timed out\n");
 
-/******************************************************************
- *		SymSetScopeFromInlineContext (DBGHELP.@)
- */
-BOOL WINAPI SymSetScopeFromInlineContext(HANDLE hProcess, ULONG64 addr, DWORD inlinectx)
-{
-    struct module_pair pair;
-    struct symt_function* inlined;
+    ret = SymInitialize(pi.hProcess, NULL, FALSE);
+    ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+    memset(&aggregation, 0, sizeof(aggregation));
+    aggregation.proc = pi.hProcess;
 
-    TRACE("(%p %I64x %lx)\n", hProcess, addr, inlinectx);
+    ret = wrapper_EnumerateLoadedModulesW64(pi.hProcess, aggregate_cb, &aggregation);
+    ok(ret, "EnumerateLoadedModulesW64 failed: %lu\n", GetLastError());
 
-    switch (IFC_MODE(inlinectx))
+    pcskind = get_process_kind(pi.hProcess);
+    if (is_win64)
     {
-    case IFC_MODE_INLINE:
-        if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
-        inlined = symt_find_inlined_site(pair.effective, addr, inlinectx);
-        if (inlined)
-        {
-            pair.pcs->localscope_pc = addr;
-            pair.pcs->localscope_symt = &inlined->symt;
-            return TRUE;
-        }
-        /* fall through */
-    case IFC_MODE_IGNORE:
-    case IFC_MODE_REGULAR: return SymSetScopeFromAddr(hProcess, addr);
-    default:
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
+        ok(!aggregation.count_32bit && aggregation.count_64bit, "Wrong bitness aggregation count %u %u\n",
+           aggregation.count_32bit, aggregation.count_64bit);
+        ok(aggregation.count_exe == 1 && aggregation.count_ntdll == 1, "Wrong kind aggregation count %u %u\n",
+           aggregation.count_exe, aggregation.count_ntdll);
+        ok(aggregation.count_systemdir > 2 && !aggregation.count_wowdir, "Wrong directory aggregation count %u %u\n",
+           aggregation.count_systemdir, aggregation.count_wowdir);
     }
-}
-
-/******************************************************************
- *		reg_cb64to32 (internal)
- *
- * Registered callback for converting information from 64 bit to 32 bit
- */
-static BOOL CALLBACK reg_cb64to32(HANDLE hProcess, ULONG action, ULONG64 data, ULONG64 user)
-{
-    struct process*                     pcs = process_find_by_handle(hProcess);
-    void*                               data32;
-    IMAGEHLP_DEFERRED_SYMBOL_LOAD64*    idsl64;
-    IMAGEHLP_DEFERRED_SYMBOL_LOAD       idsl;
-
-    if (!pcs) return FALSE;
-    switch (action)
+    else
     {
-    case CBA_DEBUG_INFO:
-    case CBA_DEFERRED_SYMBOL_LOAD_CANCEL:
-    case CBA_SET_OPTIONS:
-    case CBA_SYMBOLS_UNLOADED:
-        data32 = (void*)(DWORD_PTR)data;
-        break;
-    case CBA_DEFERRED_SYMBOL_LOAD_COMPLETE:
-    case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
-    case CBA_DEFERRED_SYMBOL_LOAD_PARTIAL:
-    case CBA_DEFERRED_SYMBOL_LOAD_START:
-        idsl64 = (IMAGEHLP_DEFERRED_SYMBOL_LOAD64*)(DWORD_PTR)data;
-        if (!validate_addr64(idsl64->BaseOfImage))
-            return FALSE;
-        idsl.SizeOfStruct = sizeof(idsl);
-        idsl.BaseOfImage = (DWORD)idsl64->BaseOfImage;
-        idsl.CheckSum = idsl64->CheckSum;
-        idsl.TimeDateStamp = idsl64->TimeDateStamp;
-        memcpy(idsl.FileName, idsl64->FileName, sizeof(idsl.FileName));
-        idsl.Reparse = idsl64->Reparse;
-        data32 = &idsl;
-        break;
-    case CBA_DUPLICATE_SYMBOL:
-    case CBA_EVENT:
-    case CBA_READ_MEMORY:
-    default:
-        FIXME("No mapping for action %lu\n", action);
-        return FALSE;
-    }
-    return pcs->reg_cb32(hProcess, action, data32, (PVOID)(DWORD_PTR)user);
-}
+        BOOL is_wow64;
+        ret = IsWow64Process(pi.hProcess, &is_wow64);
+        ok(ret, "IsWow64Process failed: %lu\n", GetLastError());
 
-/******************************************************************
- *		pcs_callback (internal)
- */
-BOOL pcs_callback(const struct process* pcs, ULONG action, void* data)
-{
-    IMAGEHLP_DEFERRED_SYMBOL_LOAD64 idsl;
-
-    TRACE("%p %lu %p\n", pcs, action, data);
-
-    if (!pcs->reg_cb) return FALSE;
-    if (!pcs->reg_is_unicode)
-    {
-        IMAGEHLP_DEFERRED_SYMBOL_LOADW64*   idslW;
-
-        switch (action)
+        ok(aggregation.count_32bit && !aggregation.count_64bit, "Wrong bitness aggregation count %u %u\n",
+           aggregation.count_32bit, aggregation.count_64bit);
+        ok(aggregation.count_exe == 1 && aggregation.count_ntdll == 1, "Wrong kind aggregation count %u %u\n",
+           aggregation.count_exe, aggregation.count_ntdll);
+        switch (pcskind)
         {
-        case CBA_DEBUG_INFO:
-        case CBA_DEFERRED_SYMBOL_LOAD_CANCEL:
-        case CBA_SET_OPTIONS:
-        case CBA_SYMBOLS_UNLOADED:
+        case PCSKIND_ERROR:
+            ok(0, "Unknown process kind\n");
             break;
-        case CBA_DEFERRED_SYMBOL_LOAD_COMPLETE:
-        case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
-        case CBA_DEFERRED_SYMBOL_LOAD_PARTIAL:
-        case CBA_DEFERRED_SYMBOL_LOAD_START:
-            idslW = data;
-            idsl.SizeOfStruct = sizeof(idsl);
-            idsl.BaseOfImage = idslW->BaseOfImage;
-            idsl.CheckSum = idslW->CheckSum;
-            idsl.TimeDateStamp = idslW->TimeDateStamp;
-            WideCharToMultiByte(CP_ACP, 0, idslW->FileName, -1,
-                                idsl.FileName, sizeof(idsl.FileName), NULL, NULL);
-            idsl.Reparse = idslW->Reparse;
-            data = &idsl;
+        case PCSKIND_64BIT:
+        case PCSKIND_WOW64:
+            todo_wine
+            ok(aggregation.count_systemdir > 2 && aggregation.count_wowdir == 1, "Wrong directory aggregation count %u %u\n",
+               aggregation.count_systemdir, aggregation.count_wowdir);
             break;
-        case CBA_DUPLICATE_SYMBOL:
-        case CBA_EVENT:
-        case CBA_READ_MEMORY:
-        default:
-            FIXME("No mapping for action %lu\n", action);
-            return FALSE;
+        case PCSKIND_32BIT:
+            ok(aggregation.count_systemdir > 2 && aggregation.count_wowdir == 0, "Wrong directory aggregation count %u %u\n",
+               aggregation.count_systemdir, aggregation.count_wowdir);
+            break;
+        case PCSKIND_WINE_OLD_WOW64:
+            todo_wine
+            ok(aggregation.count_systemdir == 1 && aggregation.count_wowdir > 2, "Wrong directory aggregation count %u %u\n",
+               aggregation.count_systemdir, aggregation.count_wowdir);
+            break;
         }
     }
-    return pcs->reg_cb(pcs->handle, action, (ULONG64)(DWORD_PTR)data, pcs->reg_user);
+
+    pcskind = get_process_kind(pi.hProcess);
+
+    ret = wrapper_SymRefreshModuleList(pi.hProcess);
+    ok(ret || broken(GetLastError() == STATUS_PARTIAL_COPY /* Win11 in some cases */ ||
+                             GetLastError() == STATUS_INFO_LENGTH_MISMATCH /* Win11 in some cases */),
+       "SymRefreshModuleList failed: %lx\n", GetLastError());
+
+    if (!strcmp(winetest_platform, "wine"))
+    {
+        unsigned count = get_native_module_count(pi.hProcess);
+        todo_wine_if(pcskind == PCSKIND_WOW64)
+        ok(count > 0, "Didn't find any native (ELF/Macho) modules\n");
+    }
+
+    SymCleanup(pi.hProcess);
+    TerminateProcess(pi.hProcess, 0);
+
+    if (is_win64)
+    {
+        ret = GetSystemWow64DirectoryA(buffer, sizeof(buffer));
+        ok(ret, "got error %lu\n", GetLastError());
+        strcat(buffer, "\\msinfo32.exe");
+
+        SymSetOptions(SymGetOptions() & ~SYMOPT_INCLUDE_32BIT_MODULES);
+
+        ret = CreateProcessA(NULL, buffer, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+        if (ret)
+        {
+            ret = wait_process_window_visible(pi.hProcess, pi.dwProcessId, 5000);
+            ok(ret, "wait timed out\n");
+
+            ret = SymInitialize(pi.hProcess, NULL, FALSE);
+            ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+            memset(&aggregation, 0, sizeof(aggregation));
+            aggregation.proc = pi.hProcess;
+
+            ret = wrapper_EnumerateLoadedModulesW64(pi.hProcess, aggregate_cb, &aggregation);
+            ok(ret, "EnumerateLoadedModulesW64 failed: %lu\n", GetLastError());
+
+            pcskind = get_process_kind(pi.hProcess);
+            switch (pcskind)
+            {
+            default:
+                ok(0, "Unknown process kind\n");
+                break;
+            case PCSKIND_WINE_OLD_WOW64:
+                ok(aggregation.count_32bit == 1 && !aggregation.count_64bit, "Wrong bitness aggregation count %u %u\n",
+                   aggregation.count_32bit, aggregation.count_64bit);
+                ok(aggregation.count_exe == 1 && aggregation.count_ntdll == 0, "Wrong kind aggregation count %u %u\n",
+                   aggregation.count_exe, aggregation.count_ntdll);
+                ok(aggregation.count_systemdir == 0 && aggregation.count_wowdir == 1,
+                   "Wrong directory aggregation count %u %u\n",
+                   aggregation.count_systemdir, aggregation.count_wowdir);
+                break;
+            case PCSKIND_WOW64:
+                ok(aggregation.count_32bit == 1 && aggregation.count_64bit, "Wrong bitness aggregation count %u %u\n",
+                   aggregation.count_32bit, aggregation.count_64bit);
+                ok(aggregation.count_exe == 1 && aggregation.count_ntdll == 1, "Wrong kind aggregation count %u %u\n",
+                   aggregation.count_exe, aggregation.count_ntdll);
+                ok(aggregation.count_systemdir > 2 && aggregation.count_64bit == aggregation.count_systemdir && aggregation.count_wowdir == 1,
+                   "Wrong directory aggregation count %u %u\n",
+                   aggregation.count_systemdir, aggregation.count_wowdir);
+            }
+            ret = wrapper_SymRefreshModuleList(pi.hProcess);
+            ok(ret, "SymRefreshModuleList failed: %lx\n", GetLastError());
+
+            if (!strcmp(winetest_platform, "wine"))
+            {
+                unsigned count = get_native_module_count(pi.hProcess);
+                ok(count > 0, "Didn't find any native (ELF/Macho) modules\n");
+            }
+
+            SymCleanup(pi.hProcess);
+            TerminateProcess(pi.hProcess, 0);
+        }
+        else
+        {
+            if (GetLastError() == ERROR_FILE_NOT_FOUND)
+                skip("Skip wow64 test on non compatible platform\n");
+            else
+                ok(ret, "CreateProcess failed: %lu\n", GetLastError());
+        }
+
+        SymSetOptions(SymGetOptions() | SYMOPT_INCLUDE_32BIT_MODULES);
+
+        ret = CreateProcessA(NULL, buffer, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+        if (ret)
+        {
+            struct loaded_module_aggregation aggregation2 = {0};
+
+            ret = WaitForInputIdle(pi.hProcess, 5000);
+            ok(!ret, "wait timed out\n");
+
+            ret = SymInitialize(pi.hProcess, NULL, FALSE);
+            ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+            memset(&aggregation2, 0, sizeof(aggregation2));
+            aggregation2.proc = pi.hProcess;
+            ret = wrapper_EnumerateLoadedModulesW64(pi.hProcess, aggregate_cb, &aggregation2);
+            ok(ret, "EnumerateLoadedModulesW64 failed: %lu\n", GetLastError());
+
+            pcskind = get_process_kind(pi.hProcess);
+            switch (pcskind)
+            {
+            case PCSKIND_ERROR:
+                break;
+            case PCSKIND_WINE_OLD_WOW64:
+                ok(aggregation2.count_32bit && !aggregation2.count_64bit, "Wrong bitness aggregation count %u %u\n",
+                   aggregation2.count_32bit, aggregation2.count_64bit);
+                ok(aggregation2.count_exe == 2 && aggregation2.count_ntdll == 1, "Wrong kind aggregation count %u %u\n",
+                   aggregation2.count_exe, aggregation2.count_ntdll);
+                ok(aggregation2.count_systemdir == 0 && aggregation2.count_32bit == aggregation2.count_wowdir + 1 && aggregation2.count_wowdir > 2,
+                   "Wrong directory aggregation count %u %u\n",
+                   aggregation2.count_systemdir, aggregation2.count_wowdir);
+                break;
+            default:
+                ok(aggregation2.count_32bit && aggregation2.count_64bit, "Wrong bitness aggregation count %u %u\n",
+                   aggregation2.count_32bit, aggregation2.count_64bit);
+                ok(aggregation2.count_exe == 2 && aggregation2.count_ntdll == 2, "Wrong kind aggregation count %u %u\n",
+                   aggregation2.count_exe, aggregation2.count_ntdll);
+                ok(aggregation2.count_systemdir > 2 && aggregation2.count_64bit == aggregation2.count_systemdir && aggregation2.count_wowdir > 2,
+                   "Wrong directory aggregation count %u %u\n",
+                   aggregation2.count_systemdir, aggregation2.count_wowdir);
+                break;
+            }
+
+            ret = wrapper_SymRefreshModuleList(pi.hProcess);
+            ok(ret, "SymRefreshModuleList failed: %lx\n", GetLastError());
+
+            if (!strcmp(winetest_platform, "wine"))
+            {
+                unsigned count = get_native_module_count(pi.hProcess);
+                ok(count > 0, "Didn't find any native (ELF/Macho) modules\n");
+            }
+
+            SymCleanup(pi.hProcess);
+            TerminateProcess(pi.hProcess, 0);
+        }
+        else
+        {
+            if (GetLastError() == ERROR_FILE_NOT_FOUND)
+                skip("Skip wow64 test on non compatible platform\n");
+            else
+                ok(ret, "CreateProcess failed: %lu\n", GetLastError());
+        }
+    }
 }
 
-/******************************************************************
- *		sym_register_cb
- *
- * Helper for registering a callback.
- */
-static BOOL sym_register_cb(HANDLE hProcess,
-                            PSYMBOL_REGISTERED_CALLBACK64 cb,
-                            PSYMBOL_REGISTERED_CALLBACK cb32,
-                            DWORD64 user, BOOL unicode)
+static USHORT pcs_get_loaded_module_machine(HANDLE hProc, DWORD64 base)
 {
-    struct process* pcs = process_find_by_handle(hProcess);
+    IMAGE_DOS_HEADER    dos;
+    DWORD               signature;
+    IMAGE_FILE_HEADER   fh;
+    BOOL                ret;
 
-    if (!pcs) return FALSE;
-    pcs->reg_cb = cb;
-    pcs->reg_cb32 = cb32;
-    pcs->reg_is_unicode = unicode;
-    pcs->reg_user = user;
+    ret = ReadProcessMemory(hProc, (char*)(DWORD_PTR)base, &dos, sizeof(dos), NULL);
+    ok(ret, "ReadProcessMemory failed: %lu\n", GetLastError());
+    ok(dos.e_magic == IMAGE_DOS_SIGNATURE, "Unexpected signature %x\n", dos.e_magic);
+    ret = ReadProcessMemory(hProc, (char*)(DWORD_PTR)(base + dos.e_lfanew), &signature, sizeof(signature), NULL);
+    ok(ret, "ReadProcessMemory failed: %lu\n", GetLastError());
+    ok(signature == IMAGE_NT_SIGNATURE, "Unexpected signature %lx\n", signature);
+    ret = ReadProcessMemory(hProc, (char*)(DWORD_PTR)(base + dos.e_lfanew + sizeof(signature) ), &fh, sizeof(fh), NULL);
+    ok(ret, "ReadProcessMemory failed: %lu\n", GetLastError());
+    return fh.Machine;
+}
+
+static void aggregation_push(struct loaded_module_aggregation* aggregation, DWORD64 base, const WCHAR* name, USHORT machine)
+{
+    BOOL wow64;
+
+    switch (get_machine_bitness(machine))
+    {
+    case 32: aggregation->count_32bit++; break;
+    case 64: aggregation->count_64bit++; break;
+    default: break;
+    }
+    if (ends_withW(name, L".exe"))
+        aggregation->count_exe++;
+    if (ends_withW(name, L"ntdll.dll"))
+        aggregation->count_ntdll++;
+    if (!wcsnicmp(name, system_directory, wcslen(system_directory)))
+        aggregation->count_systemdir++;
+    if (IsWow64Process(aggregation->proc, &wow64) && wow64 &&
+        !wcsnicmp(name, wow64_directory, wcslen(wow64_directory)))
+        aggregation->count_wowdir++;
+}
+
+static BOOL CALLBACK aggregation_sym_cb(const WCHAR* name, DWORD64 base, void* usr)
+{
+    struct loaded_module_aggregation*   aggregation = usr;
+    IMAGEHLP_MODULEW64                  module;
+    BOOL                                ret;
+
+    module.SizeOfStruct = sizeof(module);
+    ret = SymGetModuleInfoW64(aggregation->proc, base, &module);
+    ok(ret, "SymGetModuleInfoW64 failed: %lu\n", GetLastError());
+
+    aggregation_push(aggregation, base, module.LoadedImageName, module.MachineType);
 
     return TRUE;
 }
 
-/***********************************************************************
- *		SymRegisterCallback (DBGHELP.@)
- */
-BOOL WINAPI SymRegisterCallback(HANDLE hProcess, 
-                                PSYMBOL_REGISTERED_CALLBACK CallbackFunction,
-                                PVOID UserContext)
+static BOOL CALLBACK aggregate_enum_cb(PCWSTR imagename, DWORD64 base, ULONG sz, PVOID usr)
 {
-    TRACE("(%p, %p, %p)\n", 
-          hProcess, CallbackFunction, UserContext);
-    return sym_register_cb(hProcess, reg_cb64to32, CallbackFunction, (DWORD_PTR)UserContext, FALSE);
+    struct loaded_module_aggregation*   aggregation = usr;
+
+    aggregation_push(aggregation, base, imagename, pcs_get_loaded_module_machine(aggregation->proc, base));
+
+    return TRUE;
 }
 
-/***********************************************************************
- *		SymRegisterCallback64 (DBGHELP.@)
- */
-BOOL WINAPI SymRegisterCallback64(HANDLE hProcess,
-                                  PSYMBOL_REGISTERED_CALLBACK64 CallbackFunction,
-                                  ULONG64 UserContext)
+static BOOL pcs_fetch_module_name(HANDLE proc, void* str_addr, void* module_base, WCHAR* buffer, unsigned bufsize, BOOL unicode)
 {
-    TRACE("(%p, %p, %I64x)\n", hProcess, CallbackFunction, UserContext);
-    return sym_register_cb(hProcess, CallbackFunction, NULL, UserContext, FALSE);
+    BOOL ret = FALSE;
+
+    if (str_addr)
+    {
+        void* tgt = NULL;
+        SIZE_T addr_size;
+        SIZE_T r;
+        BOOL is_wow64;
+
+        ret = IsWow64Process(proc, &is_wow64);
+        ok(ret, "IsWow64Process failed: %lu\n", GetLastError());
+        addr_size = is_win64 && is_wow64 ? 4 : sizeof(void*);
+
+        /* note: string is not always present */
+        /* assuming little endian CPU */
+        ret = ReadProcessMemory(proc, str_addr, &tgt, addr_size, &r) && r == addr_size;
+        if (ret)
+        {
+            if (unicode)
+            {
+                ret = ReadProcessMemory(proc, tgt, buffer, bufsize, &r);
+                if (ret)
+                    buffer[r / sizeof(WCHAR)] = '\0';
+                /* Win11 starts exposing ntdll from the string indirection in DLL load event.
+                 * So we won't fall back to the mapping's filename below, good!
+                 * But the sent DLL name for the 32bit ntdll is now "ntdll32.dll" instead of "ntdll.dll".
+                 * Replace it by "ntdll.dll" so we won't have to worry about it in the rest of the code.
+                 */
+                if (broken(!wcscmp(buffer, L"ntdll32.dll")))
+                    wcscpy(buffer, L"ntdll.dll");
+            }
+            else
+            {
+                char *tmp = malloc(bufsize);
+                if (tmp)
+                {
+                    ret = ReadProcessMemory(proc, tgt, tmp, bufsize, &r);
+                    if (ret)
+                    {
+                        if (!r) tmp[0] = '\0';
+                        else if (!memchr(tmp, '\0', r)) tmp[r - 1] = '\0';
+                        MultiByteToWideChar(CP_ACP, 0, tmp, -1, buffer, bufsize);
+                        buffer[bufsize - 1] = '\0';
+                    }
+                    free(tmp);
+                }
+                else ret = FALSE;
+            }
+        }
+    }
+    if (!ret)
+    {
+        WCHAR tmp[128];
+        WCHAR drv[3] = {L'A', L':', L'\0'};
+
+        ret = GetMappedFileNameW(proc, module_base, buffer, bufsize);
+        /* Win8 returns this error */
+        if (!broken(!ret && GetLastError() == ERROR_FILE_INVALID))
+        {
+            ok(ret, "GetMappedFileNameW failed: %lu\n", GetLastError());
+            if (!wcsncmp(buffer, L"\\??\\", 4))
+                memmove(buffer, buffer + 4, (wcslen(buffer) + 1 - 4) * sizeof(WCHAR));
+            while (drv[0] <= L'Z')
+            {
+                if (QueryDosDeviceW(drv, tmp, ARRAY_SIZE(tmp)))
+                {
+                    size_t len = wcslen(tmp);
+                    if (len >= 2 && !wcsnicmp(buffer, tmp, len))
+                    {
+                        memmove(buffer + 2, buffer + len, (wcslen(buffer) + 1 - len) * sizeof(WCHAR));
+                        buffer[0] = drv[0];
+                        buffer[1] = drv[1];
+                        break;
+                    }
+                }
+                drv[0]++;
+            }
+        }
+    }
+    return ret;
 }
 
-/***********************************************************************
- *		SymRegisterCallbackW64 (DBGHELP.@)
- */
-BOOL WINAPI SymRegisterCallbackW64(HANDLE hProcess,
-                                   PSYMBOL_REGISTERED_CALLBACK64 CallbackFunction,
-                                   ULONG64 UserContext)
+static void test_live_modules_proc(WCHAR* exename, BOOL with_32)
 {
-    TRACE("(%p, %p, %I64x)\n", hProcess, CallbackFunction, UserContext);
-    return sym_register_cb(hProcess, CallbackFunction, NULL, UserContext, TRUE);
+    WCHAR buffer[MAX_PATH];
+    PROCESS_INFORMATION pi = {0};
+    STARTUPINFOW si = {0};
+    DEBUG_EVENT de;
+    BOOL ret;
+    BOOL is_wow64 = FALSE;
+    struct loaded_module_aggregation aggregation_event = {};
+    struct loaded_module_aggregation aggregation_enum = {};
+    struct loaded_module_aggregation aggregation_sym = {};
+    DWORD old_options = SymGetOptions();
+    enum process_kind pcskind;
+
+    ret = CreateProcessW(NULL, exename, NULL, NULL, FALSE, DEBUG_PROCESS, NULL, NULL, &si, &pi);
+    if (!ret)
+    {
+        if (GetLastError() == ERROR_FILE_NOT_FOUND)
+            skip("Skip wow64 test on non compatible platform\n");
+        else
+            ok(ret, "CreateProcess failed: %lu\n", GetLastError());
+        return;
+    }
+
+    ret = IsWow64Process(pi.hProcess, &is_wow64);
+    ok(ret, "IsWow64Process failed: %lu\n", GetLastError());
+    pcskind = get_process_kind(pi.hProcess);
+    ok(pcskind != PCSKIND_ERROR, "Unexpected error\n");
+
+    winetest_push_context("[%u/%u enum:%s %s]",
+                          is_win64 ? 64 : 32, is_wow64 ? 32 : 64, with_32 ? "+32bit" : "default",
+                          process_kind2string(pcskind));
+
+    memset(&aggregation_event, 0, sizeof(aggregation_event));
+    aggregation_event.proc = pi.hProcess;
+    while (WaitForDebugEvent(&de, 2000))
+    {
+        switch (de.dwDebugEventCode)
+        {
+        case CREATE_PROCESS_DEBUG_EVENT:
+            if (pcs_fetch_module_name(pi.hProcess, de.u.CreateProcessInfo.lpImageName, de.u.CreateProcessInfo.lpBaseOfImage,
+                                      buffer, ARRAY_SIZE(buffer), de.u.CreateProcessInfo.fUnicode))
+                aggregation_push(&aggregation_event, (ULONG_PTR)de.u.CreateProcessInfo.lpBaseOfImage, buffer,
+                                 pcs_get_loaded_module_machine(pi.hProcess, (ULONG_PTR)de.u.CreateProcessInfo.lpBaseOfImage));
+            break;
+        case LOAD_DLL_DEBUG_EVENT:
+            if (pcs_fetch_module_name(pi.hProcess, de.u.LoadDll.lpImageName, de.u.LoadDll.lpBaseOfDll, buffer, ARRAY_SIZE(buffer), de.u.LoadDll.fUnicode))
+                aggregation_push(&aggregation_event, (ULONG_PTR)de.u.LoadDll.lpBaseOfDll, buffer,
+                                 pcs_get_loaded_module_machine(pi.hProcess, (ULONG_PTR)de.u.LoadDll.lpBaseOfDll));
+            break;
+        case UNLOAD_DLL_DEBUG_EVENT:
+            /* FIXME: we should take of updating aggregation_event; as of today, doesn't trigger issue */
+            break;
+        case EXCEPTION_DEBUG_EVENT:
+            break;
+        }
+        ret = ContinueDebugEvent(de.dwProcessId, de.dwThreadId, DBG_CONTINUE);
+        ok(ret, "ContinueDebugEvent failed: %lu\n", GetLastError());
+    }
+
+    if (with_32)
+        SymSetOptions(old_options | SYMOPT_INCLUDE_32BIT_MODULES);
+    else
+        SymSetOptions(old_options & ~SYMOPT_INCLUDE_32BIT_MODULES);
+
+    memset(&aggregation_enum, 0, sizeof(aggregation_enum));
+    aggregation_enum.proc = pi.hProcess;
+    ret = wrapper_EnumerateLoadedModulesW64(pi.hProcess, aggregate_enum_cb, &aggregation_enum);
+    ok(ret, "SymEnumerateModulesW64 failed: %lu\n", GetLastError());
+
+    ret = SymInitialize(pi.hProcess, NULL, TRUE);
+    ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+
+/* .exe ntdll kernel32 kernelbase user32 gdi32 (all are in system or wow64 directory) */
+#define MODCOUNT 6
+/* when in wow64: wow64 wow64cpu wow64win ntdll (64bit) */
+#define MODWOWCOUNT 4
+/* .exe is reported twice in enum */
+#define XTRAEXE (!!with_32)
+/* ntdll is reported twice in enum */
+#define XTRANTDLL (is_win64 && is_wow64 && (!!with_32))
+
+    memset(&aggregation_sym, 0, sizeof(aggregation_sym));
+    aggregation_sym.proc = pi.hProcess;
+    ret = SymEnumerateModulesW64(pi.hProcess, aggregation_sym_cb, &aggregation_sym);
+    ok(ret, "SymEnumerateModulesW64 failed: %lu\n", GetLastError());
+
+    if (pcskind == PCSKIND_64BIT) /* 64/64 */
+    {
+        ok(is_win64, "How come?\n");
+        ok(aggregation_event.count_exe == 1,                    "Unexpected event.count_exe %u\n",       aggregation_event.count_exe);
+        ok(aggregation_event.count_32bit == 0,                  "Unexpected event.count_32bit %u\n",     aggregation_event.count_32bit);
+        ok(aggregation_event.count_64bit >= MODCOUNT,           "Unexpected event.count_64bit %u\n",     aggregation_event.count_64bit);
+        ok(aggregation_event.count_systemdir >= MODCOUNT,       "Unexpected event.count_systemdir %u\n", aggregation_event.count_systemdir);
+        ok(aggregation_event.count_wowdir == 0,                 "Unexpected event.count_wowdir %u\n",    aggregation_event.count_wowdir);
+        ok(aggregation_event.count_ntdll == 1,                  "Unexpected event.count_ntdll %u\n",     aggregation_event.count_ntdll);
+
+        ok(aggregation_enum.count_exe == 1,                     "Unexpected enum.count_exe %u\n",        aggregation_enum.count_exe);
+        ok(aggregation_enum.count_32bit == 0,                   "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        ok(aggregation_enum.count_64bit >= MODCOUNT,            "Unexpected enum.count_64bit %u\n",      aggregation_enum.count_64bit);
+        ok(aggregation_enum.count_systemdir >= MODCOUNT,        "Unexpected enum.count_systemdir %u\n",  aggregation_enum.count_systemdir);
+        ok(aggregation_enum.count_wowdir == 0,                  "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        ok(aggregation_enum.count_ntdll == 1,                   "Unexpected enum.count_ntdll %u\n",      aggregation_enum.count_ntdll);
+
+        ok(aggregation_sym.count_exe == 1,                      "Unexpected sym.count_exe %u\n",         aggregation_sym.count_exe);
+        ok(aggregation_sym.count_32bit == 0,                    "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        ok(aggregation_sym.count_64bit >= MODCOUNT,             "Unexpected sym.count_64bit %u\n",       aggregation_sym.count_64bit);
+        ok(aggregation_sym.count_systemdir >= MODCOUNT,         "Unexpected sym.count_systemdir %u\n",   aggregation_sym.count_systemdir);
+        ok(aggregation_sym.count_wowdir == 0,                   "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        ok(aggregation_sym.count_ntdll == 1,                    "Unexpected sym.count_ntdll %u\n",       aggregation_sym.count_ntdll);
+    }
+    else if (pcskind == PCSKIND_32BIT) /* 32/32 */
+    {
+        ok(!is_win64, "How come?\n");
+        ok(aggregation_event.count_exe == 1,                    "Unexpected event.count_exe %u\n",       aggregation_event.count_exe);
+        ok(aggregation_event.count_32bit >= MODCOUNT,           "Unexpected event.count_32bit %u\n",     aggregation_event.count_32bit);
+        ok(aggregation_event.count_64bit == 0,                  "Unexpected event.count_64bit %u\n",     aggregation_event.count_64bit);
+        ok(aggregation_event.count_systemdir >= MODCOUNT,       "Unexpected event.count_systemdir %u\n", aggregation_event.count_systemdir);
+        ok(aggregation_event.count_wowdir == 0,                 "Unexpected event.count_wowdir %u\n",    aggregation_event.count_wowdir);
+        ok(aggregation_event.count_ntdll == 1,                  "Unexpected event.count_ntdll %u\n",     aggregation_event.count_ntdll);
+
+        ok(aggregation_enum.count_exe == 1,                     "Unexpected enum.count_exe %u\n",        aggregation_enum.count_exe);
+        ok(aggregation_enum.count_32bit >= MODCOUNT,            "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        ok(aggregation_enum.count_64bit == 0,                   "Unexpected enum.count_64bit %u\n",      aggregation_enum.count_64bit);
+        ok(aggregation_enum.count_systemdir >= MODCOUNT,        "Unexpected enum.count_systemdir %u\n",  aggregation_enum.count_systemdir);
+        ok(aggregation_enum.count_wowdir == 0,                  "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        ok(aggregation_enum.count_ntdll == 1,                   "Unexpected enum.count_ntdll %u\n",      aggregation_enum.count_ntdll);
+
+        ok(aggregation_sym.count_exe == 1,                      "Unexpected sym.count_exe %u\n",         aggregation_sym.count_exe);
+        ok(aggregation_sym.count_32bit >= MODCOUNT,             "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        ok(aggregation_sym.count_64bit == 0,                    "Unexpected sym.count_64bit %u\n",       aggregation_sym.count_64bit);
+        ok(aggregation_sym.count_systemdir >= MODCOUNT,         "Unexpected sym.count_systemdir %u\n",   aggregation_sym.count_systemdir);
+        ok(aggregation_sym.count_wowdir == 0,                   "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        ok(aggregation_sym.count_ntdll == 1,                    "Unexpected sym.count_ntdll %u\n",       aggregation_sym.count_ntdll);
+    }
+    else if (is_win64 && pcskind == PCSKIND_WOW64) /* 64/32 */
+    {
+        ok(aggregation_event.count_exe == 1,                    "Unexpected event.count_exe %u\n",       aggregation_event.count_exe);
+        ok(aggregation_event.count_32bit >= MODCOUNT,           "Unexpected event.count_32bit %u\n",     aggregation_event.count_32bit);
+        ok(aggregation_event.count_64bit >= MODWOWCOUNT,        "Unexpected event.count_64bit %u\n",     aggregation_event.count_64bit);
+        ok(aggregation_event.count_systemdir >= MODWOWCOUNT,    "Unexpected event.count_systemdir %u\n", aggregation_event.count_systemdir);
+        ok(aggregation_event.count_wowdir >= MODCOUNT,          "Unexpected event.count_wowdir %u\n",    aggregation_event.count_wowdir);
+        ok(aggregation_event.count_ntdll == 2 || broken(aggregation_event.count_ntdll == 3),
+                                                 /* yes! with Win 864 and Win1064 v 1507... 2 ntdll:s ain't enuff <g>, 3 are reported! */
+                                                 /* in fact the first ntdll is reported twice (at same address) in two consecutive events */
+                                                                "Unexpected event.count_ntdll %u\n",     aggregation_event.count_ntdll);
+
+        ok(aggregation_enum.count_exe == 1 + XTRAEXE,           "Unexpected enum.count_exe %u\n",        aggregation_enum.count_exe);
+        if (with_32)
+            ok(aggregation_enum.count_32bit >= MODCOUNT,        "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        else
+            ok(aggregation_enum.count_32bit == 1,               "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        ok(aggregation_enum.count_64bit >= MODWOWCOUNT,         "Unexpected enum.count_64bit %u\n",      aggregation_enum.count_64bit);
+        ok(aggregation_enum.count_systemdir >= MODWOWCOUNT,     "Unexpected enum.count_systemdir %u\n",  aggregation_enum.count_systemdir);
+        if (with_32)
+            ok(aggregation_enum.count_wowdir >= MODCOUNT,       "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        else
+            ok(aggregation_enum.count_wowdir == 1,              "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        ok(aggregation_enum.count_ntdll == 1 + XTRANTDLL,       "Unexpected enum.count_ntdll %u\n",      aggregation_enum.count_ntdll);
+
+        ok(aggregation_sym.count_exe == 1,                      "Unexpected sym.count_exe %u\n",         aggregation_sym.count_exe);
+        if (with_32)
+            ok(aggregation_sym.count_32bit >= MODCOUNT,         "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        else
+            ok(aggregation_sym.count_32bit == 1,                "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        ok(aggregation_sym.count_64bit >= MODWOWCOUNT,          "Unexpected sym.count_64bit %u\n",       aggregation_sym.count_64bit);
+        ok(aggregation_sym.count_systemdir >= MODWOWCOUNT,      "Unexpected sym.count_systemdir %u\n",   aggregation_sym.count_systemdir);
+        if (with_32)
+            ok(aggregation_sym.count_wowdir >= MODCOUNT,        "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        else
+            ok(aggregation_sym.count_wowdir == 1,               "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        ok(aggregation_sym.count_ntdll == 1 + XTRANTDLL,        "Unexpected sym.count_ntdll %u\n",       aggregation_sym.count_ntdll);
+    }
+    else if (!is_win64 && pcskind == PCSKIND_WOW64) /* 32/32 */
+    {
+        ok(aggregation_event.count_exe == 1,                    "Unexpected event.count_exe %u\n",       aggregation_event.count_exe);
+        ok(aggregation_event.count_32bit >= MODCOUNT,           "Unexpected event.count_32bit %u\n",     aggregation_event.count_32bit);
+        ok(aggregation_event.count_64bit == 0,                  "Unexpected event.count_64bit %u\n",     aggregation_event.count_64bit);
+        todo_wine
+        ok(aggregation_event.count_systemdir == 0,              "Unexpected event.count_systemdir %u\n", aggregation_event.count_systemdir);
+        ok(aggregation_event.count_wowdir >= MODCOUNT,          "Unexpected event.count_wowdir %u\n",    aggregation_event.count_wowdir);
+        ok(aggregation_event.count_ntdll == 1,                  "Unexpected event.count_ntdll %u\n",     aggregation_event.count_ntdll);
+
+        ok(aggregation_enum.count_exe == 1 + XTRAEXE,           "Unexpected enum.count_exe %u\n",        aggregation_enum.count_exe);
+        ok(aggregation_enum.count_32bit >= MODCOUNT,            "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        ok(aggregation_enum.count_64bit == 0,                   "Unexpected enum.count_64bit %u\n",      aggregation_enum.count_64bit);
+        /* yes that's different from event! */
+        todo_wine
+        ok(aggregation_enum.count_systemdir >= MODCOUNT - 1,    "Unexpected enum.count_systemdir %u\n",  aggregation_enum.count_systemdir);
+        /* .exe */
+        todo_wine
+        ok(aggregation_enum.count_wowdir == 1,                  "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        ok(aggregation_enum.count_ntdll == 1,                   "Unexpected enum.count_ntdll %u\n",      aggregation_enum.count_ntdll);
+
+        ok(aggregation_sym.count_exe == 1,                      "Unexpected sym.count_exe %u\n",         aggregation_sym.count_exe);
+        ok(aggregation_sym.count_32bit >= MODCOUNT,             "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        ok(aggregation_sym.count_64bit == 0,                    "Unexpected sym.count_64bit %u\n",       aggregation_sym.count_64bit);
+        todo_wine
+        ok(aggregation_sym.count_systemdir >= MODCOUNT - 1,     "Unexpected sym.count_systemdir %u\n",   aggregation_sym.count_systemdir);
+        /* .exe */
+        todo_wine
+        ok(aggregation_sym.count_wowdir == 1,                   "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        ok(aggregation_sym.count_ntdll == 1 + XTRANTDLL,        "Unexpected sym.count_ntdll %u\n",       aggregation_sym.count_ntdll);
+    }
+    else if (is_win64 && pcskind == PCSKIND_WINE_OLD_WOW64) /* 64/32 */
+    {
+        ok(aggregation_event.count_exe == 1,                    "Unexpected event.count_exe %u\n",       aggregation_event.count_exe);
+        ok(aggregation_event.count_32bit >= MODCOUNT,           "Unexpected event.count_32bit %u\n",     aggregation_event.count_32bit);
+        ok(aggregation_event.count_64bit == 0,                  "Unexpected event.count_64bit %u\n",     aggregation_event.count_64bit);
+        ok(aggregation_event.count_systemdir >= 1,              "Unexpected event.count_systemdir %u\n", aggregation_event.count_systemdir);
+        ok(aggregation_event.count_wowdir >= MODCOUNT - 1,      "Unexpected event.count_wowdir %u\n",    aggregation_event.count_wowdir);
+        ok(aggregation_event.count_ntdll == 1,                  "Unexpected event.count_ntdll %u\n",     aggregation_event.count_ntdll);
+
+        ok(aggregation_enum.count_exe == 1 + XTRAEXE,           "Unexpected enum.count_exe %u\n",        aggregation_enum.count_exe);
+        if (with_32)
+            ok(aggregation_enum.count_32bit >= MODCOUNT,        "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        else
+            ok(aggregation_enum.count_32bit <= 1,               "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        ok(aggregation_enum.count_64bit == 0,                   "Unexpected enum.count_64bit %u\n",      aggregation_enum.count_64bit);
+        ok(aggregation_enum.count_systemdir == 0,               "Unexpected enum.count_systemdir %u\n",  aggregation_enum.count_systemdir);
+        if (with_32)
+            ok(aggregation_enum.count_wowdir >= MODCOUNT,       "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        else
+            ok(aggregation_enum.count_wowdir <= 1,              "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        ok(aggregation_enum.count_ntdll == XTRANTDLL,           "Unexpected enum.count_ntdll %u\n",      aggregation_enum.count_ntdll);
+
+        ok(aggregation_sym.count_exe == 1,                      "Unexpected sym.count_exe %u\n",         aggregation_sym.count_exe);
+        if (with_32)
+            ok(aggregation_sym.count_32bit >= MODCOUNT,         "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        else
+            ok(aggregation_sym.count_wowdir <= 1,               "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        ok(aggregation_sym.count_64bit == 0,                    "Unexpected sym.count_64bit %u\n",       aggregation_sym.count_64bit);
+        ok(aggregation_sym.count_systemdir == 0,                "Unexpected sym.count_systemdir %u\n",   aggregation_sym.count_systemdir);
+        if (with_32)
+            ok(aggregation_sym.count_wowdir >= MODCOUNT,        "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        else
+            ok(aggregation_sym.count_wowdir <= 1,               "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        ok(aggregation_sym.count_ntdll == XTRANTDLL,            "Unexpected sym.count_ntdll %u\n",       aggregation_sym.count_ntdll);
+    }
+    else if (!is_win64 && pcskind == PCSKIND_WINE_OLD_WOW64) /* 32/32 */
+    {
+        ok(aggregation_event.count_exe == 1,                    "Unexpected event.count_exe %u\n",       aggregation_event.count_exe);
+        ok(aggregation_event.count_32bit >= MODCOUNT,           "Unexpected event.count_32bit %u\n",     aggregation_event.count_32bit);
+        ok(aggregation_event.count_64bit == 0,                  "Unexpected event.count_64bit %u\n",     aggregation_event.count_64bit);
+        todo_wine
+        ok(aggregation_event.count_systemdir == 1,              "Unexpected event.count_systemdir %u\n", aggregation_event.count_systemdir);
+        ok(aggregation_event.count_wowdir >= MODCOUNT,          "Unexpected event.count_wowdir %u\n",    aggregation_event.count_wowdir);
+        ok(aggregation_event.count_ntdll == 1,                  "Unexpected event.count_ntdll %u\n",     aggregation_event.count_ntdll);
+
+        ok(aggregation_enum.count_exe == 1 + XTRAEXE,           "Unexpected enum.count_exe %u\n",        aggregation_enum.count_exe);
+        ok(aggregation_enum.count_32bit >= MODCOUNT,            "Unexpected enum.count_32bit %u\n",      aggregation_enum.count_32bit);
+        ok(aggregation_enum.count_64bit == 0,                   "Unexpected enum.count_64bit %u\n",      aggregation_enum.count_64bit);
+        todo_wine
+        ok(aggregation_enum.count_systemdir >= MODCOUNT,        "Unexpected enum.count_systemdir %u\n",  aggregation_enum.count_systemdir);
+        /* .exe */
+        todo_wine
+        ok(aggregation_enum.count_wowdir == 1,                  "Unexpected enum.count_wowdir %u\n",     aggregation_enum.count_wowdir);
+        ok(aggregation_enum.count_ntdll == 1 + XTRANTDLL,       "Unexpected enum.count_ntdll %u\n",      aggregation_enum.count_ntdll);
+
+        ok(aggregation_sym.count_exe == 1,                      "Unexpected sym.count_exe %u\n",         aggregation_sym.count_exe);
+        ok(aggregation_sym.count_32bit >= MODCOUNT,             "Unexpected sym.count_32bit %u\n",       aggregation_sym.count_32bit);
+        ok(aggregation_sym.count_64bit == 0,                    "Unexpected sym.count_64bit %u\n",       aggregation_sym.count_64bit);
+        todo_wine
+        ok(aggregation_sym.count_systemdir >= MODCOUNT,         "Unexpected sym.count_systemdir %u\n",   aggregation_sym.count_systemdir);
+        /* .exe */
+        todo_wine
+        ok(aggregation_sym.count_wowdir == 1,                   "Unexpected sym.count_wowdir %u\n",      aggregation_sym.count_wowdir);
+        ok(aggregation_sym.count_ntdll == 1 + XTRANTDLL,        "Unexpected sym.count_ntdll %u\n",       aggregation_sym.count_ntdll);
+    }
+    else
+        ok(0, "Unexpected process kind %u\n", pcskind);
+
+    /* main module is enumerated twice in enum when including 32bit modules */
+    ok(aggregation_sym.count_32bit + XTRAEXE == aggregation_enum.count_32bit, "Different sym/enum count32_bit (%u/%u)\n",
+       aggregation_sym.count_32bit, aggregation_enum.count_32bit);
+    ok(aggregation_sym.count_64bit == aggregation_enum.count_64bit, "Different sym/enum count64_bit (%u/%u)\n",
+       aggregation_sym.count_64bit, aggregation_enum.count_64bit);
+    ok(aggregation_sym.count_systemdir == aggregation_enum.count_systemdir, "Different sym/enum systemdir (%u/%u)\n",
+       aggregation_sym.count_systemdir, aggregation_enum.count_systemdir);
+    ok(aggregation_sym.count_wowdir + XTRAEXE == aggregation_enum.count_wowdir, "Different sym/enum wowdir (%u/%u)\n",
+       aggregation_sym.count_wowdir, aggregation_enum.count_wowdir);
+    ok(aggregation_sym.count_exe + XTRAEXE == aggregation_enum.count_exe, "Different sym/enum exe (%u/%u)\n",
+       aggregation_sym.count_exe, aggregation_enum.count_exe);
+    ok(aggregation_sym.count_ntdll == aggregation_enum.count_ntdll, "Different sym/enum exe (%u/%u)\n",
+       aggregation_sym.count_ntdll, aggregation_enum.count_ntdll);
+
+#undef MODCOUNT
+#undef MODWOWCOUNT
+#undef XTRAEXE
+#undef XTRANTDLL
+
+    TerminateProcess(pi.hProcess, 0);
+
+    winetest_pop_context();
+    SymSetOptions(old_options);
 }
 
-/* This is imagehlp version not dbghelp !! */
-static API_VERSION api_version = { 4, 0, 2, 0 };
-
-/***********************************************************************
- *           ImagehlpApiVersion (DBGHELP.@)
- */
-LPAPI_VERSION WINAPI ImagehlpApiVersion(VOID)
+static void test_live_modules(void)
 {
-    return &api_version;
+    WCHAR buffer[200];
+
+    wcscpy(buffer, system_directory);
+    wcscat(buffer, L"\\msinfo32.exe");
+
+    test_live_modules_proc(buffer, FALSE);
+
+    if (is_win64)
+    {
+        wcscpy(buffer, wow64_directory);
+        wcscat(buffer, L"\\msinfo32.exe");
+
+        test_live_modules_proc(buffer, TRUE);
+        test_live_modules_proc(buffer, FALSE);
+    }
 }
 
-/***********************************************************************
- *           ImagehlpApiVersionEx (DBGHELP.@)
- */
-LPAPI_VERSION WINAPI ImagehlpApiVersionEx(LPAPI_VERSION AppVersion)
+#define test_function_table_main_module(b) _test_function_table_entry(__LINE__, NULL, #b, (DWORD64)(DWORD_PTR)&(b))
+#define test_function_table_module(a, b)   _test_function_table_entry(__LINE__, a,    #b, (DWORD64)(DWORD_PTR)GetProcAddress(GetModuleHandleA(a), (b)))
+static void *_test_function_table_entry(unsigned lineno, const char *modulename, const char *name, DWORD64 addr)
 {
-    if (!AppVersion) return NULL;
+    DWORD64 base_module = (DWORD64)(DWORD_PTR)GetModuleHandleA(modulename);
 
-    AppVersion->MajorVersion = api_version.MajorVersion;
-    AppVersion->MinorVersion = api_version.MinorVersion;
-    AppVersion->Revision = api_version.Revision;
-    AppVersion->Reserved = api_version.Reserved;
+    if (RtlImageNtHeader(GetModuleHandleW(NULL))->FileHeader.Machine == IMAGE_FILE_MACHINE_AMD64)
+    {
+        IMAGE_AMD64_RUNTIME_FUNCTION_ENTRY *func;
 
-    return AppVersion;
+        func = SymFunctionTableAccess64(GetCurrentProcess(), addr);
+        ok_(__FILE__, lineno)(func != NULL, "Couldn't find function table for %s\n", name);
+        if (func)
+        {
+            ok_(__FILE__, lineno)(func->BeginAddress == addr - base_module, "Unexpected start of function\n");
+            ok_(__FILE__, lineno)(func->BeginAddress < func->EndAddress, "Unexpected end of function\n");
+            ok_(__FILE__, lineno)((func->UnwindData & 1) == 0, "Unexpected chained runtime function\n");
+        }
+
+        return func;
+    }
+    return NULL;
 }
 
-/******************************************************************
- *		ExtensionApiVersion (DBGHELP.@)
- */
-LPEXT_API_VERSION WINAPI ExtensionApiVersion(void)
+static void test_function_tables(void)
 {
-    static EXT_API_VERSION      eav = {5, 5, 5, 0};
-    return &eav;
+    void *ptr1, *ptr2;
+
+    SymInitialize(GetCurrentProcess(), NULL, TRUE);
+    ptr1 = test_function_table_main_module(test_live_modules);
+    ptr2 = test_function_table_main_module(test_function_tables);
+    ok(ptr1 == ptr2, "Expecting unique storage area\n");
+    ptr2 = test_function_table_module("kernel32.dll", "CreateFileMappingA");
+    ok(ptr1 == ptr2, "Expecting unique storage area\n");
+    SymCleanup(GetCurrentProcess());
 }
 
-/******************************************************************
- *		WinDbgExtensionDllInit (DBGHELP.@)
- */
-void WINAPI WinDbgExtensionDllInit(PWINDBG_EXTENSION_APIS lpExtensionApis,
-                                   unsigned short major, unsigned short minor)
+static void test_refresh_modules(void)
 {
+    BOOL ret;
+    unsigned count, count_current;
+    HMODULE hmod;
+    IMAGEHLP_MODULEW64 module_info = { .SizeOfStruct = sizeof(module_info) };
+
+    /* pick a DLL: which isn't already loaded by test, and that will not load other DLLs for deps */
+    static const WCHAR* unused_dll = L"psapi";
+
+    ret = SymInitialize(GetCurrentProcess(), 0, TRUE);
+    ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+
+    count = get_module_count(GetCurrentProcess());
+    ok(count, "Unexpected module count %u\n", count);
+
+    ret = SymCleanup(GetCurrentProcess());
+    ok(ret, "SymCleanup failed: %lu\n", GetLastError());
+
+    ret = SymInitialize(GetCurrentProcess(), 0, FALSE);
+    ok(ret, "SymInitialize failed: %lu\n", GetLastError());
+
+    count_current = get_module_count(GetCurrentProcess());
+    ok(!count_current, "Unexpected module count %u\n", count_current);
+
+    ret = wrapper_SymRefreshModuleList(GetCurrentProcess());
+    ok(ret, "SymRefreshModuleList failed: %lx\n", GetLastError());
+
+    count_current = get_module_count(GetCurrentProcess());
+    ok(count == count_current, "Unexpected module count %u, %u\n", count, count_current);
+
+    hmod = GetModuleHandleW(unused_dll);
+    ok(hmod == NULL, "Expecting DLL %ls not be loaded\n", unused_dll);
+
+    hmod = LoadLibraryW(unused_dll);
+    ok(hmod != NULL, "LoadLibraryW failed: %lu\n", GetLastError());
+
+    count_current = get_module_count(GetCurrentProcess());
+    ok(count == count_current, "Unexpected module count %u, %u\n", count, count_current);
+    ret = is_module_present(GetCurrentProcess(), unused_dll);
+    ok(!ret, "Couldn't find module %ls\n", unused_dll);
+
+    ret = wrapper_SymRefreshModuleList(GetCurrentProcess());
+    ok(ret, "SymRefreshModuleList failed: %lx\n", GetLastError());
+
+    count_current = get_module_count(GetCurrentProcess());
+    ok(count + 1 == count_current, "Unexpected module count %u, %u\n", count, count_current);
+    ret = is_module_present(GetCurrentProcess(), unused_dll);
+    ok(ret, "Couldn't find module %ls\n", unused_dll);
+
+    ret = FreeLibrary(hmod);
+    ok(ret, "LoadLibraryW failed: %lu\n", GetLastError());
+
+    count_current = get_module_count(GetCurrentProcess());
+    ok(count + 1 == count_current, "Unexpected module count %u, %u\n", count, count_current);
+
+    ret = wrapper_SymRefreshModuleList(GetCurrentProcess());
+    ok(ret, "SymRefreshModuleList failed: %lx\n", GetLastError());
+
+    /* SymRefreshModuleList() doesn't remove the unloaded modules... */
+    count_current = get_module_count(GetCurrentProcess());
+    ok(count + 1 == count_current, "Unexpected module count %u != %u\n", count, count_current);
+    ret = is_module_present(GetCurrentProcess(), unused_dll);
+    ok(ret, "Couldn't find module %ls\n", unused_dll);
+
+    ret = SymCleanup(GetCurrentProcess());
+    ok(ret, "SymCleanup failed: %lu\n", GetLastError());
 }
 
-DWORD calc_crc32(HANDLE handle)
+START_TEST(dbghelp)
 {
-    BYTE buffer[8192];
-    DWORD crc = 0;
-    DWORD len;
+    BOOL ret;
 
-    SetFilePointer(handle, 0, 0, FILE_BEGIN);
-    while (ReadFile(handle, buffer, sizeof(buffer), &len, NULL) && len)
-        crc = RtlComputeCrc32(crc, buffer, len);
-    return crc;
+    /* Don't let the user's environment influence our symbol path */
+    SetEnvironmentVariableA("_NT_SYMBOL_PATH", NULL);
+    SetEnvironmentVariableA("_NT_ALT_SYMBOL_PATH", NULL);
+
+    pIsWow64Process2 = (void*)GetProcAddress(GetModuleHandleA("kernel32.dll"), "IsWow64Process2");
+
+    ret = SymInitialize(GetCurrentProcess(), NULL, TRUE);
+    ok(ret, "got error %lu\n", GetLastError());
+
+    test_stack_walk();
+    test_search_path();
+
+    ret = SymCleanup(GetCurrentProcess());
+    ok(ret, "got error %lu\n", GetLastError());
+
+    ret = GetSystemDirectoryW(system_directory, ARRAY_SIZE(system_directory));
+    ok(ret, "GetSystemDirectoryW failed: %lu\n", GetLastError());
+    /* failure happens on a 32bit only wine setup */
+    if (!GetSystemWow64DirectoryW(wow64_directory, ARRAY_SIZE(wow64_directory)))
+        wow64_directory[0] = L'\0';
+
+    if (test_modules())
+    {
+        test_modules_overlap();
+        test_loaded_modules();
+        test_live_modules();
+        test_refresh_modules();
+    }
+    test_function_tables();
 }

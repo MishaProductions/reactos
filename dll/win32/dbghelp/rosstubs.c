@@ -182,15 +182,6 @@ SymEnumerateSymbolsW(HANDLE hProcess,
 }
 
 BOOL WINAPI
-SymFromNameW(HANDLE hProcess,
-             PCWSTR pszName,
-             PSYMBOL_INFOW Symbol)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
-BOOL WINAPI
 SymFromToken(HANDLE hProcess,
              DWORD64 ModBase,
              DWORD Token,
@@ -237,22 +228,6 @@ SymGetHomeDirectoryW(DWORD dwType,
 {
     UNIMPLEMENTED;
     return NULL;
-}
-
-BOOL WINAPI
-SymGetLineNextW64(HANDLE hProcess,
-                  PIMAGEHLP_LINEW64 Line)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
-BOOL WINAPI
-SymGetLinePrevW64(HANDLE hProcess,
-                  PIMAGEHLP_LINEW64 Line)
-{
-    UNIMPLEMENTED;
-    return FALSE;
 }
 
 BOOL WINAPI
@@ -432,17 +407,6 @@ SymPrevW(HANDLE hProcess,
     return FALSE;
 }
 
-BOOL
-WINAPI
-SymSetScopeFromIndex(
-    HANDLE hProcess,
-    ULONG64 BaseOfDll,
-    DWORD Index)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
 // SymSetSymWithAddr64
 
 PCSTR WINAPI
@@ -486,28 +450,6 @@ SymSrvGetFileIndexStringW(HANDLE hProcess,
                           PWSTR pszIndex,
                           size_t Size,
                           DWORD dwFlags)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
-BOOL WINAPI
-SymSrvGetFileIndexes(PCSTR File,
-                     GUID* Id,
-                     DWORD* Val1,
-                     DWORD* Val2,
-                     DWORD dwFlags)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
-BOOL WINAPI
-SymSrvGetFileIndexesW(PCWSTR File,
-                      GUID* Id,
-                      DWORD* Val1,
-                      DWORD* Val2,
-                      DWORD dwFlags)
 {
     UNIMPLEMENTED;
     return FALSE;
@@ -654,32 +596,6 @@ SymAddSourceStreamA(
     return FALSE;
 }
 
-BOOL
-WINAPI
-SymEnumTypesByName(
-    HANDLE hProcess,
-    ULONG64 BaseOfDll,
-    PCSTR mask,
-    PSYM_ENUMERATESYMBOLS_CALLBACK EnumSymbolsCallback,
-    PVOID UserContext)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
-BOOL
-WINAPI
-SymEnumTypesByNameW(
-    HANDLE hProcess,
-    ULONG64 BaseOfDll,
-    PCWSTR mask,
-    PSYM_ENUMERATESYMBOLS_CALLBACKW EnumSymbolsCallback,
-    PVOID UserContext)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
 
 HANDLE
 WINAPI
@@ -734,29 +650,6 @@ SymFindExecutableImageW(
 {
     UNIMPLEMENTED;
     return 0;
-}
-
-
-BOOL
-WINAPI
-SymSrvGetFileIndexInfo(
-    PCSTR File,
-    PSYMSRV_INDEX_INFO Info,
-    DWORD Flags)
-{
-    UNIMPLEMENTED;
-    return FALSE;
-}
-
-BOOL
-WINAPI
-SymSrvGetFileIndexInfoW(
-    PCWSTR File,
-    PSYMSRV_INDEX_INFOW Info,
-    DWORD Flags)
-{
-    UNIMPLEMENTED;
-    return FALSE;
 }
 
 BOOL
