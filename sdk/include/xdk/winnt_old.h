@@ -1604,13 +1604,6 @@ typedef struct _DISPATCHER_CONTEXT
     ULONG Fill0;
 } DISPATCHER_CONTEXT, *PDISPATCHER_CONTEXT;
 
-typedef struct IMAGE_AMD64_RUNTIME_FUNCTION_ENTRY
-{
-    DWORD BeginAddress;
-    DWORD EndAddress;
-    DWORD UnwindData;
-} IMAGE_AMD64_RUNTIME_FUNCTION_ENTRY;
-
 typedef struct _SCOPE_TABLE_AMD64
 {
     DWORD Count;
