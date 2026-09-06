@@ -36,7 +36,7 @@ jobs:
       if: ${{ steps.get_rosbe.outputs.cache-hit != 'true' }}
       run: |
         chmod +x build_rosbe_ci.sh
-        ./build_rosbe_ci.sh ${{github.workspace}}/RosBE-CI
+        bash -Ee ./build_rosbe_ci.sh ${{github.workspace}}/RosBE-CI
     - name: Install ccache
       run: sudo apt install ccache
     - name: Install LLVM
