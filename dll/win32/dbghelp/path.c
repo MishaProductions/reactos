@@ -627,6 +627,7 @@ static inline const WCHAR* get_machine_dir(const struct machine_dir *machine_dir
     return machine_dir->pe_dir;
 }
 
+#ifndef __REACTOS__
 static BOOL try_match_file(const WCHAR *name, BOOL (*match)(void*, HANDLE, const WCHAR*), void *param)
 {
     HANDLE file = CreateFileW(name, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -639,7 +640,6 @@ static BOOL try_match_file(const WCHAR *name, BOOL (*match)(void*, HANDLE, const
     return FALSE;
 }
 
-#ifndef __REACTOS__
 BOOL search_dll_path(const struct process *process, const WCHAR *name, WORD machine, BOOL (*match)(void*, HANDLE, const WCHAR*), void *param)
 {
     const WCHAR *env;

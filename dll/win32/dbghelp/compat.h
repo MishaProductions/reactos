@@ -791,7 +791,7 @@ DWORD __SetFilePointer(HANDLE,LONG,PLONG,DWORD);
 void* __MapViewOfFile(HANDLE file,DWORD d1,DWORD d2,DWORD d3,SIZE_T s);
 BOOL __UnmapViewOfFile(const void*);
 LPSTR __lstrcpynA(LPSTR,LPCSTR,int);
-BOOL __GetFileSize(HANDLE,LPDWORD);
+DWORD __GetFileSize(HANDLE,LPDWORD);
 BOOL __GetFileSizeEx(HANDLE,PLARGE_INTEGER);
 BOOL WINAPI __IsWow64Process(HANDLE,BOOL*);
 #define OPEN_EXISTING	3
