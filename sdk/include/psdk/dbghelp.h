@@ -2042,6 +2042,11 @@ BOOL WINAPI SymSetExtendedOption(_In_ IMAGEHLP_EXTENDED_OPTIONS option, _In_ BOO
 
 BOOL WINAPI SymSetParentWindow(_In_ HWND);
 
+BOOL IMAGEAPI SymSrvGetFileIndexes(_In_ PCSTR, _Out_ GUID *, _Out_ PDWORD, _Out_opt_ PDWORD, _In_ DWORD);
+BOOL IMAGEAPI SymSrvGetFileIndexesW(_In_ PCWSTR, _Out_ GUID *, _Out_ PDWORD, _Out_opt_ PDWORD, _In_ DWORD);
+BOOL IMAGEAPI SymSrvGetFileIndexInfo(_In_ PCSTR, _Out_ PSYMSRV_INDEX_INFO, _In_ DWORD);
+BOOL IMAGEAPI SymSrvGetFileIndexInfoW(_In_ PCWSTR, _Out_ PSYMSRV_INDEX_INFOW, _In_ DWORD);
+
 BOOL
 IMAGEAPI
 SymSrvIsStore(

@@ -38,6 +38,9 @@
 #include "wine/rbtree.h"
 
 #include "cvconst.h"
+#ifdef __REACTOS__
+#include <oleauto.h>
+#endif
 
 #else /* DBGHELP_STATIC_LIB */
 
@@ -840,6 +843,11 @@ extern BOOL         dwarf2_parse(struct module* module, ULONG_PTR load_offset,
                                  struct image_file_map* fmap);
 extern BOOL dwarf2_virtual_unwind(struct cpu_stack_walk *csw, DWORD_PTR ip,
     union ctx *ctx, DWORD64 *cfa);
+
+#ifdef __REACTOS__
+extern BOOL rsym_parse(struct module* module, unsigned long load_offset,
+                                const void* rsym, int rsymlen);
+#endif
 
 /* stack.c */
 #ifndef DBGHELP_STATIC_LIB

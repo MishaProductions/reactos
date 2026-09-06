@@ -48,6 +48,7 @@ static inline BOOL IsWow64Process2(HANDLE Process, USHORT* ProcessMachine, USHOR
 {
     *ProcessMachine = IMAGE_FILE_MACHINE_UNKNOWN;
     *NativeMachine = IMAGE_FILE_MACHINE_UNKNOWN;
+    return TRUE;
 }
 
 #define LIST_MODULES_DEFAULT 0x00
@@ -1422,6 +1423,7 @@ BOOL  WINAPI EnumerateLoadedModulesW64(HANDLE process,
         if ((count32 = load_and_grow_modules(process, &hmods, count, &alloc, LIST_MODULES_32BIT)))
         {
             sysdir_len = GetSystemDirectoryW(NULL, 0);
+#ifndef __REACTOS__
             wowdir_len = GetSystemWow64Directory2W(NULL, 0, pcs_machine);
 
             if (!sysdir_len || !wowdir_len ||
@@ -1437,6 +1439,7 @@ BOOL  WINAPI EnumerateLoadedModulesW64(HANDLE process,
                 FIXME("shouldn't happen\n");
             wcscat(sysdir, L"\\");
             wcscat(wowdir, L"\\");
+#endif
         }
     }
     else count32 = 0;
