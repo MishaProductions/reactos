@@ -142,7 +142,7 @@ struct symt*      symt_index2ptr(struct module* module, DWORD id)
     }
     else
     {
-#ifdef _WIN64
+#ifdef __x86_64__
         if (!id--) return NULL;
         vector = &module->vsymt;
 #else
