@@ -1,10 +1,8 @@
 
 #include <syscalls.inc>
 
-/* Skip NT5 syscalls, so we get the right IDs for the NT6 ones */
-#define SYSFUNCS_NT5_ONLY
 #define SVC_(name, argcount) SyscallId = SyscallId + 1
-#include <sysfuncs.h>
+#include <sysfuncs_nt60.h>
 #undef SVC_
 #undef SYSFUNCS_NT5_ONLY
 
@@ -17,7 +15,7 @@
 
 #define SVC_(name, argcount) STUB_U name
 
-#include <sysfuncs.h>
+#include <sysfuncs_nt60.h>
 
     END
 
@@ -27,7 +25,7 @@
 
 #define SVC_(name, argcount) STUB_U name, argcount
 
-#include <sysfuncs.h>
+#include <sysfuncs_nt60.h>
 
 END
 #endif

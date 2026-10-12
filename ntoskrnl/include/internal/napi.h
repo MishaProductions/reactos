@@ -7,13 +7,13 @@
 
 #define SVC_(name, argcount) (ULONG_PTR)Nt##name,
 ULONG_PTR MainSSDT[] = {
-#include "sysfuncs.h"
+#include "sysfuncs_nt52.h"
 };
 #undef SVC_
 
 #define SVC_(name, argcount) argcount * sizeof(void *),
 UCHAR MainSSPT[] = {
-#include "sysfuncs.h"
+#include "sysfuncs_nt52.h"
 };
 
 #define MIN_SYSCALL_NUMBER    0

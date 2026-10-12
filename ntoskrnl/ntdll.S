@@ -10,7 +10,7 @@
 
 #define SVC_(name, argcount) STUB_U name
 
-#include <sysfuncs.h>
+#include <sysfuncs_nt52.h>
 
     END
 
@@ -20,7 +20,7 @@
 
 #define SVC_(name, argcount) STUB_U name, argcount
 
-#include <sysfuncs.h>
+#include <sysfuncs_nt52.h>
 
 END
 #endif
