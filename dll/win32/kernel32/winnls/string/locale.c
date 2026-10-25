@@ -60,24 +60,14 @@ static inline BOOL set_ntstatus( NTSTATUS status )
     return !status;
 }
 
-NTSYSAPI NTSTATUS  WINAPI RtlQueryDynamicTimeZoneInformation(RTL_DYNAMIC_TIME_ZONE_INFORMATION*);
-
-#ifdef __REACTOS__
 HANDLE NLS_RegOpenKey(HANDLE hRootKey, LPCWSTR szKeyName)
-#else
-static HANDLE NLS_RegOpenKey(HANDLE hRootKey, LPCWSTR szKeyName)
-#endif
 {
     UNICODE_STRING keyName;
     OBJECT_ATTRIBUTES attr;
     HANDLE hkey;
 
     RtlInitUnicodeString( &keyName, szKeyName );
-#ifdef __REACTOS__
     InitializeObjectAttributes(&attr, &keyName, OBJ_CASE_INSENSITIVE, hRootKey, NULL);
-#else
-    InitializeObjectAttributes(&attr, &keyName, 0, hRootKey, NULL);
-#endif
 
     if (NtOpenKey( &hkey, KEY_READ, &attr ) != STATUS_SUCCESS)
         hkey = 0;
@@ -85,15 +75,9 @@ static HANDLE NLS_RegOpenKey(HANDLE hRootKey, LPCWSTR szKeyName)
     return hkey;
 }
 
-#ifdef __REACTOS__
 BOOL NLS_RegEnumValue(HANDLE hKey, UINT ulIndex,
                       LPWSTR szValueName, ULONG valueNameSize,
                       LPWSTR szValueData, ULONG valueDataSize)
-#else
-static BOOL NLS_RegEnumValue(HANDLE hKey, UINT ulIndex,
-                             LPWSTR szValueName, ULONG valueNameSize,
-                             LPWSTR szValueData, ULONG valueDataSize)
-#endif
 {
     BYTE buffer[80];
     KEY_VALUE_FULL_INFORMATION *info = (KEY_VALUE_FULL_INFORMATION *)buffer;
@@ -118,28 +102,75 @@ static BOOL NLS_RegEnumValue(HANDLE hKey, UINT ulIndex,
     return TRUE;
 }
 
-#ifndef __REACTOS__
-static BOOL NLS_RegGetDword(HANDLE hKey, LPCWSTR szValueName, DWORD *lpVal)
+static TIME_FIELDS SystemTimeToTimeFields(const SYSTEMTIME *SystemTime)
 {
-    BYTE buffer[128];
-    const KEY_VALUE_PARTIAL_INFORMATION *info = (KEY_VALUE_PARTIAL_INFORMATION *)buffer;
-    DWORD dwSize = sizeof(buffer);
-    UNICODE_STRING valueName;
-
-    RtlInitUnicodeString( &valueName, szValueName );
-
-    TRACE("%p, %s\n", hKey, debugstr_w(szValueName));
-    if (NtQueryValueKey( hKey, &valueName, KeyValuePartialInformation,
-                         buffer, dwSize, &dwSize ) == STATUS_SUCCESS &&
-        info->DataLength == sizeof(DWORD))
-    {
-        memcpy(lpVal, info->Data, sizeof(DWORD));
-        return TRUE;
-    }
-
-    return FALSE;
+    TIME_FIELDS TimeFields = {
+        SystemTime->wYear,
+        SystemTime->wMonth,
+        SystemTime->wDay,
+        SystemTime->wHour,
+        SystemTime->wMinute,
+        SystemTime->wSecond,
+        SystemTime->wMilliseconds,
+        SystemTime->wDayOfWeek
+    };
+    return TimeFields;
 }
-#endif
+
+static SYSTEMTIME TimeFieldsToSystemTime(const TIME_FIELDS *TimeFields)
+{
+    SYSTEMTIME SystemTime = {
+        TimeFields->Year,
+        TimeFields->Month,
+        TimeFields->Weekday,
+        TimeFields->Day,
+        TimeFields->Hour,
+        TimeFields->Minute,
+        TimeFields->Second,
+        TimeFields->Milliseconds
+    };
+    return SystemTime;
+}
+
+static void TimeZoneInfoToRtlTimeZoneInfo(
+    const TIME_ZONE_INFORMATION *Info,
+    PRTL_TIME_ZONE_INFORMATION TimeZoneInformation)
+{
+    memcpy(TimeZoneInformation, Info, sizeof(*TimeZoneInformation));
+
+    TimeZoneInformation->StandardDate = SystemTimeToTimeFields(&Info->StandardDate);
+    TimeZoneInformation->DaylightDate = SystemTimeToTimeFields(&Info->DaylightDate);
+}
+
+static void DynamicTimeZoneInfoToRtlDynamicTimeZoneInfo(
+    const DYNAMIC_TIME_ZONE_INFORMATION *Info,
+    PRTL_DYNAMIC_TIME_ZONE_INFORMATION TimeZoneInformation)
+{
+    memcpy(TimeZoneInformation, Info, sizeof(*TimeZoneInformation));
+
+    TimeZoneInformation->StandardDate = SystemTimeToTimeFields(&Info->StandardDate);
+    TimeZoneInformation->DaylightDate = SystemTimeToTimeFields(&Info->DaylightDate);
+}
+
+static void RtlTimeZoneInfoToTimeZoneInfo(
+    const RTL_TIME_ZONE_INFORMATION *TimeZoneInformation,
+    PTIME_ZONE_INFORMATION Info)
+{
+    memcpy(Info, TimeZoneInformation, sizeof(*Info));
+
+    Info->StandardDate = TimeFieldsToSystemTime(&TimeZoneInformation->StandardDate);
+    Info->DaylightDate = TimeFieldsToSystemTime(&TimeZoneInformation->DaylightDate);
+}
+
+static void RtlDynamicTimeZoneInfoToDynamicTimeZoneInfo(
+    const RTL_DYNAMIC_TIME_ZONE_INFORMATION *TimeZoneInformation,
+    PDYNAMIC_TIME_ZONE_INFORMATION Info)
+{
+    memcpy(Info, TimeZoneInformation, sizeof(*Info));
+
+    Info->StandardDate = TimeFieldsToSystemTime(&TimeZoneInformation->StandardDate);
+    Info->DaylightDate = TimeFieldsToSystemTime(&TimeZoneInformation->DaylightDate);
+}
 
 #include "nls.h"
 
@@ -2253,9 +2284,9 @@ void init_locale( HMODULE module )
     RegCreateKeyExW( HKEY_CURRENT_USER, L"Control Panel\\International",
                      0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &intl_key, NULL );
 
-#ifndef __REACTOS__
     current_locale_sort = get_language_sort( LOCALE_NAME_USER_DEFAULT );
 
+#ifndef __REACTOS__
     if (GetDynamicTimeZoneInformation( &timezone ) != TIME_ZONE_ID_INVALID &&
         !RegCreateKeyExW( HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\TimeZoneInformation",
                           0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hkey, NULL ))
@@ -5946,7 +5977,6 @@ static CRITICAL_SECTION_DEBUG tzname_section_debug =
 };
 static CRITICAL_SECTION tzname_section = { &tzname_section_debug, -1, 0, 0, 0, 0 };
 
-#if (__REACTOS__ && DLL_EXPORT_VERSION >= 0x600)
 static struct {
     LCID lcid;
     WCHAR key_name[128];
@@ -5962,8 +5992,15 @@ DWORD WINAPI DECLSPEC_HOTPATCH GetDynamicTimeZoneInformation( DYNAMIC_TIME_ZONE_
     HKEY key;
     LARGE_INTEGER now;
 
+#ifdef __REACTOS__
+    RTL_DYNAMIC_TIME_ZONE_INFORMATION TimeZoneInfo = {0};
+    if (!set_ntstatus( RtlQueryDynamicTimeZoneInformation(&TimeZoneInfo)))
+        return TIME_ZONE_ID_INVALID;
+    RtlDynamicTimeZoneInfoToDynamicTimeZoneInfo(&TimeZoneInfo, info);
+#else
     if (!set_ntstatus( RtlQueryDynamicTimeZoneInformation( (RTL_DYNAMIC_TIME_ZONE_INFORMATION *)info )))
         return TIME_ZONE_ID_INVALID;
+#endif
 
     RtlEnterCriticalSection( &tzname_section );
     if (cached_tzname.lcid == GetThreadLocale() &&
@@ -6024,7 +6061,6 @@ done:
     RegCloseKey( key );
     return ret;
 }
-#endif
 
 
 #define MUI_SIGNATURE 0xfecdfecd
@@ -6630,261 +6666,6 @@ LANGID WINAPI DECLSPEC_HOTPATCH SetThreadUILanguage( LANGID langid )
 }
 
 
-#ifdef __REACTOS__ /* TODO: Dynamic Timezone support */
-/* Copied from https://github.com/reactos/reactos/blob/f06eace89e11b6513afcf65b653f2d360db7ba77/dll/win32/kernel32/wine/timezone.c */
-#define TICKSPERMIN 600000000
-
-#define LL2FILETIME( ll, pft )\
-    (pft)->dwLowDateTime = (UINT)(ll); \
-    (pft)->dwHighDateTime = (UINT)((ll) >> 32);
-#define FILETIME2LL( pft, ll) \
-    ll = (((LONGLONG)((pft)->dwHighDateTime))<<32) + (pft)-> dwLowDateTime ;
-static const int MonthLengths[2][12] =
-{
-    { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 },
-    { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 }
-};
-
-static inline int IsLeapYear(int Year)
-{
-    return Year % 4 == 0 && (Year % 100 != 0 || Year % 400 == 0) ? 1 : 0;
-}
-
-/***********************************************************************
- *  TIME_DayLightCompareDate
- *
- * Compares two dates without looking at the year.
- *
- * PARAMS
- *   date        [in] The local time to compare.
- *   compareDate [in] The daylight savings begin or end date.
- *
- * RETURNS
- *
- *  -1 if date < compareDate
- *   0 if date == compareDate
- *   1 if date > compareDate
- *  -2 if an error occurs
- */
-static int
-TIME_DayLightCompareDate(const SYSTEMTIME *date, const SYSTEMTIME *compareDate)
-{
-    int limit_day, dayinsecs;
-
-    if (date->wMonth < compareDate->wMonth)
-        return -1; /* We are in a month before the date limit. */
-
-    if (date->wMonth > compareDate->wMonth)
-        return 1; /* We are in a month after the date limit. */
-
-    /* if year is 0 then date is in day-of-week format, otherwise
-     * it's absolute date.
-     */
-    if (compareDate->wYear == 0)
-    {
-        WORD First;
-        /* compareDate->wDay is interpreted as number of the week in the month
-         * 5 means: the last week in the month */
-        int weekofmonth = compareDate->wDay;
-          /* calculate the day of the first DayOfWeek in the month */
-        First = ( 6 + compareDate->wDayOfWeek - date->wDayOfWeek + date->wDay 
-               ) % 7 + 1;
-        limit_day = First + 7 * (weekofmonth - 1);
-        /* check needed for the 5th weekday of the month */
-        if(limit_day > MonthLengths[date->wMonth==2 && IsLeapYear(date->wYear)]
-                [date->wMonth - 1])
-            limit_day -= 7;
-    }
-    else
-    {
-       limit_day = compareDate->wDay;
-    }
-
-    /* convert to seconds */
-    limit_day = ((limit_day * 24  + compareDate->wHour) * 60 +
-            compareDate->wMinute ) * 60;
-    dayinsecs = ((date->wDay * 24  + date->wHour) * 60 +
-            date->wMinute ) * 60 + date->wSecond;
-    /* and compare */
-    return dayinsecs < limit_day ? -1 :
-           dayinsecs > limit_day ? 1 :
-           0;   /* date is equal to the date limit. */
-}
-
-/***********************************************************************
- *  TIME_CompTimeZoneID
- *
- *  Computes the local time bias for a given time and time zone.
- *
- *  PARAMS
- *      pTZinfo     [in] The time zone data.
- *      lpFileTime  [in] The system or local time.
- *      islocal     [in] it is local time.
- *
- *  RETURNS
- *      TIME_ZONE_ID_INVALID    An error occurred
- *      TIME_ZONE_ID_UNKNOWN    There are no transition time known
- *      TIME_ZONE_ID_STANDARD   Current time is standard time
- *      TIME_ZONE_ID_DAYLIGHT   Current time is daylight savings time
- */
-static
-DWORD
-TIME_CompTimeZoneID( const TIME_ZONE_INFORMATION *pTZinfo, FILETIME *lpFileTime, BOOL islocal )
-{
-    int ret, year;
-    BOOL beforeStandardDate, afterDaylightDate;
-    DWORD retval = TIME_ZONE_ID_INVALID;
-    LONGLONG llTime = 0; /* initialized to prevent gcc complaining */
-    SYSTEMTIME SysTime;
-    FILETIME ftTemp;
-
-    if (pTZinfo->DaylightDate.wMonth != 0)
-    {
-        /* if year is 0 then date is in day-of-week format, otherwise
-         * it's absolute date.
-         */
-        if (pTZinfo->StandardDate.wMonth == 0 ||
-            (pTZinfo->StandardDate.wYear == 0 &&
-            (pTZinfo->StandardDate.wDay<1 ||
-            pTZinfo->StandardDate.wDay>5 ||
-            pTZinfo->DaylightDate.wDay<1 ||
-            pTZinfo->DaylightDate.wDay>5)))
-        {
-            SetLastError(ERROR_INVALID_PARAMETER);
-            return TIME_ZONE_ID_INVALID;
-        }
-
-        if (!islocal) {
-            FILETIME2LL( lpFileTime, llTime );
-            llTime -= pTZinfo->Bias * (LONGLONG)TICKSPERMIN;
-            LL2FILETIME( llTime, &ftTemp)
-            lpFileTime = &ftTemp;
-        }
-
-        FileTimeToSystemTime(lpFileTime, &SysTime);
-        year = SysTime.wYear;
-
-        if (!islocal) {
-            llTime -= pTZinfo->DaylightBias * (LONGLONG)TICKSPERMIN;
-            LL2FILETIME( llTime, &ftTemp)
-            FileTimeToSystemTime(lpFileTime, &SysTime);
-        }
-        
-        /* check for daylight savings */
-        if(year == SysTime.wYear) {
-            ret = TIME_DayLightCompareDate( &SysTime, &pTZinfo->StandardDate);
-            if (ret == -2)
-                return TIME_ZONE_ID_INVALID;
-
-            beforeStandardDate = ret < 0;
-        } else
-            beforeStandardDate = SysTime.wYear < year;
-
-        if (!islocal) {
-            llTime -= ( pTZinfo->StandardBias - pTZinfo->DaylightBias )
-                * (LONGLONG)TICKSPERMIN;
-            LL2FILETIME( llTime, &ftTemp)
-            FileTimeToSystemTime(lpFileTime, &SysTime);
-        }
-
-        if(year == SysTime.wYear) {
-            ret = TIME_DayLightCompareDate( &SysTime, &pTZinfo->DaylightDate);
-            if (ret == -2)
-                return TIME_ZONE_ID_INVALID;
-
-            afterDaylightDate = ret >= 0;
-        } else
-            afterDaylightDate = SysTime.wYear > year;
-
-        retval = TIME_ZONE_ID_STANDARD;
-        if( pTZinfo->DaylightDate.wMonth <  pTZinfo->StandardDate.wMonth ) {
-            /* Northern hemisphere */
-            if( beforeStandardDate && afterDaylightDate )
-                retval = TIME_ZONE_ID_DAYLIGHT;
-        } else    /* Down south */
-            if( beforeStandardDate || afterDaylightDate )
-            retval = TIME_ZONE_ID_DAYLIGHT;
-    } else 
-        /* No transition date */
-        retval = TIME_ZONE_ID_UNKNOWN;
-        
-    return retval;
-}
-
-/***********************************************************************
- *  TIME_TimeZoneID
- *
- *  Calculates whether daylight savings is on now.
- *
- *  PARAMS
- *      pTzi [in] Timezone info.
- *
- *  RETURNS
- *      TIME_ZONE_ID_INVALID    An error occurred
- *      TIME_ZONE_ID_UNKNOWN    There are no transition time known
- *      TIME_ZONE_ID_STANDARD   Current time is standard time
- *      TIME_ZONE_ID_DAYLIGHT   Current time is daylight savings time
- */
-static DWORD TIME_ZoneID( const TIME_ZONE_INFORMATION *pTzi )
-{
-    FILETIME ftTime;
-    GetSystemTimeAsFileTime( &ftTime);
-    return TIME_CompTimeZoneID( pTzi, &ftTime, FALSE);
-}
-
-/*
- * @implemented
- */
-DWORD
-WINAPI
-GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTimeZoneInformation)
-{
-    RTL_TIME_ZONE_INFORMATION TimeZoneInformation;
-    NTSTATUS Status;
-
-    DPRINT("GetTimeZoneInformation()\n");
-
-    Status = NtQuerySystemInformation(SystemCurrentTimeZoneInformation,
-                                      &TimeZoneInformation,
-                                      sizeof(RTL_TIME_ZONE_INFORMATION),
-                                      NULL);
-    if (!NT_SUCCESS(Status))
-    {
-        BaseSetLastNTError(Status);
-        return TIME_ZONE_ID_INVALID;
-    }
-
-    lpTimeZoneInformation->Bias = TimeZoneInformation.Bias;
-
-    wcsncpy(lpTimeZoneInformation->StandardName,
-            TimeZoneInformation.StandardName,
-            ARRAYSIZE(lpTimeZoneInformation->StandardName));
-    lpTimeZoneInformation->StandardDate.wYear = TimeZoneInformation.StandardDate.Year;
-    lpTimeZoneInformation->StandardDate.wMonth = TimeZoneInformation.StandardDate.Month;
-    lpTimeZoneInformation->StandardDate.wDay = TimeZoneInformation.StandardDate.Day;
-    lpTimeZoneInformation->StandardDate.wHour = TimeZoneInformation.StandardDate.Hour;
-    lpTimeZoneInformation->StandardDate.wMinute = TimeZoneInformation.StandardDate.Minute;
-    lpTimeZoneInformation->StandardDate.wSecond = TimeZoneInformation.StandardDate.Second;
-    lpTimeZoneInformation->StandardDate.wMilliseconds = TimeZoneInformation.StandardDate.Milliseconds;
-    lpTimeZoneInformation->StandardDate.wDayOfWeek = TimeZoneInformation.StandardDate.Weekday;
-    lpTimeZoneInformation->StandardBias = TimeZoneInformation.StandardBias;
-
-    wcsncpy(lpTimeZoneInformation->DaylightName,
-            TimeZoneInformation.DaylightName,
-            ARRAYSIZE(lpTimeZoneInformation->DaylightName));
-    lpTimeZoneInformation->DaylightDate.wYear = TimeZoneInformation.DaylightDate.Year;
-    lpTimeZoneInformation->DaylightDate.wMonth = TimeZoneInformation.DaylightDate.Month;
-    lpTimeZoneInformation->DaylightDate.wDay = TimeZoneInformation.DaylightDate.Day;
-    lpTimeZoneInformation->DaylightDate.wHour = TimeZoneInformation.DaylightDate.Hour;
-    lpTimeZoneInformation->DaylightDate.wMinute = TimeZoneInformation.DaylightDate.Minute;
-    lpTimeZoneInformation->DaylightDate.wSecond = TimeZoneInformation.DaylightDate.Second;
-    lpTimeZoneInformation->DaylightDate.wMilliseconds = TimeZoneInformation.DaylightDate.Milliseconds;
-    lpTimeZoneInformation->DaylightDate.wDayOfWeek = TimeZoneInformation.DaylightDate.Weekday;
-    lpTimeZoneInformation->DaylightBias = TimeZoneInformation.DaylightBias;
-
-    return TIME_ZoneID(lpTimeZoneInformation);
-}
-#else
 /***********************************************************************
  *	GetTimeZoneInformation   (kernelbase.@)
  */
@@ -6896,9 +6677,8 @@ DWORD WINAPI DECLSPEC_HOTPATCH GetTimeZoneInformation( TIME_ZONE_INFORMATION *in
     memcpy( info, &tzinfo, sizeof(*info) );
     return ret;
 }
-#endif
 
-#if (__REACTOS__ && DLL_EXPORT_VERSION >= 0x600)
+
 /***********************************************************************
  *	GetTimeZoneInformationForYear   (kernelbase.@)
  */
@@ -6973,7 +6753,6 @@ done:
     if (ret) SetLastError( ret );
     return !ret;
 }
-#endif
 
 
 /***********************************************************************
@@ -7841,39 +7620,12 @@ BOOL WINAPI DECLSPEC_HOTPATCH SetThreadPreferredUILanguages( DWORD flags, PCZZWS
 BOOL WINAPI DECLSPEC_HOTPATCH SetTimeZoneInformation( const TIME_ZONE_INFORMATION *info )
 {
 #ifdef __REACTOS__
-   RTL_TIME_ZONE_INFORMATION TimeZoneInformation;
+    RTL_TIME_ZONE_INFORMATION TimeZoneInformation;
     NTSTATUS Status;
 
     DPRINT("SetTimeZoneInformation()\n");
 
-    TimeZoneInformation.Bias = info->Bias;
-
-    wcsncpy(TimeZoneInformation.StandardName,
-            info->StandardName,
-            ARRAYSIZE(TimeZoneInformation.StandardName));
-    TimeZoneInformation.StandardDate.Year = info->StandardDate.wYear;
-    TimeZoneInformation.StandardDate.Month = info->StandardDate.wMonth;
-    TimeZoneInformation.StandardDate.Day = info->StandardDate.wDay;
-    TimeZoneInformation.StandardDate.Hour = info->StandardDate.wHour;
-    TimeZoneInformation.StandardDate.Minute = info->StandardDate.wMinute;
-    TimeZoneInformation.StandardDate.Second = info->StandardDate.wSecond;
-    TimeZoneInformation.StandardDate.Milliseconds = info->StandardDate.wMilliseconds;
-    TimeZoneInformation.StandardDate.Weekday = info->StandardDate.wDayOfWeek;
-    TimeZoneInformation.StandardBias = info->StandardBias;
-
-    wcsncpy(TimeZoneInformation.DaylightName,
-            info->DaylightName,
-            ARRAYSIZE(TimeZoneInformation.DaylightName));
-    TimeZoneInformation.DaylightDate.Year = info->DaylightDate.wYear;
-    TimeZoneInformation.DaylightDate.Month = info->DaylightDate.wMonth;
-    TimeZoneInformation.DaylightDate.Day = info->DaylightDate.wDay;
-    TimeZoneInformation.DaylightDate.Hour = info->DaylightDate.wHour;
-    TimeZoneInformation.DaylightDate.Minute = info->DaylightDate.wMinute;
-    TimeZoneInformation.DaylightDate.Second = info->DaylightDate.wSecond;
-    TimeZoneInformation.DaylightDate.Milliseconds = info->DaylightDate.wMilliseconds;
-    TimeZoneInformation.DaylightDate.Weekday = info->DaylightDate.wDayOfWeek;
-    TimeZoneInformation.DaylightBias = info->DaylightBias;
-
+    TimeZoneInfoToRtlTimeZoneInfo(info, &TimeZoneInformation);
     Status = RtlSetTimeZoneInformation(&TimeZoneInformation);
     if (!NT_SUCCESS(Status))
     {
@@ -7897,6 +7649,40 @@ BOOL WINAPI DECLSPEC_HOTPATCH SetTimeZoneInformation( const TIME_ZONE_INFORMATIO
     return set_ntstatus( RtlSetTimeZoneInformation( (const RTL_TIME_ZONE_INFORMATION *)info ));
 #endif
 }
+
+#ifdef __REACTOS__
+/***********************************************************************
+ *	SetDynamicTimeZoneInformation   (kernelbase.@)
+ */
+BOOL WINAPI DECLSPEC_HOTPATCH SetDynamicTimeZoneInformation( const DYNAMIC_TIME_ZONE_INFORMATION *info )
+{
+    RTL_DYNAMIC_TIME_ZONE_INFORMATION TimeZoneInformation;
+    NTSTATUS Status;
+
+    DPRINT("SetDynamicTimeZoneInformation()\n");
+
+    DynamicTimeZoneInfoToRtlDynamicTimeZoneInfo(info, &TimeZoneInformation);
+    Status = RtlSetDynamicTimeZoneInformation(&TimeZoneInformation);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("RtlSetTimeZoneInformation() failed (Status %lx)\n", Status);
+        BaseSetLastNTError(Status);
+        return FALSE;
+    }
+
+    Status = NtSetSystemInformation(SystemDynamicTimeZoneInformation,
+                                    (PVOID)&TimeZoneInformation,
+                                    sizeof(RTL_DYNAMIC_TIME_ZONE_INFORMATION));
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("NtSetSystemInformation() failed (Status %lx)\n", Status);
+        BaseSetLastNTError(Status);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+#endif
 
 
 /******************************************************************************
@@ -7940,7 +7726,13 @@ BOOL WINAPI DECLSPEC_HOTPATCH SystemTimeToTzSpecificLocalTime( const TIME_ZONE_I
 
     if (!info)
     {
+#ifdef __REACTOS__
+        RTL_TIME_ZONE_INFORMATION TimeZone = {0};
+        RtlQueryTimeZoneInformation(&TimeZone);
+        RtlTimeZoneInfoToTimeZoneInfo(&TimeZone, &tzinfo);
+#else
         RtlQueryTimeZoneInformation( (RTL_TIME_ZONE_INFORMATION *)&tzinfo );
+#endif
         info = &tzinfo;
     }
 
@@ -7975,7 +7767,13 @@ BOOL WINAPI DECLSPEC_HOTPATCH TzSpecificLocalTimeToSystemTime( const TIME_ZONE_I
 
     if (!info)
     {
+#ifdef __REACTOS__
+        RTL_TIME_ZONE_INFORMATION TimeZone = {0};
+        RtlQueryTimeZoneInformation(&TimeZone);
+        RtlTimeZoneInfoToTimeZoneInfo(&TimeZone, &tzinfo);
+#else
         RtlQueryTimeZoneInformation( (RTL_TIME_ZONE_INFORMATION *)&tzinfo );
+#endif
         info = &tzinfo;
     }
 
@@ -8293,7 +8091,12 @@ static WCHAR *format_number( WCHAR *end, const WCHAR *value, const WCHAR *decima
         if (len) end = prepend_str( end, thousand_sep );
     }
     if (round) *(--end) = '1';
+#ifdef __REACTOS__
+    /* Needed for shell32:AddCommas. By default, if input is 0 then null string is returned */
+    else if (lzero || !*end) *(--end) = '0';
+#else
     else if (lzero) *(--end) = '0';
+#endif
     return end;
 }
 
