@@ -315,7 +315,9 @@ _Check_return_ __CRT_INLINE long long llrintl(_In_ long double x) { return (long
 #endif
 _Check_return_ __CRT_INLINE double log2(_In_ double x) { return log(x) / log(2); }
 _Check_return_ __CRT_INLINE float log2f(_In_ float x) { return (float)(log((double)x) / log(2)); }
+#if (_MSC_VER < 1952)
 _Check_return_ __CRT_INLINE float copysignf(_In_ float x, _In_ float y) { return _copysignf(x, y); }
+#endif
 
 /* C99 7.12.3.2. _finite() is exported by msvcrt on every architecture,
    unlike _finitef(), which is amd64-only. */
