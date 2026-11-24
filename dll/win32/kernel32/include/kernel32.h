@@ -11,6 +11,7 @@
 #define comm                    205
 #define profile                 206
 #define nls                     207
+#define tape                    208
 
 
 #if DBG
@@ -105,8 +106,6 @@ typedef struct _BASEP_ACTCTX_BLOCK
 #define BASEP_GET_MODULE_HANDLE_EX_PARAMETER_VALIDATION_SUCCESS  2
 #define BASEP_GET_MODULE_HANDLE_EX_PARAMETER_VALIDATION_CONTINUE 3
 
-extern PBASE_STATIC_SERVER_DATA BaseStaticServerData;
-
 typedef
 DWORD
 (*WaitForInputIdleType)(
@@ -153,6 +152,18 @@ extern BOOLEAN BaseRunningInServerProcess;
 VOID
 NTAPI
 BaseDllInitializeMemoryManager(VOID);
+
+/* not compatible with windows, copied from wine */
+struct kernelbase_global_data
+{
+    struct mem_entry *mem_entries;
+    struct mem_entry *mem_entries_end;
+};
+
+void *WINAPI KernelBaseGetGlobalData(void);
+
+extern struct kernelbase_global_data *kernelbase_global_data;
+extern SYSTEM_INFO SystemInfo;
 
 PTEB GetTeb(VOID);
 
@@ -301,12 +312,6 @@ HANDLE
 WINAPI
 BasepGetNamedObjectDirectory(VOID);
 
-NTSTATUS
-WINAPI
-BasepMapFile(IN LPCWSTR lpApplicationName,
-             OUT PHANDLE hSection,
-             OUT PUNICODE_STRING ApplicationName);
-
 PCODEPAGE_ENTRY FASTCALL
 IntGetCodePageEntry(UINT CodePage);
 
@@ -357,12 +362,6 @@ InitCommandLines(VOID);
 DWORD
 WINAPI
 BaseSetLastNTError(IN NTSTATUS Status);
-
-VOID
-NTAPI
-BasepLocateExeLdrEntry(IN PLDR_DATA_TABLE_ENTRY Entry,
-                       IN PVOID Context,
-                       OUT BOOLEAN *StopEnumeration);
 
 typedef NTSTATUS
 (NTAPI *PBASEP_APPCERT_PLUGIN_FUNC)(
