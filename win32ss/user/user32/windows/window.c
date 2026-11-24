@@ -2023,5 +2023,15 @@ DisableProcessWindowsGhosting(VOID)
     NtUserxEnableProcessWindowGhosting(FALSE);
 }
 
+
+int GetSystemMetricsForDpi(
+  int  nIndex,
+  UINT dpi
+)
+{
+    // TODO properly implement
+    return GetSystemMetrics(nIndex);
+}
+
 /* EOF */
 

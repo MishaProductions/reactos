@@ -1121,4 +1121,17 @@ mouse_event(
     NtUserSendInput(1, &Input, sizeof(INPUT));
 }
 
+BOOL EnableMouseInPointer(_In_ BOOL fEnable)
+{
+    UNIMPLEMENTED;
+    return TRUE;
+}
+
+BOOL
+WINAPI
+IsMouseInPointerEnabled()
+{
+    return FALSE;
+}
+
 /* EOF */
