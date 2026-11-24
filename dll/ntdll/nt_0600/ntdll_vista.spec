@@ -4,6 +4,7 @@
 @ stdcall NtGetCurrentProcessorNumberEx(ptr)
 @ stdcall NtGetNlsSectionPtr(long long ptr ptr ptr)
 @ stdcall NtInitializeNlsFiles(ptr ptr ptr ptr)
+@ stdcall NtOpenKeyEx(ptr long ptr long)
 
 @ stdcall RtlGetProductInfo(long long long long ptr)
 @ stdcall RtlInitializeConditionVariable(ptr)
@@ -46,8 +47,32 @@
 
 @ stdcall RtlUnicodeToUTF8N(ptr long ptr wstr long)
 @ stdcall RtlUTF8ToUnicodeN(ptr long ptr str long)
+@ stdcall RtlGetProcessPreferredUILanguages(long ptr ptr ptr)
+@ stdcall RtlInitializeCriticalSectionEx(ptr long long)
+@ stdcall RtlGetUserPreferredUILanguages(long ptr ptr ptr ptr)
+@ stdcall RtlIsNormalizedString(long ptr long ptr)
+@ stdcall RtlIdnToUnicode(long long long long long)
+@ stdcall RtlIdnToAscii(long long long long long)
+@ stdcall RtlIdnToNameprepUnicode(long long long long long)
 
 @ stdcall RtlIsNameInExpression(ptr ptr long ptr)
+
+@ stdcall -stub RtlCopyContext(ptr long ptr)
+@ stdcall -stub RtlGetEnabledExtendedFeatures(int64)
+@ stdcall -stub RtlGetExtendedContextLength(long ptr)
+@ stdcall -stub RtlGetExtendedContextLength2(long ptr int64)
+@ stdcall -stub RtlInitializeExtendedContext(ptr long ptr)
+@ stdcall -stub RtlInitializeExtendedContext2(ptr long ptr int64)
+@ stdcall -stub RtlLocateLegacyContext(ptr ptr)
+@ stdcall -stub RtlLocateExtendedFeature(ptr long ptr)
+@ stdcall -stub RtlLocateExtendedFeature2(ptr long ptr ptr)
+@ stdcall -stub RtlGetExtendedFeaturesMask(ptr)
+@ stdcall -stub RtlSetExtendedFeaturesMask(ptr int64)
+@ stdcall -stub RtlCopyExtendedContext(ptr long ptr)
+@ stdcall -stub -arch=x86_64 RtlCopyMemoryNonTemporal(ptr ptr long)
+@ stdcall -stub -arch=x86_64 RtlWow64GetThreadContext(ptr ptr)
+@ stdcall -stub -arch=x86_64 RtlWow64SetThreadContext(long long)
+@ stdcall -stub RtlAddMandatoryAce(ptr long long long long ptr) ; not present in Win11
 
 @ stdcall RtlQueryDynamicTimeZoneInformation(ptr)
 @ stdcall RtlSetDynamicTimeZoneInformation(long)
@@ -87,3 +112,5 @@
 @ stdcall TpWaitForTimer(ptr long)
 @ stdcall TpWaitForWait(ptr long)
 @ stdcall TpWaitForWork(ptr long)
+@ stdcall RtlTryAcquireSRWLockShared(ptr)
+@ stdcall RtlQueryUnbiasedInterruptTime(ptr)
